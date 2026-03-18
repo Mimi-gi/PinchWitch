@@ -9,6 +9,7 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class HandPinchGrabController : MonoBehaviour
 {
+  private const int InteractionHandCount = 1;
   private const int HandLandmarkCount = 21;
   private const int WristIndex = 0;
   private const int ThumbTipIndex = 4;
@@ -96,6 +97,7 @@ public class HandPinchGrabController : MonoBehaviour
   {
     handTrackingGraph = GetComponent<HandTrackingGraph>();
     worldCamera = Camera.main;
+    ApplyHandTrackingConfiguration();
     if (grabbableLayerMask.value == 0)
     {
       var grabbableLayer = LayerMask.NameToLayer("Grabbable");
@@ -110,6 +112,7 @@ public class HandPinchGrabController : MonoBehaviour
   {
     InitializeHandState();
     EnsureReferences();
+    ApplyHandTrackingConfiguration();
     EnsureCursorSphere();
   }
 
@@ -144,6 +147,7 @@ public class HandPinchGrabController : MonoBehaviour
 
   private void OnValidate()
   {
+    ApplyHandTrackingConfiguration();
     NormalizeRange(ref xRange);
     NormalizeRange(ref yRange);
     NormalizeRange(ref zRange);
@@ -282,7 +286,7 @@ public class HandPinchGrabController : MonoBehaviour
 
   private void OnHandLandmarksOutput(object stream, OutputEventArgs<List<NormalizedLandmarkList>> eventArgs)
   {
-    var hasHand = TryGetFirstHand(eventArgs == null ? null : eventArgs.value, out var handLandmarks);
+    var hasHand = TrySelectInteractionHand(eventArgs == null ? null : eventArgs.value, out var handLandmarks);
 
     lock (_frameLock)
     {
@@ -303,16 +307,37 @@ public class HandPinchGrabController : MonoBehaviour
     }
   }
 
-  private static bool TryGetFirstHand(IList<NormalizedLandmarkList> handLandmarks, out NormalizedLandmarkList firstHand)
+  private void ApplyHandTrackingConfiguration()
   {
-    firstHand = null;
+    if (handTrackingGraph == null)
+    {
+      return;
+    }
+
+    handTrackingGraph.maxNumHands = InteractionHandCount;
+  }
+
+  private static bool TrySelectInteractionHand(IList<NormalizedLandmarkList> handLandmarks, out NormalizedLandmarkList selectedHand)
+  {
+    selectedHand = null;
     if (handLandmarks == null || handLandmarks.Count == 0)
     {
       return false;
     }
 
-    firstHand = handLandmarks[0];
-    return firstHand != null && firstHand.Landmark != null && firstHand.Landmark.Count >= HandLandmarkCount;
+    // Keep single-hand selection in one place so handedness/stable tracking can be added later.
+    var handCount = Mathf.Min(handLandmarks.Count, InteractionHandCount);
+    for (var i = 0; i < handCount; i++)
+    {
+      var candidate = handLandmarks[i];
+      if (candidate != null && candidate.Landmark != null && candidate.Landmark.Count >= HandLandmarkCount)
+      {
+        selectedHand = candidate;
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private void ProcessLatestHandFrame()
@@ -379,7 +404,7 @@ public class HandPinchGrabController : MonoBehaviour
 
     var tri = (Distance2D(wrist, indexMcp) + Distance2D(wrist, pinkyMcp) + Distance2D(indexMcp, pinkyMcp)) / 3f;
     var spine = Distance2D(wrist, middleMcp);
-    return tri * 0.7f + spine * 0.3f;
+    return Mathf.Sqrt(tri * 0.7f + spine * 0.3f);
   }
 
   private static float Distance2D(Vector3 a, Vector3 b)

@@ -175,7 +175,7 @@ MonoBehaviour:
   _openGlEsConfig: {fileID: 4900000, guid: 155e81a0de3136db88c8ac8c72fad8b7, type: 3}
   _timeoutMicrosec: 50000
   modelComplexity: 1
-  maxNumHands: 2
+  maxNumHands: 1
 --- !u!114 &275874969
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -340,7 +340,7 @@ MonoBehaviour:
   cursorLerpX: 0.35
   cursorLerpZ: 0.22
   xSensitivity: 0.8
-  zSensitivity: 0.8
+  zSensitivity: 1
   handLostTimeoutSeconds: 0.25
 --- !u!1001 &296605791
 PrefabInstance:
