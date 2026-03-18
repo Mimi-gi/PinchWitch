@@ -9,7 +9,7 @@ public class ShadowColliderBuilder : MonoBehaviour
     public Transform projectionWall; // 影を落とす「壁」（Quadなどを想定）
 
     [Header("2D空間（ShadowRealm）の参照")]
-    public PolygonCollider2D shadowRealmCollider; // 別次元の(0,0,0)に置いたコライダー→自動生成にした方がいいかもしれない。
+    public PolygonCollider2D shadowRealmCollider; // 配置済みのコライダーに対してローカル座標へ変換して書き込む
 
     public bool Shadow;
 
@@ -39,19 +39,33 @@ public class ShadowColliderBuilder : MonoBehaviour
         }
 
         // ① 投影アルゴリズムの実行
-        List<Vector2> projected2D = ShadowMathUtility.ProjectVerticesToPlane(pointLight.position, worldVertices, projectionWall);
+        List<Vector3> projectedWorldPoints = ShadowMathUtility.ProjectVerticesToPlane(pointLight.position, worldVertices, projectionWall);
 
-        if (projected2D.Count < 3)
+        if (projectedWorldPoints.Count < 3)
         {
             Debug.LogWarning("影が落ちておらぬ！");
             return;
         }
 
+        List<Vector2> projectedPlane2D = new List<Vector2>(projectedWorldPoints.Count);
+        foreach (Vector3 projectedWorldPoint in projectedWorldPoints)
+        {
+            projectedPlane2D.Add(ShadowMathUtility.WorldPointToPlane2D(projectedWorldPoint, projectionWall));
+        }
+
         // ② 凸包アルゴリズムの実行
-        Vector2[] convexHull = ShadowMathUtility.GetConvexHull(projected2D);
+        Vector2[] convexHullOnPlane = ShadowMathUtility.GetConvexHull(projectedPlane2D);
+
+        Vector2[] colliderLocalPath = new Vector2[convexHullOnPlane.Length];
+        for (int i = 0; i < convexHullOnPlane.Length; i++)
+        {
+            Vector3 worldPointOnPlane = projectionWall.TransformPoint(new Vector3(convexHullOnPlane[i].x, 0f, convexHullOnPlane[i].y));
+            Vector3 colliderLocalPoint = shadowRealmCollider.transform.InverseTransformPoint(worldPointOnPlane);
+            colliderLocalPath[i] = new Vector2(colliderLocalPoint.x, colliderLocalPoint.y);
+        }
 
         // ③ 影オブジェクトのコライダーを決定（別次元のマップを更新）
-        shadowRealmCollider.SetPath(0, convexHull);
+        shadowRealmCollider.SetPath(0, colliderLocalPath);
         
         Debug.Log("見事！別次元の2Dマップ構築が完了した！");
         // ※ここでモード切替のフラグを立て、3Dキャラクターを消し、2Dキャラクターをアクティブにする処理を呼ぶのだ！

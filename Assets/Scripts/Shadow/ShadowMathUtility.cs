@@ -1,17 +1,16 @@
 using System.Collections.Generic;
 using UnityEngine;
-using System.Linq;
 
 public static class ShadowMathUtility
 {
     /// <summary>
-    /// 3Dの頂点群を、点光源から特定の平面へ投影し、平面のローカル2D座標として返す
+    /// 3Dの頂点群を、点光源から特定の平面へ投影し、平面上のワールド座標として返す
     /// </summary>
-    public static List<Vector2> ProjectVerticesToPlane(Vector3 lightPos, Vector3[] worldVertices, Transform plane)
+    public static List<Vector3> ProjectVerticesToPlane(Vector3 lightPos, Vector3[] worldVertices, Transform plane)
     {
-        List<Vector2> projectedPoints = new List<Vector2>();
+        List<Vector3> projectedPoints = new List<Vector3>();
         Vector3 planePos = plane.position;
-        Vector3 planeNormal = plane.up; // ※壁（Quad等）を想定し、Z軸方向を法線とする
+        Vector3 planeNormal = plane.up; // このシーンでは回転したPlaneの法線として使う
 
         foreach (Vector3 vertex in worldVertices)
         {
@@ -25,15 +24,21 @@ public static class ShadowMathUtility
             if (t <= 0) continue; // 光源より後ろ
 
             Vector3 projectedPos3D = lightPos + rayDir * t;
-
-            // 平面のローカル座標に変換
-            Vector3 localPos = plane.InverseTransformPoint(projectedPos3D);
-
-            // 壁（Quad）の表面はXY平面なので、xとyを抽出する
-            projectedPoints.Add(new Vector2(localPos.x, localPos.z));
+            projectedPoints.Add(projectedPos3D);
         }
 
         return projectedPoints;
+    }
+
+    /// <summary>
+    /// 平面上のワールド座標を、平面に沿った2D座標へ変換する
+    /// </summary>
+    public static Vector2 WorldPointToPlane2D(Vector3 worldPoint, Transform plane)
+    {
+        Vector3 localPos = plane.InverseTransformPoint(worldPoint);
+
+        // UnityのPlaneはローカルXZ平面なので、XYとして使うためにx/zを抽出する
+        return new Vector2(localPos.x, localPos.z);
     }
 
     /// <summary>
