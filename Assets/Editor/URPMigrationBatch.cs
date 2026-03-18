@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEditor.Rendering;
@@ -9,20 +8,16 @@ using UnityEngine.Rendering.Universal;
 
 public static class URPMigrationBatch
 {
-    [MenuItem("Tools/URP/Run Built-in To URP Conversion")]
+    [MenuItem("Tools/URP/Run Material Upgrade")]
     public static void Run()
     {
         try
         {
             Debug.Log("[URPMigrationBatch] Starting URP migration.");
-
-            var urpAsset = EnsureUrpAsset();
-            AssignPipelineToGraphicsAndQuality(urpAsset);
+            EnsureUrpAssigned();
             UpgradeMaterialsToUrp();
-
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-
             Debug.Log("[URPMigrationBatch] Migration completed.");
             if (Application.isBatchMode)
             {
@@ -31,7 +26,7 @@ public static class URPMigrationBatch
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[URPMigrationBatch] Conversion failed: {ex}");
+            Debug.LogError($"[URPMigrationBatch] Migration failed: {ex}");
             if (Application.isBatchMode)
             {
                 EditorApplication.Exit(1);
@@ -39,36 +34,24 @@ public static class URPMigrationBatch
         }
     }
 
-    static UniversalRenderPipelineAsset EnsureUrpAsset()
+    static UniversalRenderPipelineAsset EnsureUrpAssigned()
     {
-        const string settingsFolder = "Assets/Settings/Rendering";
-        const string rendererPath = settingsFolder + "/DefaultUniversalRenderer.asset";
-        const string pipelinePath = settingsFolder + "/UniversalRenderPipeline.asset";
+        var current = GraphicsSettings.defaultRenderPipeline as UniversalRenderPipelineAsset;
+        if (current != null)
+        {
+            return current;
+        }
 
-        var existing = AssetDatabase.FindAssets("t:UniversalRenderPipelineAsset")
+        var urpAsset = AssetDatabase.FindAssets("t:UniversalRenderPipelineAsset")
             .Select(AssetDatabase.GUIDToAssetPath)
             .Select(AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>)
             .FirstOrDefault(asset => asset != null);
-        if (existing != null)
+
+        if (urpAsset == null)
         {
-            Debug.Log($"[URPMigrationBatch] Reusing existing URP Asset: {AssetDatabase.GetAssetPath(existing)}");
-            return existing;
+            throw new InvalidOperationException("No UniversalRenderPipelineAsset was found in project.");
         }
 
-        Directory.CreateDirectory(settingsFolder);
-
-        var rendererData = ScriptableObject.CreateInstance<UniversalRendererData>();
-        AssetDatabase.CreateAsset(rendererData, rendererPath);
-
-        var urpAsset = UniversalRenderPipelineAsset.Create(rendererData);
-        AssetDatabase.CreateAsset(urpAsset, pipelinePath);
-
-        Debug.Log($"[URPMigrationBatch] Created URP Asset: {pipelinePath}");
-        return urpAsset;
-    }
-
-    static void AssignPipelineToGraphicsAndQuality(UniversalRenderPipelineAsset urpAsset)
-    {
         GraphicsSettings.defaultRenderPipeline = urpAsset;
 
         var currentQuality = QualitySettings.GetQualityLevel();
@@ -76,12 +59,18 @@ public static class URPMigrationBatch
         for (var i = 0; i < qualityNames.Length; i++)
         {
             QualitySettings.SetQualityLevel(i, false);
-            QualitySettings.renderPipeline = urpAsset;
+            if (QualitySettings.renderPipeline == null)
+            {
+                QualitySettings.renderPipeline = urpAsset;
+            }
         }
         QualitySettings.SetQualityLevel(currentQuality, false);
-        QualitySettings.renderPipeline = urpAsset;
+        if (QualitySettings.renderPipeline == null)
+        {
+            QualitySettings.renderPipeline = urpAsset;
+        }
 
-        Debug.Log("[URPMigrationBatch] Assigned URP Asset to GraphicsSettings and all Quality levels.");
+        return urpAsset;
     }
 
     static void UpgradeMaterialsToUrp()
