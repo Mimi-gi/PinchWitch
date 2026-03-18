@@ -93,6 +93,7 @@ public class HandPinchGrabController : MonoBehaviour
   private int _cachedCursorFrame = -1;
   private Vector3 _cachedCursorPoint;
 
+  // Inspector 上の初期参照とデフォルト設定を補完する。
   private void Reset()
   {
     handTrackingGraph = GetComponent<HandTrackingGraph>();
@@ -108,6 +109,7 @@ public class HandPinchGrabController : MonoBehaviour
     }
   }
 
+  // 手状態と参照を初期化し、カーソル表示の準備を行う。
   private void Awake()
   {
     InitializeHandState();
@@ -116,11 +118,13 @@ public class HandPinchGrabController : MonoBehaviour
     EnsureCursorSphere();
   }
 
+  // HandTrackingGraph への購読開始ループを起動する。
   private void OnEnable()
   {
     StartSubscriptionLoop();
   }
 
+  // 購読解除と grab 解放を行い、カーソルを非表示にする。
   private void OnDisable()
   {
     StopSubscriptionLoop();
@@ -129,6 +133,7 @@ public class HandPinchGrabController : MonoBehaviour
     SetCursorVisible(false);
   }
 
+  // 生成したリソースを破棄して終了処理を行う。
   private void OnDestroy()
   {
     StopSubscriptionLoop();
@@ -145,6 +150,7 @@ public class HandPinchGrabController : MonoBehaviour
     }
   }
 
+  // Inspector から編集された値を安全な範囲に正規化する。
   private void OnValidate()
   {
     ApplyHandTrackingConfiguration();
@@ -163,12 +169,14 @@ public class HandPinchGrabController : MonoBehaviour
     zSensitivity = Mathf.Clamp(zSensitivity, 0.1f, 2f);
   }
 
+  // 最新の手フレームを処理し、カーソルと grab 状態を更新する。
   private void Update()
   {
     ProcessLatestHandFrame();
     UpdateHandInteraction();
   }
 
+  // 必要なコンポーネント参照を補完する。
   private void EnsureReferences()
   {
     if (handTrackingGraph == null)
@@ -181,6 +189,7 @@ public class HandPinchGrabController : MonoBehaviour
     }
   }
 
+  // カーソル用 Sphere を用意し、見た目の初期設定を行う。
   private void EnsureCursorSphere()
   {
     if (cursorSphere == null)
@@ -212,6 +221,7 @@ public class HandPinchGrabController : MonoBehaviour
     SetCursorVisible(false);
   }
 
+  // Graph の準備ができるまで購読開始をリトライする。
   private void StartSubscriptionLoop()
   {
     if (_subscribeCoroutine != null)
@@ -222,6 +232,7 @@ public class HandPinchGrabController : MonoBehaviour
     _subscribeCoroutine = StartCoroutine(SubscribeWhenGraphIsReady());
   }
 
+  // 購読開始ループを停止する。
   private void StopSubscriptionLoop()
   {
     if (_subscribeCoroutine == null)
@@ -233,6 +244,7 @@ public class HandPinchGrabController : MonoBehaviour
     _subscribeCoroutine = null;
   }
 
+  // Graph が初期化されるまで毎フレーム購読開始を試みる。
   private IEnumerator SubscribeWhenGraphIsReady()
   {
     while (!_isSubscribed && isActiveAndEnabled)
@@ -247,6 +259,7 @@ public class HandPinchGrabController : MonoBehaviour
     }
   }
 
+  // HandTrackingGraph のランドマーク出力イベントを購読する。
   private void SubscribeToGraph()
   {
     if (_isSubscribed || handTrackingGraph == null)
@@ -266,6 +279,7 @@ public class HandPinchGrabController : MonoBehaviour
     }
   }
 
+  // HandTrackingGraph のランドマーク出力イベント購読を解除する。
   private void UnsubscribeFromGraph()
   {
     if (!_isSubscribed || handTrackingGraph == null)
@@ -284,6 +298,7 @@ public class HandPinchGrabController : MonoBehaviour
     _isSubscribed = false;
   }
 
+  // MediaPipe から届いたランドマークを最新フレームとして保存する。
   private void OnHandLandmarksOutput(object stream, OutputEventArgs<List<NormalizedLandmarkList>> eventArgs)
   {
     var hasHand = TrySelectInteractionHand(eventArgs == null ? null : eventArgs.value, out var handLandmarks);
@@ -307,6 +322,7 @@ public class HandPinchGrabController : MonoBehaviour
     }
   }
 
+  // Interaction 用に扱う手数を Graph 設定へ反映する。
   private void ApplyHandTrackingConfiguration()
   {
     if (handTrackingGraph == null)
@@ -317,6 +333,7 @@ public class HandPinchGrabController : MonoBehaviour
     handTrackingGraph.maxNumHands = InteractionHandCount;
   }
 
+  // 入力された手一覧から interaction に使う手を 1 つ選ぶ。
   private static bool TrySelectInteractionHand(IList<NormalizedLandmarkList> handLandmarks, out NormalizedLandmarkList selectedHand)
   {
     selectedHand = null;
@@ -340,6 +357,7 @@ public class HandPinchGrabController : MonoBehaviour
     return false;
   }
 
+  // 保存済みの最新フレームを取り出し、有効なら手状態へ反映する。
   private void ProcessLatestHandFrame()
   {
     bool hasFrame;
@@ -374,6 +392,7 @@ public class HandPinchGrabController : MonoBehaviour
     UpdateHandState(_frameLandmarks);
   }
 
+  // ランドマークからカーソル位置・奥行き・pinch 状態を更新する。
   private void UpdateHandState(Vector3[] landmarks)
   {
     _handState.detected = true;
@@ -395,6 +414,7 @@ public class HandPinchGrabController : MonoBehaviour
       : pinchDistance < pinchOnThreshold;
   }
 
+  // 手のひらの見かけサイズを depth 推定用スケールとして求める。
   private float GetPalmScale(Vector3[] landmarks)
   {
     var wrist = landmarks[WristIndex];
@@ -404,9 +424,10 @@ public class HandPinchGrabController : MonoBehaviour
 
     var tri = (Distance2D(wrist, indexMcp) + Distance2D(wrist, pinkyMcp) + Distance2D(indexMcp, pinkyMcp)) / 3f;
     var spine = Distance2D(wrist, middleMcp);
-    return Mathf.Sqrt(tri * 0.7f + spine * 0.3f);
+    return tri * 0.7f + spine * 0.3f;
   }
 
+  // 2 点間の 2D 距離を返す。
   private static float Distance2D(Vector3 a, Vector3 b)
   {
     var dx = a.x - b.x;
@@ -414,6 +435,7 @@ public class HandPinchGrabController : MonoBehaviour
     return Mathf.Sqrt(dx * dx + dy * dy);
   }
 
+  // 手のひらサイズの変化から depth 値をキャリブレーション付きで更新する。
   private void UpdateHandDepthFromPalmScale(float palmScale)
   {
     if (!_handDepthCalibrated)
@@ -463,6 +485,7 @@ public class HandPinchGrabController : MonoBehaviour
     _handState.depth = Mathf.Lerp(_handState.depth, normalizedDepth, 0.16f);
   }
 
+  // 現在の手状態に応じてカーソル表示と grab の開始・追従・解放を制御する。
   private void UpdateHandInteraction()
   {
     if (worldCamera == null)
@@ -505,6 +528,7 @@ public class HandPinchGrabController : MonoBehaviour
     }
   }
 
+  // 床面上のカーソル位置を計算し、フレーム内キャッシュと平滑化を適用する。
   private Vector3 GetCursorPointOnPlane()
   {
     if (_cachedCursorFrame == Time.frameCount)
@@ -530,6 +554,7 @@ public class HandPinchGrabController : MonoBehaviour
     return _cachedCursorPoint;
   }
 
+  // 手の正規化座標と depth から床面上の生のカーソル位置を算出する。
   private Vector3 ComputeRawCursorPointOnPlane()
   {
     var depthZ = Mathf.Clamp(GetHandDepthWorldZ(), zRange.x, zRange.y);
@@ -551,6 +576,7 @@ public class HandPinchGrabController : MonoBehaviour
     return point;
   }
 
+  // grab 対象を追従させるための手ターゲット位置を求める。
   private Vector3 GetHandTargetPoint()
   {
     var cursorPoint = GetCursorPointOnPlane();
@@ -558,6 +584,7 @@ public class HandPinchGrabController : MonoBehaviour
     return new Vector3(cursorPoint.x, Mathf.Clamp(handY, yRange.x, yRange.y), cursorPoint.z);
   }
 
+  // 正規化された hand depth をワールド Z 座標へ変換する。
   private float GetHandDepthWorldZ()
   {
     var normalizedDepth = ApplySensitivity(Mathf.Clamp01(_handState.depth), zSensitivity);
@@ -565,6 +592,7 @@ public class HandPinchGrabController : MonoBehaviour
     return Mathf.Lerp(zRange.x, zRange.y, normalizedDepth);
   }
 
+  // 現在の手位置付近から grab 対象となる Rigidbody を探して保持する。
   private void TryBeginGrab()
   {
     var handTarget = GetHandTargetPoint();
@@ -622,6 +650,7 @@ public class HandPinchGrabController : MonoBehaviour
     _grabbedBody.useGravity = false;
   }
 
+  // grab 中の Rigidbody を手ターゲットへ滑らかに追従させる。
   private void UpdateGrabbedObject()
   {
     if (_grabbedBody == null)
@@ -645,6 +674,7 @@ public class HandPinchGrabController : MonoBehaviour
     _grabbedBody.angularVelocity = Vector3.zero;
   }
 
+  // grab 中の Rigidbody を解放し、物理設定を戻す。
   private void ReleaseGrabbedObject()
   {
     if (_grabbedBody == null)
@@ -675,6 +705,7 @@ public class HandPinchGrabController : MonoBehaviour
     _grabbedBody = null;
   }
 
+  // 手状態を中央・非検出状態で初期化する。
   private void InitializeHandState()
   {
     _handState.detected = false;
@@ -684,6 +715,7 @@ public class HandPinchGrabController : MonoBehaviour
     _handState.pinch = false;
   }
 
+  // 手を見失った状態として内部状態を更新する。
   private void SetHandUndetected()
   {
     _handState.detected = false;
@@ -691,6 +723,7 @@ public class HandPinchGrabController : MonoBehaviour
     _cachedCursorFrame = -1;
   }
 
+  // カーソルの位置・サイズ・色を現在状態に合わせて更新する。
   private void UpdateCursor(Vector3 position, bool isPinching)
   {
     if (cursorSphere == null)
@@ -703,6 +736,7 @@ public class HandPinchGrabController : MonoBehaviour
     ApplyCursorColor(isPinching);
   }
 
+  // カーソル GameObject の表示・非表示を切り替える。
   private void SetCursorVisible(bool visible)
   {
     if (cursorSphere != null && cursorSphere.gameObject.activeSelf != visible)
@@ -711,6 +745,7 @@ public class HandPinchGrabController : MonoBehaviour
     }
   }
 
+  // pinch 状態に応じてカーソル材質の色を切り替える。
   private void ApplyCursorColor(bool isPinching)
   {
     if (_cursorMaterial == null)
@@ -726,6 +761,7 @@ public class HandPinchGrabController : MonoBehaviour
     }
   }
 
+  // Vector2 の最小値と最大値の順序が逆なら入れ替える。
   private static void NormalizeRange(ref Vector2 range)
   {
     if (range.x > range.y)
@@ -736,11 +772,13 @@ public class HandPinchGrabController : MonoBehaviour
     }
   }
 
+  // 正規化値の中心を保ったまま感度を掛ける。
   private static float ApplySensitivity(float normalizedValue, float sensitivity)
   {
     return Mathf.Clamp01(0.5f + (normalizedValue - 0.5f) * sensitivity);
   }
 
+  // ビューポート座標を床平面へ投影し、交点があれば返す。
   private bool TryProjectToFloorPlane(float viewportX, float viewportY, out Vector3 hitPoint)
   {
     hitPoint = Vector3.zero;
@@ -755,6 +793,7 @@ public class HandPinchGrabController : MonoBehaviour
     return true;
   }
 
+  // 画像の左右反転状態を考慮してシーン用の X 座標へ変換する。
   private float ToSceneNormalizedX(float rawX)
   {
     var normalizedX = Mathf.Clamp01(rawX);
