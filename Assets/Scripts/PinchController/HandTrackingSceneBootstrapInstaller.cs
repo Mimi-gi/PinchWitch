@@ -5,7 +5,6 @@ using UnityEngine.SceneManagement;
 
 public static class HandTrackingSceneBootstrapInstaller
 {
-  private const string TargetSceneName = "HandTrackingScene";
   private const string BootstrapObjectName = "Bootstrap";
   private const BindingFlags SerializableFieldFlags =
     BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
@@ -19,12 +18,12 @@ public static class HandTrackingSceneBootstrapInstaller
 
   private static void OnSceneLoaded(Scene scene, LoadSceneMode loadMode)
   {
-    if (!scene.IsValid() || scene.name != TargetSceneName)
+    if (!scene.IsValid())
     {
       return;
     }
 
-    if (FindBootstrapInScene(scene, BootstrapObjectName) != null)
+    if (GameObject.Find(BootstrapObjectName) != null)
     {
       return;
     }
@@ -32,7 +31,6 @@ public static class HandTrackingSceneBootstrapInstaller
     var localBootstrap = FindSceneLocalBootstrap(scene);
     if (localBootstrap == null)
     {
-      Debug.LogWarning($"[{nameof(HandTrackingSceneBootstrapInstaller)}] Scene-local Bootstrap source was not found.");
       return;
     }
 
