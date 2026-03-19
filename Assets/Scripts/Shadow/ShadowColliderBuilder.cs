@@ -22,6 +22,14 @@ public class ShadowColliderBuilder : MonoBehaviour
         }
     }
 
+    void SyncShadowRealmDepth()
+    {
+        Transform colliderTransform = shadowRealmCollider.transform;
+        Vector3 colliderPosition = colliderTransform.position;
+        colliderPosition.z = projectionWall.position.z;
+        colliderTransform.position = colliderPosition;
+    }
+
     public void BuildShadowMap()
     {
         if (targetCube == null || pointLight == null || projectionWall == null || shadowRealmCollider == null)
@@ -29,6 +37,9 @@ public class ShadowColliderBuilder : MonoBehaviour
             Debug.LogError("参照が設定されておらぬ！切腹せよ！");
             return;
         }
+
+        // 2D世界の実体化位置は projectionWall の奥行きに揃える
+        SyncShadowRealmDepth();
 
         // ワールド座標の頂点配列を取得
         Vector3[] localVertices = targetCube.mesh.vertices;
