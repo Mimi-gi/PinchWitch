@@ -111,7 +111,10 @@ namespace Mediapipe.Unity
     private void DisableMenuButton()
     {
       var menuButton = GameObject.Find("MenuButton");
-      menuButton.SetActive(false);
+      if (menuButton != null)
+      {
+        menuButton.SetActive(false);
+      }
     }
   }
 }
