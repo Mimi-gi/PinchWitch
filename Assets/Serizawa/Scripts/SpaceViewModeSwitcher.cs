@@ -1,4 +1,5 @@
 using UnityEngine;
+using System;
 
 public enum SpaceViewMode
 {
@@ -20,6 +21,7 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour
   [SerializeField] private SpaceViewMode initialMode = SpaceViewMode.World3D;
   [SerializeField] private bool switchAudioListeners = true;
 
+  public event Action<SpaceViewMode> ModeChanged;
   public SpaceViewMode CurrentMode { get; private set; } = SpaceViewMode.World3D;
 
   private void Reset()
@@ -75,10 +77,16 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour
       return;
     }
 
+    var modeChanged = CurrentMode != mode;
     CurrentMode = mode;
     var isWorld3D = mode == SpaceViewMode.World3D;
     ApplyCameraState(world3DCamera, isWorld3D);
     ApplyCameraState(wall2DCamera, !isWorld3D);
+
+    if (modeChanged)
+    {
+      ModeChanged?.Invoke(CurrentMode);
+    }
   }
 
   private void AutoAssignMissingReferences()
