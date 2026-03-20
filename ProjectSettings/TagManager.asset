@@ -12,10 +12,10 @@ TagManager:
   - Grabbable
   - Water
   - UI
-  - 
-  - 
-  - 
-  - 
+  - World3D
+  - World2D
+  - Shared
+  - ShadowCaster2D
   - 
   - 
   - 
