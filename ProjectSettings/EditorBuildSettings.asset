@@ -38,4 +38,11 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/MediaPipeUnity/Samples/Scenes/MediaPipe Video/MediaPipe Video.unity
     guid: 16062faf4cda54140b781b925351b119
+  - enabled: 1
+    path: Assets/Personal/Ayano/TitileScene.unity
+    guid: 6d4a2394a1061bb43b5064a36d4859a9
+  - enabled: 1
+    path: Assets/Personal/Ayano/StageSelect.unity
+    guid: bd7f4c18ec0f3684a924745b2c416b42
   m_configObjects: {}
+  m_UseUCBPForAssetBundles: 0
