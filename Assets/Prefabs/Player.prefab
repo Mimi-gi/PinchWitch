@@ -29,7 +29,7 @@ Transform:
   m_GameObject: {fileID: 1190952654993941888}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.65345, y: 3.73781, z: 5}
+  m_LocalPosition: {x: -1.65345, y: 3.73781, z: 6}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -107,7 +107,7 @@ Rigidbody2D:
   m_Simulated: 1
   m_UseFullKinematicContacts: 0
   m_UseAutoMass: 0
-  m_Mass: 1
+  m_Mass: 2
   m_LinearDamping: 0
   m_AngularDamping: 0.05
   m_GravityScale: 2
@@ -173,7 +173,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Wall2DPlayerController
   moveSpeed: 6
   airControlMultiplier: 0.8
-  jumpVelocity: 11
+  jumpVelocity: 8
   jumpKey: 119
   alternateJumpKey: 273
   groundLayers:
@@ -181,3 +181,8 @@ MonoBehaviour:
     m_Bits: 4294967295
   groundCheckDistance: 0.08
   minimumGroundNormalY: 0.65
+  crushLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  crushCheckDistance: 0.04
+  minimumCrushContactAlignment: 0.65
