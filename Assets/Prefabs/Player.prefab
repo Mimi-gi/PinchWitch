@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: -4400312385978628603}
   - component: {fileID: 4119638840701623691}
   - component: {fileID: -8191500760691961841}
+  - component: {fileID: -6984775035002389195}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -199,3 +200,21 @@ MonoBehaviour:
     m_Bits: 4294967295
   crushCheckDistance: 0.04
   minimumCrushContactAlignment: 0.65
+--- !u!114 &-6984775035002389195
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1190952654993941888}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f5a78ad30141bf48beb54a97b16d2d1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TransformStateResettable
+  resetLocalPosition: 1
+  resetLocalRotation: 1
+  resetLocalScale: 1
+  resetActiveState: 1
+  resetRigidbodyState: 1
+  resetRigidbody2DState: 1

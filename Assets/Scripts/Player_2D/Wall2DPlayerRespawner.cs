@@ -2,13 +2,15 @@ using UnityEngine;
 
 /// <summary>
 /// 2Dプレイヤーの生成と再利用を管理するスクリプト。
-/// 2Dモード突入時のスポーン、進行位置の保存、落下や圧死時の初期地点リスポーン、
+/// シーンに配置済みのプレイヤーを優先して使い、進行位置の保存、
+/// 落下や圧死時の初期位置復帰、削除後の spawnPoint 再生成、
 /// そして 3D モード中に見た目だけ残して 2D 操作を止める処理を担当する。
 /// </summary>
 [DisallowMultipleComponent]
-public sealed class Wall2DPlayerRespawner : MonoBehaviour
+public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 {
   [SerializeField] private SpaceViewModeSwitcher viewModeSwitcher;
+  [SerializeField] private GameObject scenePlacedPlayerInstance;
   [SerializeField] private GameObject wall2DPlayerPrefab;
   [SerializeField] private Transform spawnPoint;
   [SerializeField] private Transform spawnedPlayerParent;
@@ -23,6 +25,11 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour
   private bool _hasSavedSpawnState;
   private Vector3 _savedSpawnPosition;
   private Quaternion _savedSpawnRotation;
+  private bool _hasInitialPlacedPlayerState;
+  private Vector3 _initialPlacedPlayerPosition;
+  private Quaternion _initialPlacedPlayerRotation;
+
+  public int ResetOrder => 0;
 
   private void Reset()
   {
@@ -32,6 +39,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour
   private void Awake()
   {
     AutoAssignMissingReferences();
+    RegisterScenePlacedPlayerIfAvailable();
   }
 
   private void OnEnable()
@@ -110,9 +118,19 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour
   [ContextMenu("Respawn 2D Player At Initial Point")]
   public void RespawnPlayerAtInitialPoint()
   {
-    // 落下や圧死の時は保存位置を使わず、初期地点からやり直す。
+    // 既存プレイヤーがいる間は、シーン配置された初期位置へ戻す。
+    // プレイヤーが削除されている時だけ spawnPoint から再生成する。
     ClearSavedRespawnPoint();
-    SpawnPlayer(useSavedPosition: false, saveCurrentTransformBeforeReset: false);
+
+    if (_spawnedPlayerInstance != null)
+    {
+      RepositionExistingPlayer(PlayerPlacementTarget.InitialScenePlacement);
+      SetSpawnedPlayer2DGameplayEnabled(true);
+      SetSpawnedPlayerVisible(true);
+      return;
+    }
+
+    SpawnNewPlayerAtRespawnPoint();
   }
 
   [ContextMenu("Destroy Spawned 2D Player")]
@@ -163,21 +181,26 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour
         SaveCurrentPlayerTransform();
       }
 
-      RepositionExistingPlayer(useSavedPosition);
+      RepositionExistingPlayer(useSavedPosition ? PlayerPlacementTarget.SavedPosition : PlayerPlacementTarget.InitialScenePlacement);
       SetSpawnedPlayer2DGameplayEnabled(true);
       SetSpawnedPlayerVisible(true);
       return;
     }
 
+    SpawnNewPlayer(useSavedPosition);
+  }
+
+  private void SpawnNewPlayer(bool useSavedPosition)
+  {
     if (wall2DPlayerPrefab == null)
     {
       Debug.LogWarning("Wall2DPlayerRespawner requires wall2DPlayerPrefab to be assigned.");
       return;
     }
 
-    var spawnTransform = spawnPoint != null ? spawnPoint : transform;
-    var spawnPosition = useSavedPosition ? _savedSpawnPosition : spawnTransform.position;
-    var spawnRotation = useSavedPosition ? _savedSpawnRotation : spawnTransform.rotation;
+    var placementTarget = useSavedPosition ? PlayerPlacementTarget.SavedPosition : PlayerPlacementTarget.RespawnPoint;
+    var spawnPosition = GetPlacementPosition(placementTarget);
+    var spawnRotation = GetPlacementRotation(placementTarget);
 
     _spawnedPlayerInstance = Instantiate(
       wall2DPlayerPrefab,
@@ -191,16 +214,20 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour
     SetSpawnedPlayerVisible(true);
   }
 
-  private void RepositionExistingPlayer(bool useSavedPosition)
+  private void SpawnNewPlayerAtRespawnPoint()
+  {
+    SpawnNewPlayer(useSavedPosition: false);
+  }
+
+  private void RepositionExistingPlayer(PlayerPlacementTarget placementTarget)
   {
     if (_spawnedPlayerInstance == null)
     {
       return;
     }
 
-    var spawnTransform = spawnPoint != null ? spawnPoint : transform;
-    var targetPosition = useSavedPosition ? _savedSpawnPosition : spawnTransform.position;
-    var targetRotation = useSavedPosition ? _savedSpawnRotation : spawnTransform.rotation;
+    var targetPosition = GetPlacementPosition(placementTarget);
+    var targetRotation = GetPlacementRotation(placementTarget);
 
     _spawnedPlayerInstance.transform.SetPositionAndRotation(targetPosition, targetRotation);
 
@@ -254,6 +281,40 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour
       // 未設定ならシーン内の SpaceViewModeSwitcher を自動で探す。
       viewModeSwitcher = FindFirstObjectByType<SpaceViewModeSwitcher>();
     }
+
+    if (scenePlacedPlayerInstance == null)
+    {
+      var playerController = FindFirstObjectByType<Wall2DPlayerController>(FindObjectsInactive.Include);
+      if (playerController != null)
+      {
+        scenePlacedPlayerInstance = playerController.gameObject;
+      }
+    }
+  }
+
+  private void RegisterScenePlacedPlayerIfAvailable()
+  {
+    if (scenePlacedPlayerInstance == null)
+    {
+      return;
+    }
+
+    _spawnedPlayerInstance = scenePlacedPlayerInstance;
+    CacheInitialPlacedPlayerState(scenePlacedPlayerInstance);
+    CacheSpawnedPlayerComponents(scenePlacedPlayerInstance);
+    SubscribeToSpawnedPlayerCrushDetector();
+  }
+
+  private void CacheInitialPlacedPlayerState(GameObject placedPlayer)
+  {
+    if (placedPlayer == null)
+    {
+      return;
+    }
+
+    _initialPlacedPlayerPosition = placedPlayer.transform.position;
+    _initialPlacedPlayerRotation = placedPlayer.transform.rotation;
+    _hasInitialPlacedPlayerState = true;
   }
 
   private void SaveCurrentPlayerTransform()
@@ -335,5 +396,63 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour
   {
     // 圧死時は必ず初期地点へ戻す。
     RespawnPlayerAtInitialPoint();
+  }
+
+  /// <summary>
+  /// 2D プレイヤーの進行状況を初期化し、現在の視点モードに合わせて初期地点へ戻す。
+  /// </summary>
+  public void ResetRuntimeState()
+  {
+    ClearSavedRespawnPoint();
+
+    if (_spawnedPlayerInstance != null)
+    {
+      RepositionExistingPlayer(PlayerPlacementTarget.InitialScenePlacement);
+    }
+
+    SyncToCurrentMode();
+  }
+
+  private Vector3 GetPlacementPosition(PlayerPlacementTarget placementTarget)
+  {
+    switch (placementTarget)
+    {
+      case PlayerPlacementTarget.SavedPosition:
+        return _savedSpawnPosition;
+      case PlayerPlacementTarget.InitialScenePlacement:
+        if (_hasInitialPlacedPlayerState)
+        {
+          return _initialPlacedPlayerPosition;
+        }
+        break;
+    }
+
+    var respawnTransform = spawnPoint != null ? spawnPoint : transform;
+    return respawnTransform.position;
+  }
+
+  private Quaternion GetPlacementRotation(PlayerPlacementTarget placementTarget)
+  {
+    switch (placementTarget)
+    {
+      case PlayerPlacementTarget.SavedPosition:
+        return _savedSpawnRotation;
+      case PlayerPlacementTarget.InitialScenePlacement:
+        if (_hasInitialPlacedPlayerState)
+        {
+          return _initialPlacedPlayerRotation;
+        }
+        break;
+    }
+
+    var respawnTransform = spawnPoint != null ? spawnPoint : transform;
+    return respawnTransform.rotation;
+  }
+
+  private enum PlayerPlacementTarget
+  {
+    SavedPosition,
+    InitialScenePlacement,
+    RespawnPoint,
   }
 }

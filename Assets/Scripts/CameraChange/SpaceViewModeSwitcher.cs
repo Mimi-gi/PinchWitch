@@ -8,7 +8,7 @@ public enum SpaceViewMode
 }
 
 [DisallowMultipleComponent]
-public sealed class SpaceViewModeSwitcher : MonoBehaviour
+public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
 {
   [Header("Input")]
   [SerializeField] private KeyCode toggleKey = KeyCode.Space;
@@ -23,6 +23,7 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour
 
   public event Action<SpaceViewMode> ModeChanged;
   public SpaceViewMode CurrentMode { get; private set; } = SpaceViewMode.World3D;
+  public int ResetOrder => -100;
 
   private void Reset()
   {
@@ -87,6 +88,14 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour
     {
       ModeChanged?.Invoke(CurrentMode);
     }
+  }
+
+  /// <summary>
+  /// 視点切り替えを起動時のモードへ戻す。
+  /// </summary>
+  public void ResetRuntimeState()
+  {
+    SetMode(initialMode);
   }
 
   private void AutoAssignMissingReferences()
