@@ -12,6 +12,7 @@ public sealed class GrabInteractor
     public float followLerpX;
     public float followLerpY;
     public float followLerpZ;
+    public float rotationDegreesPerSecond;
     public bool restoreIsKinematicOnRelease;
     public bool restoreUseGravityOnRelease;
   }
@@ -23,6 +24,8 @@ public sealed class GrabInteractor
   private Vector3 _grabOffset;
   private bool _grabbedOriginalIsKinematic;
   private bool _grabbedOriginalUseGravity;
+  private RigidbodyConstraints _grabbedOriginalConstraints;
+  private Quaternion _targetRotation;
 
   public GrabInteractor(Config config)
   {
@@ -85,11 +88,14 @@ public sealed class GrabInteractor
     _grabOffset.y = 0f;
     _grabbedOriginalIsKinematic = _grabbedBody.isKinematic;
     _grabbedOriginalUseGravity = _grabbedBody.useGravity;
+    _grabbedOriginalConstraints = _grabbedBody.constraints;
 
     _grabbedBody.linearVelocity = Vector3.zero;
     _grabbedBody.angularVelocity = Vector3.zero;
     _grabbedBody.isKinematic = true;
     _grabbedBody.useGravity = false;
+    _grabbedBody.constraints = _grabbedOriginalConstraints & ~RigidbodyConstraints.FreezeRotation;
+    _targetRotation = _grabbedBody.rotation;
   }
 
   public void UpdateGrabbedObject(Vector3 handTarget)
@@ -112,6 +118,17 @@ public sealed class GrabInteractor
     _grabbedBody.position = next;
     _grabbedBody.linearVelocity = Vector3.zero;
     _grabbedBody.angularVelocity = Vector3.zero;
+    UpdateGrabbedRotation();
+  }
+
+  public void RotateGrabbedObject(Vector3 worldAxis, float angleDegrees)
+  {
+    if (_grabbedBody == null || worldAxis.sqrMagnitude <= Mathf.Epsilon || Mathf.Approximately(angleDegrees, 0f))
+    {
+      return;
+    }
+
+    _targetRotation = Quaternion.AngleAxis(angleDegrees, worldAxis.normalized) * _targetRotation;
   }
 
   public void ReleaseGrabbedObject()
@@ -123,6 +140,7 @@ public sealed class GrabInteractor
 
     _grabbedBody.linearVelocity = Vector3.zero;
     _grabbedBody.angularVelocity = Vector3.zero;
+    _grabbedBody.constraints = _grabbedOriginalConstraints;
 
     if (_config.restoreIsKinematicOnRelease)
     {
@@ -143,5 +161,22 @@ public sealed class GrabInteractor
     }
 
     _grabbedBody = null;
+  }
+
+  private void UpdateGrabbedRotation()
+  {
+    if (_grabbedBody == null)
+    {
+      return;
+    }
+
+    var maxStep = Mathf.Max(0f, _config.rotationDegreesPerSecond) * Time.deltaTime;
+    if (maxStep <= 0f)
+    {
+      _grabbedBody.rotation = _targetRotation;
+      return;
+    }
+
+    _grabbedBody.rotation = Quaternion.RotateTowards(_grabbedBody.rotation, _targetRotation, maxStep);
   }
 }
