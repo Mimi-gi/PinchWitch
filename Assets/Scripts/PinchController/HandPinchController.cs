@@ -8,6 +8,9 @@ public class HandPinchController : MonoBehaviour
   [SerializeField] private HandTrackingGraph handTrackingGraph;
   [SerializeField] private Camera worldCamera;
 
+  [Header("Hand Roles")]
+  [SerializeField] private bool swapLeftRightRoles;
+
   [Header("Cursor (Sphere)")]
   [SerializeField] private Transform cursorSphere;
   [SerializeField] private float cursorSphereDiameter = 0.22f;
@@ -31,17 +34,27 @@ public class HandPinchController : MonoBehaviour
   [SerializeField] private float xSensitivity = 0.65f;
   [SerializeField] private float zSensitivity = 0.65f;
 
+  [Header("Rotation")]
+  [SerializeField] private float xSwipeRotationDegrees = 90f;
+  [SerializeField] private float ySwipeRotationDegrees = 45f;
+  [SerializeField] private float horizontalSwipeTriggerDistance = 0.18f;
+  [SerializeField] private float verticalSwipeTriggerDistance = 0.16f;
+  [SerializeField] private float swipeDominanceRatio = 1.25f;
+  [SerializeField] private float swipeCooldownSeconds = 0.3f;
+  [SerializeField] private float rearmStillnessDistance = 0.012f;
+  [SerializeField] private float rearmStillnessDurationSeconds = 0.16f;
+  [SerializeField] private float rotationDegreesPerSecond = 180f;
+
   [Header("Fail Safe")]
   [SerializeField] private float handLostTimeoutSeconds = 0.25f;
 
-  private readonly Vector3[] _frameLandmarks = new Vector3[MediaPipeReceiver.HandLandmarkCount];
-
   private MediaPipeReceiver _mediaPipeReceiver;
-  private HandStateCalculator _handStateCalculator;
+  private TrackedHandStateStore _trackedHandStateStore;
   private HandCursorController _handCursorController;
   private GrabInteractor _grabInteractor;
-  private HandState _handState;
-  private bool _prevPinch;
+  private RotationGestureDetector _rotationGestureDetector;
+  private HandInteractionProcessor _handInteractionProcessor;
+  private bool _lastAppliedSwapLeftRightRoles;
 
   // Inspector 上の初期参照とデフォルト設定を補完する。
   private void Reset()
@@ -59,6 +72,7 @@ public class HandPinchController : MonoBehaviour
 
     NormalizeSerializedValues();
     ApplyHandTrackingConfiguration();
+    _lastAppliedSwapLeftRightRoles = swapLeftRightRoles;
   }
 
   // 手状態と依存クラスを初期化する。
@@ -67,6 +81,7 @@ public class HandPinchController : MonoBehaviour
     EnsureReferences();
     NormalizeSerializedValues();
     ApplyHandTrackingConfiguration();
+    _lastAppliedSwapLeftRightRoles = swapLeftRightRoles;
     InitializeSystems();
   }
 
@@ -80,15 +95,14 @@ public class HandPinchController : MonoBehaviour
   private void OnDisable()
   {
     _mediaPipeReceiver?.Stop(this);
-    _grabInteractor?.ReleaseGrabbedObject();
-    _handCursorController?.HideCursor();
+    _handInteractionProcessor?.ResetInteractionState();
   }
 
   // 生成したリソースを破棄する。
   private void OnDestroy()
   {
     _mediaPipeReceiver?.Stop(this);
-    _grabInteractor?.ReleaseGrabbedObject();
+    _handInteractionProcessor?.ResetInteractionState();
     _handCursorController?.Dispose();
   }
 
@@ -97,13 +111,16 @@ public class HandPinchController : MonoBehaviour
   {
     NormalizeSerializedValues();
     RefreshSystems();
+    HandleRoleSwapChange();
   }
 
-  // 最新の手入力に応じてカーソルと grab 状態を更新する。
+  // 最新の手入力に応じて移動と回転の操作を更新する。
   private void Update()
   {
-    ProcessLatestHandFrame();
-    UpdateHandInteraction();
+    var handRoles = CreateHandRoleAssignment();
+    _trackedHandStateStore?.Update(_mediaPipeReceiver);
+    UpdateMovementInteraction(handRoles);
+    UpdateRotationInteraction(handRoles);
   }
 
   // 必要なコンポーネント参照を補完する。
@@ -123,11 +140,12 @@ public class HandPinchController : MonoBehaviour
   // 分割した各責務クラスを初期化する。
   private void InitializeSystems()
   {
-    _handStateCalculator = new HandStateCalculator();
-    _handState = _handStateCalculator.CreateInitialState();
+    _trackedHandStateStore = new TrackedHandStateStore();
     _mediaPipeReceiver = new MediaPipeReceiver(handTrackingGraph, handLostTimeoutSeconds);
     _handCursorController = new HandCursorController(transform, BuildCursorConfig());
     _grabInteractor = new GrabInteractor(BuildGrabConfig());
+    _rotationGestureDetector = new RotationGestureDetector(BuildRotationConfig());
+    _handInteractionProcessor = new HandInteractionProcessor(_handCursorController, _grabInteractor, _rotationGestureDetector);
   }
 
   // 変更された設定を各責務クラスへ反映する。
@@ -138,6 +156,8 @@ public class HandPinchController : MonoBehaviour
     _mediaPipeReceiver?.UpdateSettings(handLostTimeoutSeconds);
     _handCursorController?.Configure(transform, BuildCursorConfig());
     _grabInteractor?.ApplyConfiguration(BuildGrabConfig());
+    _rotationGestureDetector?.ApplyConfiguration(BuildRotationConfig());
+    _handInteractionProcessor?.UpdateDependencies(_handCursorController, _grabInteractor, _rotationGestureDetector);
   }
 
   // Cursor 制御に渡す設定を構築する。
@@ -174,8 +194,25 @@ public class HandPinchController : MonoBehaviour
       followLerpX = followLerpX,
       followLerpY = followLerpY,
       followLerpZ = followLerpZ,
+      rotationDegreesPerSecond = rotationDegreesPerSecond,
       restoreIsKinematicOnRelease = restoreIsKinematicOnRelease,
       restoreUseGravityOnRelease = restoreUseGravityOnRelease,
+    };
+  }
+
+  // 回転ジェスチャー制御に渡す設定を構築する。
+  private RotationGestureDetector.Config BuildRotationConfig()
+  {
+    return new RotationGestureDetector.Config
+    {
+      xRotationDegrees = xSwipeRotationDegrees,
+      yRotationDegrees = ySwipeRotationDegrees,
+      horizontalSwipeTriggerDistance = horizontalSwipeTriggerDistance,
+      verticalSwipeTriggerDistance = verticalSwipeTriggerDistance,
+      swipeDominanceRatio = swipeDominanceRatio,
+      swipeCooldownSeconds = swipeCooldownSeconds,
+      rearmStillnessDistance = rearmStillnessDistance,
+      rearmStillnessDurationSeconds = rearmStillnessDurationSeconds,
     };
   }
 
@@ -206,60 +243,62 @@ public class HandPinchController : MonoBehaviour
     cursorLerpZ = Mathf.Clamp01(cursorLerpZ);
     xSensitivity = Mathf.Clamp(xSensitivity, 0.1f, 2f);
     zSensitivity = Mathf.Clamp(zSensitivity, 0.1f, 2f);
+    xSwipeRotationDegrees = Mathf.Max(0f, xSwipeRotationDegrees);
+    ySwipeRotationDegrees = Mathf.Max(0f, ySwipeRotationDegrees);
+    horizontalSwipeTriggerDistance = Mathf.Clamp(horizontalSwipeTriggerDistance, 0.02f, 0.75f);
+    verticalSwipeTriggerDistance = Mathf.Clamp(verticalSwipeTriggerDistance, 0.02f, 0.75f);
+    swipeDominanceRatio = Mathf.Clamp(swipeDominanceRatio, 1f, 3f);
+    swipeCooldownSeconds = Mathf.Clamp(swipeCooldownSeconds, 0.01f, 1.5f);
+    rearmStillnessDistance = Mathf.Clamp(rearmStillnessDistance, 0.001f, 0.08f);
+    rearmStillnessDurationSeconds = Mathf.Clamp(rearmStillnessDurationSeconds, 0.02f, 1f);
+    rotationDegreesPerSecond = Mathf.Clamp(rotationDegreesPerSecond, 1f, 720f);
   }
 
-  // 最新フレームを受け取り、有効なら手状態へ反映する。
-  private void ProcessLatestHandFrame()
+  // 現在の設定から左右の役割割り当てを生成する。
+  private HandRoleAssignment CreateHandRoleAssignment()
   {
-    if (_mediaPipeReceiver == null || !_mediaPipeReceiver.TryGetLatestLandmarks(_frameLandmarks))
+    return HandRoleAssignment.Create(swapLeftRightRoles);
+  }
+
+  // 移動担当の手でカーソル表示と grab の開始・追従・解放を制御する。
+  private void UpdateMovementInteraction(HandRoleAssignment handRoles)
+  {
+    if (_trackedHandStateStore == null || _handInteractionProcessor == null)
     {
-      SetHandUndetected();
       return;
     }
 
-    _handStateCalculator.UpdateHandState(_frameLandmarks, ref _handState);
+    if (!_handInteractionProcessor.TryProcessMovementInteraction(_trackedHandStateStore.GetHandState(handRoles.MovementHandType)))
+    {
+      _trackedHandStateStore.SetUndetected(handRoles.MovementHandType);
+    }
   }
 
-  // 現在の手状態に応じてカーソル表示と grab の開始・追従・解放を制御する。
-  private void UpdateHandInteraction()
+  // 回転担当の手で grab 中オブジェクトの回転入力を処理する。
+  private void UpdateRotationInteraction(HandRoleAssignment handRoles)
   {
-    if (_handCursorController == null
-        || _grabInteractor == null
-        || !_handCursorController.TryUpdateCursor(_handState, out var handTarget))
+    if (_trackedHandStateStore == null || _handInteractionProcessor == null)
     {
-      _grabInteractor?.ReleaseGrabbedObject();
-      _prevPinch = false;
       return;
     }
 
-    var pinchStarted = _handState.pinch && !_prevPinch;
-    var pinchEnded = !_handState.pinch && _prevPinch;
-    _prevPinch = _handState.pinch;
-
-    if (pinchStarted && !_grabInteractor.HasGrabbedBody)
-    {
-      _grabInteractor.TryBeginGrab(handTarget);
-    }
-
-    if (_grabInteractor.HasGrabbedBody && _handState.pinch)
-    {
-      _grabInteractor.UpdateGrabbedObject(handTarget);
-    }
-
-    if (pinchEnded)
-    {
-      _grabInteractor.ReleaseGrabbedObject();
-    }
+    _handInteractionProcessor.ProcessRotationInteraction(
+      _mediaPipeReceiver,
+      _trackedHandStateStore.GetHandState(handRoles.RotationHandType),
+      handRoles);
   }
 
-  // 手を見失った状態として内部状態を更新する。
-  private void SetHandUndetected()
+  // 左右役割の切り替えが変わったときに操作状態をリセットする。
+  private void HandleRoleSwapChange()
   {
-    _handStateCalculator?.SetUndetected(ref _handState);
-    _handCursorController?.ResetTrackingCache();
-    _handCursorController?.HideCursor();
-    _grabInteractor?.ReleaseGrabbedObject();
-    _prevPinch = false;
+    if (_lastAppliedSwapLeftRightRoles == swapLeftRightRoles)
+    {
+      return;
+    }
+
+    _lastAppliedSwapLeftRightRoles = swapLeftRightRoles;
+    _trackedHandStateStore?.ResetAll();
+    _handInteractionProcessor?.ResetInteractionState();
   }
 
   // Vector2 の最小値と最大値の順序が逆なら入れ替える。

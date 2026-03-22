@@ -12,6 +12,7 @@ public sealed class GrabInteractor
     public float followLerpX;
     public float followLerpY;
     public float followLerpZ;
+    public float rotationDegreesPerSecond;
     public bool restoreIsKinematicOnRelease;
     public bool restoreUseGravityOnRelease;
   }
@@ -23,7 +24,10 @@ public sealed class GrabInteractor
   private Vector3 _grabOffset;
   private bool _grabbedOriginalIsKinematic;
   private bool _grabbedOriginalUseGravity;
+  private RigidbodyConstraints _grabbedOriginalConstraints;
+  private Quaternion _targetRotation;
 
+  // grab 操作用の設定でインタラクタを生成する。
   public GrabInteractor(Config config)
   {
     ApplyConfiguration(config);
@@ -31,11 +35,13 @@ public sealed class GrabInteractor
 
   public bool HasGrabbedBody => _grabbedBody != null;
 
+  // grab と回転に使う設定を更新する。
   public void ApplyConfiguration(Config config)
   {
     _config = config;
   }
 
+  // 手元に最も近い掴める Rigidbody を取得する。
   public void TryBeginGrab(Vector3 handTarget)
   {
     var capsuleBottom = new Vector3(handTarget.x, -1000f, handTarget.z);
@@ -85,13 +91,17 @@ public sealed class GrabInteractor
     _grabOffset.y = 0f;
     _grabbedOriginalIsKinematic = _grabbedBody.isKinematic;
     _grabbedOriginalUseGravity = _grabbedBody.useGravity;
+    _grabbedOriginalConstraints = _grabbedBody.constraints;
 
     _grabbedBody.linearVelocity = Vector3.zero;
     _grabbedBody.angularVelocity = Vector3.zero;
     _grabbedBody.isKinematic = true;
     _grabbedBody.useGravity = false;
+    _grabbedBody.constraints = _grabbedOriginalConstraints & ~RigidbodyConstraints.FreezeRotation;
+    _targetRotation = _grabbedBody.rotation;
   }
 
+  // grab 中オブジェクトの位置と回転を更新する。
   public void UpdateGrabbedObject(Vector3 handTarget)
   {
     if (_grabbedBody == null)
@@ -112,8 +122,21 @@ public sealed class GrabInteractor
     _grabbedBody.position = next;
     _grabbedBody.linearVelocity = Vector3.zero;
     _grabbedBody.angularVelocity = Vector3.zero;
+    UpdateGrabbedRotation();
   }
 
+  // grab 中オブジェクトの目標回転を積み増す。
+  public void RotateGrabbedObject(Vector3 worldAxis, float angleDegrees)
+  {
+    if (_grabbedBody == null || worldAxis.sqrMagnitude <= Mathf.Epsilon || Mathf.Approximately(angleDegrees, 0f))
+    {
+      return;
+    }
+
+    _targetRotation = Quaternion.AngleAxis(angleDegrees, worldAxis.normalized) * _targetRotation;
+  }
+
+  // grab 中オブジェクトを解放して元の物理設定へ戻す。
   public void ReleaseGrabbedObject()
   {
     if (_grabbedBody == null)
@@ -123,6 +146,7 @@ public sealed class GrabInteractor
 
     _grabbedBody.linearVelocity = Vector3.zero;
     _grabbedBody.angularVelocity = Vector3.zero;
+    _grabbedBody.constraints = _grabbedOriginalConstraints;
 
     if (_config.restoreIsKinematicOnRelease)
     {
@@ -143,5 +167,23 @@ public sealed class GrabInteractor
     }
 
     _grabbedBody = null;
+  }
+
+  // 現在の回転から目標回転まで徐々に追従させる。
+  private void UpdateGrabbedRotation()
+  {
+    if (_grabbedBody == null)
+    {
+      return;
+    }
+
+    var maxStep = Mathf.Max(0f, _config.rotationDegreesPerSecond) * Time.deltaTime;
+    if (maxStep <= 0f)
+    {
+      _grabbedBody.rotation = _targetRotation;
+      return;
+    }
+
+    _grabbedBody.rotation = Quaternion.RotateTowards(_grabbedBody.rotation, _targetRotation, maxStep);
   }
 }

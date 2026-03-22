@@ -42,11 +42,13 @@ public sealed class HandCursorController
   private int _cachedCursorFrame = -1;
   private Vector3 _cachedCursorPoint;
 
+  // カーソル制御を設定付きで生成する。
   public HandCursorController(Transform ownerTransform, Config config)
   {
     Configure(ownerTransform, config);
   }
 
+  // カーソル表示に使う参照と設定を更新する。
   public void Configure(Transform ownerTransform, Config config)
   {
     _ownerTransform = ownerTransform;
@@ -67,6 +69,7 @@ public sealed class HandCursorController
     EnsureCursorSphere();
   }
 
+  // 手状態からカーソル位置を更新し、追従先座標を返す。
   public bool TryUpdateCursor(HandState handState, out Vector3 handTarget)
   {
     handTarget = Vector3.zero;
@@ -82,16 +85,19 @@ public sealed class HandCursorController
     return true;
   }
 
+  // カーソル表示を非表示にする。
   public void HideCursor()
   {
     SetCursorVisible(false);
   }
 
+  // 同一フレーム内のキャッシュを破棄する。
   public void ResetTrackingCache()
   {
     _cachedCursorFrame = -1;
   }
 
+  // 動的生成したリソースを破棄する。
   public void Dispose()
   {
     if (_cursorMaterial != null)
@@ -107,6 +113,7 @@ public sealed class HandCursorController
     }
   }
 
+  // カーソル球の生成と見た目の初期化を行う。
   private void EnsureCursorSphere()
   {
     if (_cursorSphere == null)
@@ -158,6 +165,7 @@ public sealed class HandCursorController
     SetCursorVisible(false);
   }
 
+  // 指定位置にカーソルを表示して色を更新する。
   private void ShowCursor(Vector3 position, bool isPinching)
   {
     if (_cursorSphere == null)
@@ -171,6 +179,7 @@ public sealed class HandCursorController
     SetCursorVisible(true);
   }
 
+  // 手状態から床面上のカーソル位置を求める。
   private Vector3 GetCursorPointOnPlane(HandState handState)
   {
     if (_cachedCursorFrame == Time.frameCount)
@@ -196,6 +205,7 @@ public sealed class HandCursorController
     return _cachedCursorPoint;
   }
 
+  // 手状態から未平滑の床面カーソル位置を計算する。
   private Vector3 ComputeRawCursorPointOnPlane(HandState handState)
   {
     var depthZ = Mathf.Clamp(GetHandDepthWorldZ(handState), _zRange.x, _zRange.y);
@@ -215,18 +225,21 @@ public sealed class HandCursorController
     return point;
   }
 
+  // カーソル位置と手の高さから 3D 追従位置を作る。
   private Vector3 GetHandTargetPoint(HandState handState, Vector3 cursorPoint)
   {
     var handY = Mathf.Lerp(_yRange.x, _yRange.y, 1f - Mathf.Clamp01(handState.y));
     return new Vector3(cursorPoint.x, Mathf.Clamp(handY, _yRange.x, _yRange.y), cursorPoint.z);
   }
 
+  // 正規化 depth をワールド座標の Z に変換する。
   private float GetHandDepthWorldZ(HandState handState)
   {
     var normalizedDepth = ApplySensitivity(Mathf.Clamp01(handState.depth), _zSensitivity);
     return Mathf.Lerp(_zRange.x, _zRange.y, normalizedDepth);
   }
 
+  // カーソルオブジェクトの表示状態を切り替える。
   private void SetCursorVisible(bool visible)
   {
     if (_cursorSphere != null && _cursorSphere.gameObject.activeSelf != visible)
@@ -235,6 +248,7 @@ public sealed class HandCursorController
     }
   }
 
+  // pinch 状態に応じてカーソル色を更新する。
   private void ApplyCursorColor(bool isPinching)
   {
     if (_cursorMaterial == null)
@@ -250,11 +264,13 @@ public sealed class HandCursorController
     }
   }
 
+  // 入力感度を中心基準で正規化値へ反映する。
   private static float ApplySensitivity(float normalizedValue, float sensitivity)
   {
     return Mathf.Clamp01(0.5f + (normalizedValue - 0.5f) * sensitivity);
   }
 
+  // ビューポート座標を床面へ射影する。
   private bool TryProjectToFloorPlane(float viewportX, float viewportY, out Vector3 hitPoint)
   {
     hitPoint = Vector3.zero;
