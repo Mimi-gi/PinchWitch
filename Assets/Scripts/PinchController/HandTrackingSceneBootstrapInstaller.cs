@@ -10,12 +10,14 @@ public static class HandTrackingSceneBootstrapInstaller
     BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
 
   [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+  // シーン読み込み時の Bootstrap 補完フックを登録する。
   private static void RegisterSceneHook()
   {
     SceneManager.sceneLoaded -= OnSceneLoaded;
     SceneManager.sceneLoaded += OnSceneLoaded;
   }
 
+  // シーン読み込み後に Bootstrap の不足を補完する。
   private static void OnSceneLoaded(Scene scene, LoadSceneMode loadMode)
   {
     if (!scene.IsValid())
@@ -37,6 +39,7 @@ public static class HandTrackingSceneBootstrapInstaller
     CreateBootstrapObject(scene, localBootstrap);
   }
 
+  // 指定名の Bootstrap をシーン内から探す。
   private static Bootstrap FindBootstrapInScene(Scene scene, string objectName)
   {
     foreach (var candidate in Resources.FindObjectsOfTypeAll<Bootstrap>())
@@ -60,6 +63,7 @@ public static class HandTrackingSceneBootstrapInstaller
     return null;
   }
 
+  // シーン内にある任意の Bootstrap を 1 つ取得する。
   private static Bootstrap FindSceneLocalBootstrap(Scene scene)
   {
     foreach (var candidate in Resources.FindObjectsOfTypeAll<Bootstrap>())
@@ -80,6 +84,7 @@ public static class HandTrackingSceneBootstrapInstaller
     return null;
   }
 
+  // 既存設定を複製した Bootstrap オブジェクトを生成する。
   private static void CreateBootstrapObject(Scene scene, Bootstrap sourceBootstrap)
   {
     var bootstrapObject = new GameObject(BootstrapObjectName);
@@ -98,6 +103,7 @@ public static class HandTrackingSceneBootstrapInstaller
     bootstrap.enabled = true;
   }
 
+  // ImageSource 系コンポーネントを複製先へコピーする。
   private static void CloneImageSourceComponent<T>(T sourceComponent, GameObject bootstrapObject) where T : Behaviour
   {
     if (sourceComponent == null)
@@ -111,6 +117,7 @@ public static class HandTrackingSceneBootstrapInstaller
     clonedComponent.enabled = false;
   }
 
+  // Serialize 対象のフィールドをリフレクションで複製する。
   private static void CopySerializedFields(object source, object destination)
   {
     for (var type = source.GetType(); type != null && type != typeof(Behaviour); type = type.BaseType)
@@ -127,6 +134,7 @@ public static class HandTrackingSceneBootstrapInstaller
     }
   }
 
+  // フィールドがコピー対象かどうかを判定する。
   private static bool ShouldCopyField(FieldInfo field)
   {
     if (field.IsStatic || field.IsLiteral || field.IsInitOnly || field.IsNotSerialized)

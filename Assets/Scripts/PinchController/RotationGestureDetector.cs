@@ -35,16 +35,19 @@ public sealed class RotationGestureDetector
   private Vector2 _lastStillnessSample;
   private float _stillnessTimer;
 
+  // 回転ジェスチャー判定器を設定付きで生成する。
   public RotationGestureDetector(Config config)
   {
     ApplyConfiguration(config);
   }
 
+  // 判定に使うしきい値設定を更新する。
   public void ApplyConfiguration(Config config)
   {
     _config = config;
   }
 
+  // スワイプ判定の内部状態を初期化する。
   public void Reset()
   {
     _rearmState = RearmState.Ready;
@@ -54,6 +57,7 @@ public sealed class RotationGestureDetector
     _stillnessTimer = 0f;
   }
 
+  // 現在の手状態から回転スワイプを検出する。
   public bool TryDetectSwipe(HandState handState, out RotationCommand rotationCommand)
   {
     rotationCommand = default;
@@ -109,6 +113,7 @@ public sealed class RotationGestureDetector
     return false;
   }
 
+  // 発火後に再アーム待機状態へ切り替える。
   private void StartCooldown(Vector2 currentPoint)
   {
     _swipeAnchor = currentPoint;
@@ -119,6 +124,7 @@ public sealed class RotationGestureDetector
     _stillnessTimer = 0f;
   }
 
+  // 手が静止したかを見て再アーム条件を更新する。
   private void UpdateStillnessState(Vector2 currentPoint)
   {
     if (!_hasStillnessSample)

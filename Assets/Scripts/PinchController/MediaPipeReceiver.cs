@@ -18,28 +18,27 @@ public sealed class MediaPipeReceiver
   public const int HandLandmarkCount = 21;
 
   private readonly object _frameLock = new object();
-  private readonly Vector3[] _latestAnyLandmarks = new Vector3[HandLandmarkCount];
   private readonly Vector3[] _latestLeftLandmarks = new Vector3[HandLandmarkCount];
   private readonly Vector3[] _latestRightLandmarks = new Vector3[HandLandmarkCount];
   private readonly TrackedHandType?[] _latestHandednessByIndex = new TrackedHandType?[InteractionHandCount];
 
   private HandTrackingGraph _handTrackingGraph;
   private float _handLostTimeoutSeconds;
-  private bool _hasAnyHandOnLatestFrame;
   private bool _hasLeftHandOnLatestFrame;
   private bool _hasRightHandOnLatestFrame;
-  private long _latestAnyHandTicks;
   private long _latestLeftHandTicks;
   private long _latestRightHandTicks;
   private bool _isSubscribed;
   private Coroutine _subscribeCoroutine;
 
+  // 受信対象の graph とタイムアウト設定を初期化する。
   public MediaPipeReceiver(HandTrackingGraph handTrackingGraph, float handLostTimeoutSeconds)
   {
     UpdateGraph(handTrackingGraph);
     UpdateSettings(handLostTimeoutSeconds);
   }
 
+  // 対象の HandTrackingGraph を更新する。
   public void UpdateGraph(HandTrackingGraph handTrackingGraph)
   {
     _handTrackingGraph = handTrackingGraph;
@@ -49,11 +48,13 @@ public sealed class MediaPipeReceiver
     }
   }
 
+  // 手を見失ったとみなす猶予時間を更新する。
   public void UpdateSettings(float handLostTimeoutSeconds)
   {
     _handLostTimeoutSeconds = Mathf.Max(0.01f, handLostTimeoutSeconds);
   }
 
+  // graph の出力購読を開始する。
   public void Start(MonoBehaviour host)
   {
     if (host == null || _subscribeCoroutine != null)
@@ -64,6 +65,7 @@ public sealed class MediaPipeReceiver
     _subscribeCoroutine = host.StartCoroutine(SubscribeWhenGraphIsReady(host));
   }
 
+  // graph の出力購読を停止する。
   public void Stop(MonoBehaviour host)
   {
     if (_subscribeCoroutine != null && host != null)
@@ -75,28 +77,7 @@ public sealed class MediaPipeReceiver
     UnsubscribeFromGraph();
   }
 
-  public bool TryGetLatestLandmarks(Vector3[] frameLandmarks)
-  {
-    if (TryGetLatestLandmarks(TrackedHandType.Right, frameLandmarks))
-    {
-      return true;
-    }
-
-    bool hasHand;
-    long frameTicks;
-    lock (_frameLock)
-    {
-      hasHand = _hasAnyHandOnLatestFrame;
-      frameTicks = _latestAnyHandTicks;
-      if (hasHand)
-      {
-        System.Array.Copy(_latestAnyLandmarks, frameLandmarks, HandLandmarkCount);
-      }
-    }
-
-    return IsHandFresh(hasHand, frameTicks);
-  }
-
+  // 指定した左右の手の最新ランドマークを取得する。
   public bool TryGetLatestLandmarks(TrackedHandType handType, Vector3[] frameLandmarks)
   {
     bool hasHand;
@@ -132,6 +113,7 @@ public sealed class MediaPipeReceiver
     return IsHandFresh(hasHand, frameTicks);
   }
 
+  // 指定した左右の手が新鮮なフレームを持つか確認する。
   public bool HasFreshHand(TrackedHandType handType)
   {
     bool hasHand;
@@ -159,6 +141,7 @@ public sealed class MediaPipeReceiver
     return IsHandFresh(hasHand, frameTicks);
   }
 
+  // 保持中のフレームがまだ有効かを判定する。
   private bool IsHandFresh(bool hasHand, long frameTicks)
   {
     if (!hasHand)
@@ -170,6 +153,7 @@ public sealed class MediaPipeReceiver
     return elapsedSeconds <= _handLostTimeoutSeconds;
   }
 
+  // graph が準備できるまで購読開始を待つ。
   private IEnumerator SubscribeWhenGraphIsReady(MonoBehaviour host)
   {
     while (!_isSubscribed && host != null && host.isActiveAndEnabled)
@@ -184,6 +168,7 @@ public sealed class MediaPipeReceiver
     }
   }
 
+  // graph の出力イベントに購読する。
   private void SubscribeToGraph()
   {
     if (_isSubscribed || _handTrackingGraph == null)
@@ -203,6 +188,7 @@ public sealed class MediaPipeReceiver
     }
   }
 
+  // graph の出力イベント購読を解除する。
   private void UnsubscribeFromGraph()
   {
     if (!_isSubscribed || _handTrackingGraph == null)
@@ -224,6 +210,7 @@ public sealed class MediaPipeReceiver
     _isSubscribed = false;
   }
 
+  // ランドマーク出力を左右の手キャッシュへ反映する。
   private void OnHandLandmarksOutput(object stream, OutputEventArgs<List<NormalizedLandmarkList>> eventArgs)
   {
     var handLandmarks = eventArgs == null ? null : eventArgs.value;
@@ -231,7 +218,6 @@ public sealed class MediaPipeReceiver
     lock (_frameLock)
     {
       var timestampTicks = Stopwatch.GetTimestamp();
-      _hasAnyHandOnLatestFrame = false;
       _hasLeftHandOnLatestFrame = false;
       _hasRightHandOnLatestFrame = false;
 
@@ -246,13 +232,6 @@ public sealed class MediaPipeReceiver
         if (!IsValidHand(candidate))
         {
           continue;
-        }
-
-        if (!_hasAnyHandOnLatestFrame)
-        {
-          CopyLandmarks(candidate, _latestAnyLandmarks);
-          _hasAnyHandOnLatestFrame = true;
-          _latestAnyHandTicks = timestampTicks;
         }
 
         var handedness = ResolveHandednessForIndex(i);
@@ -277,6 +256,7 @@ public sealed class MediaPipeReceiver
     }
   }
 
+  // handedness 出力をインデックスごとの左右情報として保持する。
   private void OnHandednessOutput(object stream, OutputEventArgs<List<ClassificationList>> eventArgs)
   {
     lock (_frameLock)
@@ -299,11 +279,11 @@ public sealed class MediaPipeReceiver
     }
   }
 
+  // 保持している左右手のキャッシュをクリアする。
   private void ResetFrameCache()
   {
     lock (_frameLock)
     {
-      _hasAnyHandOnLatestFrame = false;
       _hasLeftHandOnLatestFrame = false;
       _hasRightHandOnLatestFrame = false;
 
@@ -314,6 +294,7 @@ public sealed class MediaPipeReceiver
     }
   }
 
+  // 指定インデックスの左右判定結果を返す。
   private TrackedHandType? ResolveHandednessForIndex(int handIndex)
   {
     if (handIndex < 0 || handIndex >= _latestHandednessByIndex.Length)
@@ -329,6 +310,7 @@ public sealed class MediaPipeReceiver
     return null;
   }
 
+  // MediaPipe の handedness ラベルを内部 enum に変換する。
   private static TrackedHandType? ParseHandedness(ClassificationList handedness)
   {
     if (handedness == null || handedness.Classification == null || handedness.Classification.Count == 0)
@@ -350,6 +332,7 @@ public sealed class MediaPipeReceiver
     return null;
   }
 
+  // ランドマーク配列が有効な手データか確認する。
   private static bool IsValidHand(NormalizedLandmarkList handLandmarks)
   {
     return handLandmarks != null
@@ -357,6 +340,7 @@ public sealed class MediaPipeReceiver
            && handLandmarks.Landmark.Count >= HandLandmarkCount;
   }
 
+  // MediaPipe のランドマークを Unity 用の配列へコピーする。
   private static void CopyLandmarks(NormalizedLandmarkList source, Vector3[] destination)
   {
     for (var i = 0; i < HandLandmarkCount; i++)

@@ -28,6 +28,7 @@ public sealed class HandStateCalculator
   private bool _xMirrorResolved;
   private bool _xShouldMirror;
 
+  // 初期状態の手データを生成する。
   public HandState CreateInitialState()
   {
     return new HandState
@@ -40,12 +41,14 @@ public sealed class HandStateCalculator
     };
   }
 
+  // 手未検知時の状態へ戻す。
   public void SetUndetected(ref HandState handState)
   {
     handState.detected = false;
     handState.pinch = false;
   }
 
+  // ランドマークから手状態を更新する。
   public void UpdateHandState(Vector3[] landmarks, ref HandState handState)
   {
     handState.detected = true;
@@ -67,6 +70,7 @@ public sealed class HandStateCalculator
       : pinchDistance < pinchOnThreshold;
   }
 
+  // 手のひらサイズから depth 推定用の基準値を作る。
   private float GetPalmScale(Vector3[] landmarks)
   {
     var wrist = landmarks[WristIndex];
@@ -79,6 +83,7 @@ public sealed class HandStateCalculator
     return tri * 0.7f + spine * 0.3f;
   }
 
+  // 2 点間の 2D 距離を返す。
   private static float Distance2D(Vector3 a, Vector3 b)
   {
     var dx = a.x - b.x;
@@ -86,6 +91,7 @@ public sealed class HandStateCalculator
     return Mathf.Sqrt(dx * dx + dy * dy);
   }
 
+  // 手のひらサイズから depth の正規化値を更新する。
   private void UpdateHandDepthFromPalmScale(float palmScale, ref HandState handState)
   {
     if (!_handDepthCalibrated)
@@ -135,6 +141,7 @@ public sealed class HandStateCalculator
     handState.depth = Mathf.Lerp(handState.depth, normalizedDepth, 0.16f);
   }
 
+  // 画像座標の X をシーン用の左右方向へ補正する。
   private float ToSceneNormalizedX(float rawX)
   {
     var normalizedX = Mathf.Clamp01(rawX);

@@ -4,16 +4,12 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class HandPinchController : MonoBehaviour
 {
-  private enum GrabControlHand
-  {
-    None,
-    Right,
-    Fallback,
-  }
-
   [Header("MediaPipe")]
   [SerializeField] private HandTrackingGraph handTrackingGraph;
   [SerializeField] private Camera worldCamera;
+
+  [Header("Hand Roles")]
+  [SerializeField] private bool swapLeftRightRoles;
 
   [Header("Cursor (Sphere)")]
   [SerializeField] private Transform cursorSphere;
@@ -52,23 +48,19 @@ public class HandPinchController : MonoBehaviour
   [Header("Fail Safe")]
   [SerializeField] private float handLostTimeoutSeconds = 0.25f;
 
-  private readonly Vector3[] _fallbackFrameLandmarks = new Vector3[MediaPipeReceiver.HandLandmarkCount];
   private readonly Vector3[] _leftFrameLandmarks = new Vector3[MediaPipeReceiver.HandLandmarkCount];
   private readonly Vector3[] _rightFrameLandmarks = new Vector3[MediaPipeReceiver.HandLandmarkCount];
 
   private MediaPipeReceiver _mediaPipeReceiver;
-  private HandStateCalculator _fallbackHandStateCalculator;
   private HandStateCalculator _leftHandStateCalculator;
   private HandStateCalculator _rightHandStateCalculator;
   private HandCursorController _handCursorController;
   private GrabInteractor _grabInteractor;
   private RotationGestureDetector _rotationGestureDetector;
-  private HandState _fallbackHandState;
   private HandState _leftHandState;
   private HandState _rightHandState;
   private bool _prevPinch;
-  private GrabControlHand _activeGrabHand;
-  private GrabControlHand _lastResolvedGrabHand;
+  private bool _lastAppliedSwapLeftRightRoles;
 
   // Inspector 上の初期参照とデフォルト設定を補完する。
   private void Reset()
@@ -86,6 +78,7 @@ public class HandPinchController : MonoBehaviour
 
     NormalizeSerializedValues();
     ApplyHandTrackingConfiguration();
+    _lastAppliedSwapLeftRightRoles = swapLeftRightRoles;
   }
 
   // 手状態と依存クラスを初期化する。
@@ -94,6 +87,7 @@ public class HandPinchController : MonoBehaviour
     EnsureReferences();
     NormalizeSerializedValues();
     ApplyHandTrackingConfiguration();
+    _lastAppliedSwapLeftRightRoles = swapLeftRightRoles;
     InitializeSystems();
   }
 
@@ -107,21 +101,15 @@ public class HandPinchController : MonoBehaviour
   private void OnDisable()
   {
     _mediaPipeReceiver?.Stop(this);
-    _grabInteractor?.ReleaseGrabbedObject();
-    _handCursorController?.HideCursor();
-    _rotationGestureDetector?.Reset();
-    _activeGrabHand = GrabControlHand.None;
-    _lastResolvedGrabHand = GrabControlHand.None;
-    _prevPinch = false;
+    ResetInteractionState();
   }
 
   // 生成したリソースを破棄する。
   private void OnDestroy()
   {
     _mediaPipeReceiver?.Stop(this);
-    _grabInteractor?.ReleaseGrabbedObject();
+    ResetInteractionState();
     _handCursorController?.Dispose();
-    _rotationGestureDetector?.Reset();
   }
 
   // Inspector から変更された設定値を反映する。
@@ -129,9 +117,10 @@ public class HandPinchController : MonoBehaviour
   {
     NormalizeSerializedValues();
     RefreshSystems();
+    HandleRoleSwapChange();
   }
 
-  // 最新の手入力に応じてカーソルと grab 状態を更新する。
+  // 最新の手入力に応じて移動と回転の操作を更新する。
   private void Update()
   {
     ProcessLatestHandFrames();
@@ -156,10 +145,8 @@ public class HandPinchController : MonoBehaviour
   // 分割した各責務クラスを初期化する。
   private void InitializeSystems()
   {
-    _fallbackHandStateCalculator = new HandStateCalculator();
     _leftHandStateCalculator = new HandStateCalculator();
     _rightHandStateCalculator = new HandStateCalculator();
-    _fallbackHandState = _fallbackHandStateCalculator.CreateInitialState();
     _leftHandState = _leftHandStateCalculator.CreateInitialState();
     _rightHandState = _rightHandStateCalculator.CreateInitialState();
     _mediaPipeReceiver = new MediaPipeReceiver(handTrackingGraph, handLostTimeoutSeconds);
@@ -219,6 +206,7 @@ public class HandPinchController : MonoBehaviour
     };
   }
 
+  // 回転ジェスチャー制御に渡す設定を構築する。
   private RotationGestureDetector.Config BuildRotationConfig()
   {
     return new RotationGestureDetector.Config
@@ -275,73 +263,33 @@ public class HandPinchController : MonoBehaviour
   // 最新フレームを受け取り、有効なら手状態へ反映する。
   private void ProcessLatestHandFrames()
   {
-    if (_mediaPipeReceiver == null || !_mediaPipeReceiver.TryGetLatestLandmarks(_fallbackFrameLandmarks))
-    {
-      _fallbackHandStateCalculator?.SetUndetected(ref _fallbackHandState);
-    }
-    else
-    {
-      _fallbackHandStateCalculator.UpdateHandState(_fallbackFrameLandmarks, ref _fallbackHandState);
-    }
-
-    if (_mediaPipeReceiver == null || !_mediaPipeReceiver.TryGetLatestLandmarks(MediaPipeReceiver.TrackedHandType.Left, _leftFrameLandmarks))
-    {
-      _leftHandStateCalculator?.SetUndetected(ref _leftHandState);
-    }
-    else
-    {
-      _leftHandStateCalculator.UpdateHandState(_leftFrameLandmarks, ref _leftHandState);
-    }
-
-    if (_mediaPipeReceiver == null || !_mediaPipeReceiver.TryGetLatestLandmarks(MediaPipeReceiver.TrackedHandType.Right, _rightFrameLandmarks))
-    {
-      _rightHandStateCalculator?.SetUndetected(ref _rightHandState);
-    }
-    else
-    {
-      _rightHandStateCalculator.UpdateHandState(_rightFrameLandmarks, ref _rightHandState);
-    }
+    UpdateTrackedHandState(MediaPipeReceiver.TrackedHandType.Left, _leftFrameLandmarks);
+    UpdateTrackedHandState(MediaPipeReceiver.TrackedHandType.Right, _rightFrameLandmarks);
   }
 
-  // 現在の手状態に応じてカーソル表示と grab の開始・追従・解放を制御する。
+  // 移動担当の手でカーソル表示と grab の開始・追従・解放を制御する。
   private void UpdateHandInteraction()
   {
-    if (!TryResolveGrabHandState(out var grabHandState, out var grabControlHand))
-    {
-      SetGrabHandUndetected();
-      return;
-    }
-
-    if (!_grabInteractor.HasGrabbedBody)
-    {
-      _activeGrabHand = GrabControlHand.None;
-    }
-
-    if (_lastResolvedGrabHand != grabControlHand)
-    {
-      _prevPinch = false;
-    }
-
+    var movementHandState = GetHandState(GetMovementHandType());
     if (_handCursorController == null
         || _grabInteractor == null
-        || !_handCursorController.TryUpdateCursor(grabHandState, out var handTarget))
+        || !movementHandState.detected
+        || !_handCursorController.TryUpdateCursor(movementHandState, out var handTarget))
     {
-      SetGrabHandUndetected();
+      SetMovementHandUndetected();
       return;
     }
 
-    var pinchStarted = grabHandState.pinch && !_prevPinch;
-    var pinchEnded = !grabHandState.pinch && _prevPinch;
-    _prevPinch = grabHandState.pinch;
-    _lastResolvedGrabHand = grabControlHand;
+    var pinchStarted = movementHandState.pinch && !_prevPinch;
+    var pinchEnded = !movementHandState.pinch && _prevPinch;
+    _prevPinch = movementHandState.pinch;
 
     if (pinchStarted && !_grabInteractor.HasGrabbedBody)
     {
-      _activeGrabHand = grabControlHand;
       _grabInteractor.TryBeginGrab(handTarget);
     }
 
-    if (_grabInteractor.HasGrabbedBody && grabHandState.pinch)
+    if (_grabInteractor.HasGrabbedBody && movementHandState.pinch)
     {
       _grabInteractor.UpdateGrabbedObject(handTarget);
     }
@@ -349,90 +297,139 @@ public class HandPinchController : MonoBehaviour
     if (pinchEnded)
     {
       _grabInteractor.ReleaseGrabbedObject();
-      _activeGrabHand = GrabControlHand.None;
-      _lastResolvedGrabHand = GrabControlHand.None;
       _rotationGestureDetector?.Reset();
     }
   }
 
+  // 回転担当の手で grab 中オブジェクトの回転入力を処理する。
   private void UpdateRotationInteraction()
   {
+    var movementHandType = GetMovementHandType();
+    var rotationHandType = GetRotationHandType();
+    var rotationHandState = GetHandState(rotationHandType);
+
     if (_rotationGestureDetector == null
         || _grabInteractor == null
+        || _mediaPipeReceiver == null
         || !_grabInteractor.HasGrabbedBody
-        || _activeGrabHand != GrabControlHand.Right
-        || !_mediaPipeReceiver.HasFreshHand(MediaPipeReceiver.TrackedHandType.Left)
-        || !_mediaPipeReceiver.HasFreshHand(MediaPipeReceiver.TrackedHandType.Right))
+        || !_mediaPipeReceiver.HasFreshHand(movementHandType)
+        || !_mediaPipeReceiver.HasFreshHand(rotationHandType))
     {
       _rotationGestureDetector?.Reset();
       return;
     }
 
-    if (!_leftHandState.pinch)
+    if (!rotationHandState.pinch)
     {
       _rotationGestureDetector.Reset();
       return;
     }
 
-    if (_rotationGestureDetector.TryDetectSwipe(_leftHandState, out var rotationCommand))
+    if (_rotationGestureDetector.TryDetectSwipe(rotationHandState, out var rotationCommand))
     {
       _grabInteractor.RotateGrabbedObject(rotationCommand.worldAxis, rotationCommand.angleDegrees);
     }
   }
 
-  private bool TryResolveGrabHandState(out HandState handState, out GrabControlHand grabControlHand)
+  // 指定した手の最新フレームを手状態へ反映する。
+  private void UpdateTrackedHandState(MediaPipeReceiver.TrackedHandType handType, Vector3[] frameLandmarks)
   {
-    handState = default;
-    grabControlHand = GrabControlHand.None;
-
-    if (_grabInteractor != null && _grabInteractor.HasGrabbedBody)
+    switch (handType)
     {
-      if (_activeGrabHand == GrabControlHand.Right && _rightHandState.detected)
-      {
-        handState = _rightHandState;
-        grabControlHand = GrabControlHand.Right;
-        return true;
-      }
-
-      if (_activeGrabHand == GrabControlHand.Fallback && _fallbackHandState.detected)
-      {
-        handState = _fallbackHandState;
-        grabControlHand = GrabControlHand.Fallback;
-        return true;
-      }
-
-      return false;
+      case MediaPipeReceiver.TrackedHandType.Left:
+        UpdateTrackedHandState(_leftHandStateCalculator, ref _leftHandState, handType, frameLandmarks);
+        return;
+      case MediaPipeReceiver.TrackedHandType.Right:
+        UpdateTrackedHandState(_rightHandStateCalculator, ref _rightHandState, handType, frameLandmarks);
+        return;
+      default:
+        return;
     }
-
-    if (_rightHandState.detected)
-    {
-      handState = _rightHandState;
-      grabControlHand = GrabControlHand.Right;
-      return true;
-    }
-
-    if (_fallbackHandState.detected)
-    {
-      handState = _fallbackHandState;
-      grabControlHand = GrabControlHand.Fallback;
-      return true;
-    }
-
-    return false;
   }
 
-  // grab 側の手を見失った状態として内部状態を更新する。
-  private void SetGrabHandUndetected()
+  // 受信結果に応じて手状態を更新し、未検知ならリセットする。
+  private void UpdateTrackedHandState(HandStateCalculator calculator, ref HandState handState, MediaPipeReceiver.TrackedHandType handType, Vector3[] frameLandmarks)
   {
-    _fallbackHandStateCalculator?.SetUndetected(ref _fallbackHandState);
-    _rightHandStateCalculator?.SetUndetected(ref _rightHandState);
+    if (calculator == null || _mediaPipeReceiver == null || !_mediaPipeReceiver.TryGetLatestLandmarks(handType, frameLandmarks))
+    {
+      calculator?.SetUndetected(ref handState);
+      return;
+    }
+
+    calculator.UpdateHandState(frameLandmarks, ref handState);
+  }
+
+  // 現在の役割設定に応じて移動担当の手を返す。
+  private MediaPipeReceiver.TrackedHandType GetMovementHandType()
+  {
+    return swapLeftRightRoles ? MediaPipeReceiver.TrackedHandType.Left : MediaPipeReceiver.TrackedHandType.Right;
+  }
+
+  // 現在の役割設定に応じて回転担当の手を返す。
+  private MediaPipeReceiver.TrackedHandType GetRotationHandType()
+  {
+    return swapLeftRightRoles ? MediaPipeReceiver.TrackedHandType.Right : MediaPipeReceiver.TrackedHandType.Left;
+  }
+
+  // 指定した手に対応する最新の手状態を返す。
+  private HandState GetHandState(MediaPipeReceiver.TrackedHandType handType)
+  {
+    switch (handType)
+    {
+      case MediaPipeReceiver.TrackedHandType.Left:
+        return _leftHandState;
+      case MediaPipeReceiver.TrackedHandType.Right:
+        return _rightHandState;
+      default:
+        return default;
+    }
+  }
+
+  // 指定した手を未検知状態として扱う。
+  private void SetTrackedHandUndetected(MediaPipeReceiver.TrackedHandType handType)
+  {
+    switch (handType)
+    {
+      case MediaPipeReceiver.TrackedHandType.Left:
+        _leftHandStateCalculator?.SetUndetected(ref _leftHandState);
+        return;
+      case MediaPipeReceiver.TrackedHandType.Right:
+        _rightHandStateCalculator?.SetUndetected(ref _rightHandState);
+        return;
+      default:
+        return;
+    }
+  }
+
+  // 移動担当の手を見失ったときの内部状態を更新する。
+  private void SetMovementHandUndetected()
+  {
+    SetTrackedHandUndetected(GetMovementHandType());
+    ResetInteractionState();
+  }
+
+  // grab と回転まわりの一時状態をまとめてリセットする。
+  private void ResetInteractionState()
+  {
     _handCursorController?.ResetTrackingCache();
     _handCursorController?.HideCursor();
     _grabInteractor?.ReleaseGrabbedObject();
     _rotationGestureDetector?.Reset();
-    _activeGrabHand = GrabControlHand.None;
-    _lastResolvedGrabHand = GrabControlHand.None;
     _prevPinch = false;
+  }
+
+  // 左右役割の切り替えが変わったときに操作状態をリセットする。
+  private void HandleRoleSwapChange()
+  {
+    if (_lastAppliedSwapLeftRightRoles == swapLeftRightRoles)
+    {
+      return;
+    }
+
+    _lastAppliedSwapLeftRightRoles = swapLeftRightRoles;
+    _leftHandStateCalculator?.SetUndetected(ref _leftHandState);
+    _rightHandStateCalculator?.SetUndetected(ref _rightHandState);
+    ResetInteractionState();
   }
 
   // Vector2 の最小値と最大値の順序が逆なら入れ替える。
