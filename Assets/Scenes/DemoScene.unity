@@ -416,7 +416,7 @@ MonoBehaviour:
   _openGlEsConfig: {fileID: 4900000, guid: 155e81a0de3136db88c8ac8c72fad8b7, type: 3}
   _timeoutMicrosec: 50000
   modelComplexity: 1
-  maxNumHands: 1
+  maxNumHands: 2
 --- !u!114 &275874969
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -561,6 +561,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   handTrackingGraph: {fileID: 275874968}
   worldCamera: {fileID: 0}
+  swapLeftRightRoles: 0
   cursorSphere: {fileID: 0}
   cursorSphereDiameter: 0.22
   cursorIdleColor: {r: 0, g: 0.898, b: 1, a: 1}
@@ -582,6 +583,15 @@ MonoBehaviour:
   cursorLerpZ: 0.22
   xSensitivity: 0.8
   zSensitivity: 1
+  xSwipeRotationDegrees: 90
+  ySwipeRotationDegrees: 90
+  horizontalSwipeTriggerDistance: 0.18
+  verticalSwipeTriggerDistance: 0.16
+  swipeDominanceRatio: 1.25
+  swipeCooldownSeconds: 0.3
+  rearmStillnessDistance: 0.012
+  rearmStillnessDurationSeconds: 0.16
+  rotationDegreesPerSecond: 180
   handLostTimeoutSeconds: 0.25
 --- !u!1001 &296605791
 PrefabInstance:
