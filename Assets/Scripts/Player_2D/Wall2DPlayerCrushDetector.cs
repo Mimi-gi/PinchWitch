@@ -3,9 +3,8 @@ using UnityEngine;
 
 /// <summary>
 /// 2Dプレイヤーが障害物に挟まれたかを監視するスクリプト。
-/// 左右または上下の両側から押さえ込まれた瞬間に Crushed イベントを送る。
+/// 左右または上下の両側から塞がれた瞬間に Crushed イベントを送る。
 /// </summary>
-
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Collider2D))]
 public sealed class Wall2DPlayerCrushDetector : MonoBehaviour
@@ -29,7 +28,7 @@ public sealed class Wall2DPlayerCrushDetector : MonoBehaviour
 
   private void Awake()
   {
-    // 毎フレーム使うコライダー参照を最初に保持する。
+    // 毎フレーム使うコライダー参照を最初に確保する。
     _collider2D = GetComponent<Collider2D>();
     ClampSerializedValues();
   }

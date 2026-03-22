@@ -2,9 +2,8 @@ using UnityEngine;
 
 /// <summary>
 /// 2Dプレイヤーの基本操作を担当するスクリプト。
-/// 左右移動、ジャンプ、地面に立っているかの判定
+/// 左右移動、ジャンプ、接地判定をまとめて管理する。
 /// </summary>
-
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(Collider2D))]
@@ -64,7 +63,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
   private void FixedUpdate()
   {
-    // 移動前に、今フレームで地面に立っているかを更新する。
+    // 移動前に接地状態を更新する。
     UpdateGroundedState();
 
     var velocity = _rigidbody2D.linearVelocity;
@@ -73,7 +72,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
     if (_jumpRequested && _isGrounded)
     {
-      // 地面にいる時だけ Y 速度を上書きしてジャンプさせる。
+      // 接地中だけ Y 速度を上書きしてジャンプ開始にする。
       velocity.y = jumpVelocity;
       _isGrounded = false;
     }
@@ -84,7 +83,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
   private float GetHorizontalInput()
   {
-    // 標準の Horizontal 軸を基準にしつつ、明示的なキー入力も拾う。
+    // Unity の Horizontal 軸を基準にしつつ、明示的なキー入力も拾う。
     var input = Input.GetAxisRaw("Horizontal");
 
     if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
@@ -121,7 +120,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
   private void ClampSerializedValues()
   {
-    // Inspector から不正な値が入っても最低限動くように補正する。
+    // Inspector から極端な値が入っても破綻しにくいよう補正する。
     moveSpeed = Mathf.Max(0.1f, moveSpeed);
     airControlMultiplier = Mathf.Clamp(airControlMultiplier, 0f, 1f);
     jumpVelocity = Mathf.Max(0.1f, jumpVelocity);

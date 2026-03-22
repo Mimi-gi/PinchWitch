@@ -1,11 +1,10 @@
 using UnityEngine;
 
 /// <summary>
-/// 2Dプレイヤーの生成と破棄を管理するスクリプト。
-/// 2Dモード突入時のスポーン、3D復帰時の破棄、進行位置の保存、
-/// 落下や圧死時の初期地点リスポーンをまとめて担当する。
+/// 2Dプレイヤーの生成と再利用を管理するスクリプト。
+/// 2Dモード突入時のスポーン、進行位置の保存、落下や圧死時の初期地点リスポーン、
+/// そして 3D モード中に見た目だけ残して 2D 操作を止める処理を担当する。
 /// </summary>
-
 [DisallowMultipleComponent]
 public sealed class Wall2DPlayerRespawner : MonoBehaviour
 {
@@ -18,7 +17,9 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour
   [SerializeField] private float fallRespawnYThreshold = -10f;
 
   private GameObject _spawnedPlayerInstance;
+  private Wall2DPlayerController _spawnedPlayerController;
   private Wall2DPlayerCrushDetector _spawnedPlayerCrushDetector;
+  private Rigidbody2D _spawnedPlayerRigidbody2D;
   private bool _hasSavedSpawnState;
   private Vector3 _savedSpawnPosition;
   private Quaternion _savedSpawnRotation;
@@ -39,7 +40,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour
 
     if (viewModeSwitcher != null)
     {
-      // 視点変更イベントを購読して、2D/3D 切り替えと同期する。
+      // 視点変更イベントを購読して、2Dプレイヤーの状態を同期する。
       viewModeSwitcher.ModeChanged += OnModeChanged;
       SyncToCurrentMode();
     }
@@ -55,7 +56,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour
 
   private void Update()
   {
-    // 2D モード中だけ落下チェックを行い、閾値を下回ったら初期地点へ戻す。
+    // 落下判定は 2D モード中だけ行う。
     if (!respawnAtInitialPointWhenFallen
         || _spawnedPlayerInstance == null
         || viewModeSwitcher == null
@@ -72,14 +73,13 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour
 
   private void OnModeChanged(SpaceViewMode mode)
   {
-    // 2D に入ったら生成、3D に戻ったら破棄する。
     if (mode == SpaceViewMode.Wall2D)
     {
-      RespawnPlayer();
+      Enter2DMode();
     }
     else
     {
-      DestroySpawnedPlayer();
+      Leave2DMode();
     }
   }
 
@@ -90,59 +90,29 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour
       return;
     }
 
-    // 有効化された時点の視点状態に合わせてプレイヤー状態を同期する。
     if (viewModeSwitcher.CurrentMode == SpaceViewMode.Wall2D)
     {
-      RespawnPlayer();
+      Enter2DMode();
     }
     else
     {
-      DestroySpawnedPlayer();
+      Leave2DMode();
     }
   }
 
   [ContextMenu("Respawn 2D Player")]
   public void RespawnPlayer()
   {
-    // 通常の再スポーンでは、必要に応じて最後に保存した位置を使う。
-    SpawnPlayer(useSavedPosition: respawnFromLastKnownPosition && _hasSavedSpawnState, saveCurrentTransformBeforeDestroy: true);
+    // 通常の再スポーンでは、必要に応じて保存済み位置から再開する。
+    SpawnPlayer(useSavedPosition: respawnFromLastKnownPosition && _hasSavedSpawnState, saveCurrentTransformBeforeReset: true);
   }
 
   [ContextMenu("Respawn 2D Player At Initial Point")]
   public void RespawnPlayerAtInitialPoint()
   {
-    // 落下や圧死の時は保存位置を捨てて、必ず初期地点から出し直す。
+    // 落下や圧死の時は保存位置を使わず、初期地点からやり直す。
     ClearSavedRespawnPoint();
-    SpawnPlayer(useSavedPosition: false, saveCurrentTransformBeforeDestroy: false);
-  }
-
-  private void SpawnPlayer(bool useSavedPosition, bool saveCurrentTransformBeforeDestroy)
-  {
-    // すでにプレイヤーがいれば必要に応じて位置を保存してから作り直す。
-    DestroySpawnedPlayerInternal(saveCurrentTransform: saveCurrentTransformBeforeDestroy);
-
-    if (wall2DPlayerPrefab == null)
-    {
-      Debug.LogWarning("Wall2DPlayerRespawner requires wall2DPlayerPrefab to be assigned.");
-      return;
-    }
-
-    var spawnTransform = spawnPoint != null ? spawnPoint : transform;
-    var spawnPosition = useSavedPosition
-      ? _savedSpawnPosition
-      : spawnTransform.position;
-    var spawnRotation = useSavedPosition
-      ? _savedSpawnRotation
-      : spawnTransform.rotation;
-
-    // 生成先の親があればそこへぶら下げ、無ければシーン直下に生成する。
-    _spawnedPlayerInstance = Instantiate(
-      wall2DPlayerPrefab,
-      spawnPosition,
-      spawnRotation,
-      spawnedPlayerParent);
-
-    SubscribeToSpawnedPlayerCrushDetector(_spawnedPlayerInstance);
+    SpawnPlayer(useSavedPosition: false, saveCurrentTransformBeforeReset: false);
   }
 
   [ContextMenu("Destroy Spawned 2D Player")]
@@ -157,11 +127,131 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour
     _hasSavedSpawnState = false;
   }
 
+  private void Enter2DMode()
+  {
+    if (_spawnedPlayerInstance != null)
+    {
+      // 既存インスタンスがあれば再利用し、2D操作だけ再開する。
+      SetSpawnedPlayer2DGameplayEnabled(true);
+      SetSpawnedPlayerVisible(true);
+      return;
+    }
+
+    RespawnPlayer();
+  }
+
+  private void Leave2DMode()
+  {
+    if (_spawnedPlayerInstance == null)
+    {
+      return;
+    }
+
+    SaveCurrentPlayerTransform();
+
+    // 3D中は見た目だけ残し、入力・圧死判定・2D物理だけ止める。
+    SetSpawnedPlayer2DGameplayEnabled(false);
+    SetSpawnedPlayerVisible(true);
+  }
+
+  private void SpawnPlayer(bool useSavedPosition, bool saveCurrentTransformBeforeReset)
+  {
+    if (_spawnedPlayerInstance != null)
+    {
+      if (saveCurrentTransformBeforeReset)
+      {
+        SaveCurrentPlayerTransform();
+      }
+
+      RepositionExistingPlayer(useSavedPosition);
+      SetSpawnedPlayer2DGameplayEnabled(true);
+      SetSpawnedPlayerVisible(true);
+      return;
+    }
+
+    if (wall2DPlayerPrefab == null)
+    {
+      Debug.LogWarning("Wall2DPlayerRespawner requires wall2DPlayerPrefab to be assigned.");
+      return;
+    }
+
+    var spawnTransform = spawnPoint != null ? spawnPoint : transform;
+    var spawnPosition = useSavedPosition ? _savedSpawnPosition : spawnTransform.position;
+    var spawnRotation = useSavedPosition ? _savedSpawnRotation : spawnTransform.rotation;
+
+    _spawnedPlayerInstance = Instantiate(
+      wall2DPlayerPrefab,
+      spawnPosition,
+      spawnRotation,
+      spawnedPlayerParent);
+
+    CacheSpawnedPlayerComponents(_spawnedPlayerInstance);
+    SubscribeToSpawnedPlayerCrushDetector();
+    SetSpawnedPlayer2DGameplayEnabled(true);
+    SetSpawnedPlayerVisible(true);
+  }
+
+  private void RepositionExistingPlayer(bool useSavedPosition)
+  {
+    if (_spawnedPlayerInstance == null)
+    {
+      return;
+    }
+
+    var spawnTransform = spawnPoint != null ? spawnPoint : transform;
+    var targetPosition = useSavedPosition ? _savedSpawnPosition : spawnTransform.position;
+    var targetRotation = useSavedPosition ? _savedSpawnRotation : spawnTransform.rotation;
+
+    _spawnedPlayerInstance.transform.SetPositionAndRotation(targetPosition, targetRotation);
+
+    // 再配置時は古い速度を残さないようにする。
+    if (_spawnedPlayerRigidbody2D != null)
+    {
+      _spawnedPlayerRigidbody2D.linearVelocity = Vector2.zero;
+      _spawnedPlayerRigidbody2D.angularVelocity = 0f;
+    }
+  }
+
+  private void SetSpawnedPlayerVisible(bool isVisible)
+  {
+    if (_spawnedPlayerInstance == null)
+    {
+      return;
+    }
+
+    _spawnedPlayerInstance.SetActive(isVisible);
+  }
+
+  private void SetSpawnedPlayer2DGameplayEnabled(bool isEnabled)
+  {
+    if (_spawnedPlayerInstance == null)
+    {
+      return;
+    }
+
+    if (_spawnedPlayerController != null)
+    {
+      _spawnedPlayerController.enabled = isEnabled;
+    }
+
+    if (_spawnedPlayerCrushDetector != null)
+    {
+      _spawnedPlayerCrushDetector.enabled = isEnabled;
+    }
+
+    if (_spawnedPlayerRigidbody2D != null)
+    {
+      _spawnedPlayerRigidbody2D.linearVelocity = Vector2.zero;
+      _spawnedPlayerRigidbody2D.angularVelocity = 0f;
+      _spawnedPlayerRigidbody2D.simulated = isEnabled;
+    }
+  }
+
   private void AutoAssignMissingReferences()
   {
     if (viewModeSwitcher == null)
     {
-      // 未設定時はシーン内の SpaceViewModeSwitcher を自動で探す。
+      // 未設定ならシーン内の SpaceViewModeSwitcher を自動で探す。
       viewModeSwitcher = FindFirstObjectByType<SpaceViewModeSwitcher>();
     }
   }
@@ -173,7 +263,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour
       return;
     }
 
-    // 次回 2D モードに戻る時のために現在の位置と向きを保存する。
+    // 次回 2D モードへ戻る時のために現在位置を保存する。
     _savedSpawnPosition = _spawnedPlayerInstance.transform.position;
     _savedSpawnRotation = _spawnedPlayerInstance.transform.rotation;
     _hasSavedSpawnState = true;
@@ -188,26 +278,32 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour
 
     if (saveCurrentTransform)
     {
-      // 通常の視点切り替えでは、最後にいた場所を保存しておく。
       SaveCurrentPlayerTransform();
     }
 
     UnsubscribeFromSpawnedPlayerCrushDetector();
+    ClearSpawnedPlayerComponentCache();
     Destroy(_spawnedPlayerInstance);
     _spawnedPlayerInstance = null;
   }
 
-  private void SubscribeToSpawnedPlayerCrushDetector(GameObject spawnedPlayer)
+  private void CacheSpawnedPlayerComponents(GameObject spawnedPlayer)
   {
-    // 古い購読が残らないように、まず前回のイベント購読を解除する。
-    UnsubscribeFromSpawnedPlayerCrushDetector();
-
     if (spawnedPlayer == null)
     {
       return;
     }
 
+    _spawnedPlayerController = spawnedPlayer.GetComponent<Wall2DPlayerController>();
     _spawnedPlayerCrushDetector = spawnedPlayer.GetComponent<Wall2DPlayerCrushDetector>();
+    _spawnedPlayerRigidbody2D = spawnedPlayer.GetComponent<Rigidbody2D>();
+  }
+
+  private void SubscribeToSpawnedPlayerCrushDetector()
+  {
+    // 古い購読が残らないように、再購読前に必ず解除する。
+    UnsubscribeFromSpawnedPlayerCrushDetector();
+
     if (_spawnedPlayerCrushDetector != null)
     {
       _spawnedPlayerCrushDetector.Crushed += OnSpawnedPlayerCrushed;
@@ -228,9 +324,16 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour
     _spawnedPlayerCrushDetector = null;
   }
 
+  private void ClearSpawnedPlayerComponentCache()
+  {
+    _spawnedPlayerController = null;
+    _spawnedPlayerCrushDetector = null;
+    _spawnedPlayerRigidbody2D = null;
+  }
+
   private void OnSpawnedPlayerCrushed()
   {
-    // 圧死時は最後の位置を使わず、初期地点へ戻す。
+    // 圧死時は必ず初期地点へ戻す。
     RespawnPlayerAtInitialPoint();
   }
 }
