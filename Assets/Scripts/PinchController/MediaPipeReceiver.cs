@@ -8,6 +8,8 @@ using UnityEngine;
 
 public sealed class MediaPipeReceiver
 {
+  private const double HandednessPairingToleranceSeconds = 0.02d;
+
   public enum TrackedHandType
   {
     Left,
@@ -28,6 +30,7 @@ public sealed class MediaPipeReceiver
   private bool _hasRightHandOnLatestFrame;
   private long _latestLeftHandTicks;
   private long _latestRightHandTicks;
+  private long _latestHandednessTicks;
   private bool _isSubscribed;
   private Coroutine _subscribeCoroutine;
 
@@ -217,16 +220,20 @@ public sealed class MediaPipeReceiver
 
     lock (_frameLock)
     {
-      var timestampTicks = Stopwatch.GetTimestamp();
-      _hasLeftHandOnLatestFrame = false;
-      _hasRightHandOnLatestFrame = false;
-
       if (handLandmarks == null || handLandmarks.Count == 0)
       {
         return;
       }
 
-      for (var i = 0; i < Mathf.Min(handLandmarks.Count, InteractionHandCount); i++)
+      var timestampTicks = Stopwatch.GetTimestamp();
+      var handCount = Mathf.Min(handLandmarks.Count, InteractionHandCount);
+      var handednessByIndex = new TrackedHandType?[InteractionHandCount];
+      if (!TryGetSynchronizedHandedness(handCount, timestampTicks, handednessByIndex))
+      {
+        return;
+      }
+
+      for (var i = 0; i < handCount; i++)
       {
         var candidate = handLandmarks[i];
         if (!IsValidHand(candidate))
@@ -234,13 +241,8 @@ public sealed class MediaPipeReceiver
           continue;
         }
 
-        var handedness = ResolveHandednessForIndex(i);
-        if (!handedness.HasValue)
-        {
-          continue;
-        }
-
-        if (handedness.Value == TrackedHandType.Left)
+        var handedness = handednessByIndex[i].Value;
+        if (handedness == TrackedHandType.Left)
         {
           CopyLandmarks(candidate, _latestLeftLandmarks);
           _hasLeftHandOnLatestFrame = true;
@@ -276,6 +278,8 @@ public sealed class MediaPipeReceiver
       {
         _latestHandednessByIndex[i] = ParseHandedness(handednessLists[i]);
       }
+
+      _latestHandednessTicks = Stopwatch.GetTimestamp();
     }
   }
 
@@ -286,6 +290,7 @@ public sealed class MediaPipeReceiver
     {
       _hasLeftHandOnLatestFrame = false;
       _hasRightHandOnLatestFrame = false;
+      _latestHandednessTicks = 0;
 
       for (var i = 0; i < _latestHandednessByIndex.Length; i++)
       {
@@ -294,20 +299,78 @@ public sealed class MediaPipeReceiver
     }
   }
 
-  // 指定インデックスの左右判定結果を返す。
-  private TrackedHandType? ResolveHandednessForIndex(int handIndex)
+  // 同数・一意の handedness が揃っているフレームだけ左右へ反映する。
+  private bool TryGetSynchronizedHandedness(int handCount, long timestampTicks, TrackedHandType?[] handednessByIndex)
   {
-    if (handIndex < 0 || handIndex >= _latestHandednessByIndex.Length)
+    if (handCount <= 0
+        || handednessByIndex == null
+        || handednessByIndex.Length < InteractionHandCount
+        || GetKnownHandednessCount() != handCount
+        || !IsHandednessFresh(timestampTicks))
     {
-      return null;
+      return false;
     }
 
-    if (_latestHandednessByIndex[handIndex].HasValue)
+    var hasLeft = false;
+    var hasRight = false;
+    for (var i = 0; i < handCount; i++)
     {
-      return _latestHandednessByIndex[handIndex];
+      var handedness = _latestHandednessByIndex[i];
+      if (!handedness.HasValue)
+      {
+        return false;
+      }
+
+      if (handedness.Value == TrackedHandType.Left)
+      {
+        if (hasLeft)
+        {
+          return false;
+        }
+
+        hasLeft = true;
+      }
+      else
+      {
+        if (hasRight)
+        {
+          return false;
+        }
+
+        hasRight = true;
+      }
+
+      handednessByIndex[i] = handedness;
     }
 
-    return null;
+    return true;
+  }
+
+  // 現在保持している handedness の件数を返す。
+  private int GetKnownHandednessCount()
+  {
+    var count = 0;
+    for (var i = 0; i < _latestHandednessByIndex.Length; i++)
+    {
+      if (_latestHandednessByIndex[i].HasValue)
+      {
+        count++;
+      }
+    }
+
+    return count;
+  }
+
+  // 同一フレームとみなせる新しい handedness か確認する。
+  private bool IsHandednessFresh(long timestampTicks)
+  {
+    if (_latestHandednessTicks <= 0)
+    {
+      return false;
+    }
+
+    var elapsedSeconds = (timestampTicks - _latestHandednessTicks) / (double)Stopwatch.Frequency;
+    return elapsedSeconds >= 0d && elapsedSeconds <= HandednessPairingToleranceSeconds;
   }
 
   // MediaPipe の handedness ラベルを内部 enum に変換する。
