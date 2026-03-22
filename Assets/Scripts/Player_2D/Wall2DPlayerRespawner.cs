@@ -150,7 +150,10 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     if (_spawnedPlayerInstance != null)
     {
       // 既存インスタンスがあれば再利用し、2D操作だけ再開する。
-      SetSpawnedPlayer2DGameplayEnabled(true);
+      SetSpawnedPlayer2DGameplayEnabled(
+        isEnabled: true,
+        keepPhysicsSimulationWhenDisabled: true,
+        preserveCurrentMotion: true);
       SetSpawnedPlayerVisible(true);
       return;
     }
@@ -167,8 +170,12 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
     SaveCurrentPlayerTransform();
 
-    // 3D中は見た目だけ残し、入力・圧死判定・2D物理だけ止める。
-    SetSpawnedPlayer2DGameplayEnabled(false);
+    // 3D中は見た目を残しつつ、2D操作だけ止めて物理落下は継続させる。
+    SetSpawnedPlayer2DGameplayEnabled(
+      isEnabled: false,
+      keepPhysicsSimulationWhenDisabled: true,
+      preserveCurrentMotion: true);
+    KeepOnlyVerticalMotion();
     SetSpawnedPlayerVisible(true);
   }
 
@@ -249,7 +256,10 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     _spawnedPlayerInstance.SetActive(isVisible);
   }
 
-  private void SetSpawnedPlayer2DGameplayEnabled(bool isEnabled)
+  private void SetSpawnedPlayer2DGameplayEnabled(
+    bool isEnabled,
+    bool keepPhysicsSimulationWhenDisabled = false,
+    bool preserveCurrentMotion = false)
   {
     if (_spawnedPlayerInstance == null)
     {
@@ -268,10 +278,27 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
     if (_spawnedPlayerRigidbody2D != null)
     {
-      _spawnedPlayerRigidbody2D.linearVelocity = Vector2.zero;
-      _spawnedPlayerRigidbody2D.angularVelocity = 0f;
-      _spawnedPlayerRigidbody2D.simulated = isEnabled;
+      if (!preserveCurrentMotion)
+      {
+        _spawnedPlayerRigidbody2D.linearVelocity = Vector2.zero;
+        _spawnedPlayerRigidbody2D.angularVelocity = 0f;
+      }
+
+      _spawnedPlayerRigidbody2D.simulated = isEnabled || keepPhysicsSimulationWhenDisabled;
     }
+  }
+
+  private void KeepOnlyVerticalMotion()
+  {
+    if (_spawnedPlayerRigidbody2D == null)
+    {
+      return;
+    }
+
+    var velocity = _spawnedPlayerRigidbody2D.linearVelocity;
+    velocity.x = 0f;
+    _spawnedPlayerRigidbody2D.linearVelocity = velocity;
+    _spawnedPlayerRigidbody2D.angularVelocity = 0f;
   }
 
   private void AutoAssignMissingReferences()

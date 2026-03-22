@@ -49,6 +49,13 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     ClampSerializedValues();
   }
 
+  private void OnDisable()
+  {
+    // 3D表示中に前フレームの入力が残らないようにする。
+    _moveInput = 0f;
+    _jumpRequested = false;
+  }
+
   private void Update()
   {
     // 入力は Update で受け取り、物理反映は FixedUpdate に任せる。
