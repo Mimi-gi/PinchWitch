@@ -1,5 +1,6 @@
 using Mediapipe.Unity.HandTracking;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 [DisallowMultipleComponent]
 public class HandPinchController : MonoBehaviour
@@ -31,8 +32,12 @@ public class HandPinchController : MonoBehaviour
   [SerializeField] private bool restoreUseGravityOnRelease;
   [SerializeField] private float cursorLerpX = 0.35f;
   [SerializeField] private float cursorLerpZ = 0.22f;
-  [SerializeField] private float xSensitivity = 0.65f;
-  [SerializeField] private float zSensitivity = 0.65f;
+
+  [Header("Input Sensitivity")]
+  [FormerlySerializedAs("xSensitivity")]
+  [SerializeField] private float horizontalSensitivity = 0.65f;
+  [FormerlySerializedAs("zSensitivity")]
+  [SerializeField] private float depthSensitivity = 0.65f;
 
   [Header("Rotation")]
   [SerializeField] private float xSwipeRotationDegrees = 90f;
@@ -176,8 +181,8 @@ public class HandPinchController : MonoBehaviour
       zRange = zRange,
       cursorLerpX = cursorLerpX,
       cursorLerpZ = cursorLerpZ,
-      xSensitivity = xSensitivity,
-      zSensitivity = zSensitivity,
+      horizontalSensitivity = horizontalSensitivity,
+      depthSensitivity = depthSensitivity,
     };
   }
 
@@ -241,8 +246,8 @@ public class HandPinchController : MonoBehaviour
     followLerpZ = Mathf.Clamp01(followLerpZ);
     cursorLerpX = Mathf.Clamp01(cursorLerpX);
     cursorLerpZ = Mathf.Clamp01(cursorLerpZ);
-    xSensitivity = Mathf.Clamp(xSensitivity, 0.1f, 2f);
-    zSensitivity = Mathf.Clamp(zSensitivity, 0.1f, 2f);
+    horizontalSensitivity = Mathf.Clamp(horizontalSensitivity, 0.1f, 2f);
+    depthSensitivity = Mathf.Clamp(depthSensitivity, 0.1f, 4f);
     xSwipeRotationDegrees = Mathf.Max(0f, xSwipeRotationDegrees);
     ySwipeRotationDegrees = Mathf.Max(0f, ySwipeRotationDegrees);
     horizontalSwipeTriggerDistance = Mathf.Clamp(horizontalSwipeTriggerDistance, 0.02f, 0.75f);

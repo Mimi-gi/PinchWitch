@@ -581,12 +581,12 @@ MonoBehaviour:
   restoreUseGravityOnRelease: 0
   cursorLerpX: 0.35
   cursorLerpZ: 0.22
-  xSensitivity: 0.8
-  zSensitivity: 1
+  horizontalSensitivity: 0.8
+  depthSensitivity: 1
   xSwipeRotationDegrees: 90
   ySwipeRotationDegrees: 90
   horizontalSwipeTriggerDistance: 0.18
-  verticalSwipeTriggerDistance: 0.16
+  verticalSwipeTriggerDistance: 0.45
   swipeDominanceRatio: 1.25
   swipeCooldownSeconds: 0.3
   rearmStillnessDistance: 0.012
@@ -3246,11 +3246,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Wall2DPlayerRespawner
   viewModeSwitcher: {fileID: 222675968}
+  scenePlacedPlayerInstance: {fileID: 0}
   wall2DPlayerPrefab: {fileID: 1190952654993941888, guid: 7e038e7d8caa05e48bbf944071d6e62a,
     type: 3}
   spawnPoint: {fileID: 19773979}
   spawnedPlayerParent: {fileID: 0}
   respawnFromLastKnownPosition: 1
+  respawnAtInitialPointWhenFallen: 1
+  fallRespawnYThreshold: -10
 --- !u!4 &1553755123
 Transform:
   m_ObjectHideFlags: 0

@@ -2,6 +2,8 @@ using UnityEngine;
 
 public sealed class HandCursorController
 {
+  private static readonly Color UncalibratedCursorColor = Color.red;
+
   public struct Config
   {
     public Transform cursorSphere;
@@ -15,8 +17,8 @@ public sealed class HandCursorController
     public Vector2 zRange;
     public float cursorLerpX;
     public float cursorLerpZ;
-    public float xSensitivity;
-    public float zSensitivity;
+    public float horizontalSensitivity;
+    public float depthSensitivity;
   }
 
   private Transform _ownerTransform;
@@ -31,8 +33,8 @@ public sealed class HandCursorController
   private Vector2 _zRange;
   private float _cursorLerpX;
   private float _cursorLerpZ;
-  private float _xSensitivity;
-  private float _zSensitivity;
+  private float _horizontalSensitivity;
+  private float _depthSensitivity;
 
   private Renderer _cursorRenderer;
   private Material _cursorMaterial;
@@ -62,8 +64,8 @@ public sealed class HandCursorController
     _zRange = config.zRange;
     _cursorLerpX = config.cursorLerpX;
     _cursorLerpZ = config.cursorLerpZ;
-    _xSensitivity = config.xSensitivity;
-    _zSensitivity = config.zSensitivity;
+    _horizontalSensitivity = config.horizontalSensitivity;
+    _depthSensitivity = config.depthSensitivity;
     _cursorSphere = config.cursorSphere != null ? config.cursorSphere : _cursorSphere;
 
     EnsureCursorSphere();
@@ -75,12 +77,17 @@ public sealed class HandCursorController
     handTarget = Vector3.zero;
     if (_worldCamera == null || !handState.detected)
     {
-      HideCursor();
+      ShowStandbyCursor();
       return false;
     }
 
+    if (!handState.depthReady)
+    {
+      ResetTrackingCache();
+    }
+
     var cursorPoint = GetCursorPointOnPlane(handState);
-    ShowCursor(cursorPoint, handState.pinch);
+    ShowCursor(cursorPoint, handState.pinch, handState.depthReady);
     handTarget = GetHandTargetPoint(handState, cursorPoint);
     return true;
   }
@@ -88,13 +95,15 @@ public sealed class HandCursorController
   // カーソル表示を非表示にする。
   public void HideCursor()
   {
-    SetCursorVisible(false);
+    ResetTrackingCache();
+    ShowStandbyCursor();
   }
 
   // 同一フレーム内のキャッシュを破棄する。
   public void ResetTrackingCache()
   {
     _cachedCursorFrame = -1;
+    _hasSmoothedCursorPoint = false;
   }
 
   // 動的生成したリソースを破棄する。
@@ -139,7 +148,8 @@ public sealed class HandCursorController
         detected = true,
         x = 0.5f,
         y = 0.5f,
-        depth = 0.5f,
+        depth = 1f,
+        depthReady = false,
         pinch = false,
       });
     }
@@ -158,15 +168,16 @@ public sealed class HandCursorController
 
     if (_cursorMaterial != null)
     {
-      ApplyCursorColor(false);
+      ApplyCursorColor(false, false);
     }
 
     _cursorSphere.gameObject.hideFlags = HideFlags.None;
-    SetCursorVisible(false);
+    ResetTrackingCache();
+    ShowStandbyCursor();
   }
 
   // 指定位置にカーソルを表示して色を更新する。
-  private void ShowCursor(Vector3 position, bool isPinching)
+  private void ShowCursor(Vector3 position, bool isPinching, bool isDepthReady)
   {
     if (_cursorSphere == null)
     {
@@ -175,8 +186,29 @@ public sealed class HandCursorController
 
     _cursorSphere.position = position;
     _cursorSphere.localScale = Vector3.one * _cursorSphereDiameter;
-    ApplyCursorColor(isPinching);
+    ApplyCursorColor(isPinching, isDepthReady);
     SetCursorVisible(true);
+  }
+
+  // 待機中のカーソルを中央の手前位置へ表示する。
+  private void ShowStandbyCursor()
+  {
+    if (_cursorSphere == null || _worldCamera == null)
+    {
+      SetCursorVisible(false);
+      return;
+    }
+
+    var standbyPoint = GetCursorPointOnPlane(new HandState
+    {
+      detected = true,
+      x = 0.5f,
+      y = 0.5f,
+      depth = 1f,
+      depthReady = false,
+      pinch = false,
+    });
+    ShowCursor(standbyPoint, false, false);
   }
 
   // 手状態から床面上のカーソル位置を求める。
@@ -209,7 +241,7 @@ public sealed class HandCursorController
   private Vector3 ComputeRawCursorPointOnPlane(HandState handState)
   {
     var depthZ = Mathf.Clamp(GetHandDepthWorldZ(handState), _zRange.x, _zRange.y);
-    var xNorm = ApplySensitivity(Mathf.Clamp01(handState.x), _xSensitivity);
+    var xNorm = ApplySensitivity(Mathf.Clamp01(handState.x), _horizontalSensitivity);
     var point = new Vector3(Mathf.Lerp(_xRange.x, _xRange.y, xNorm), _cursorPlaneY, depthZ);
 
     var viewportX = xNorm;
@@ -221,7 +253,7 @@ public sealed class HandCursorController
     }
 
     var xCenter = (_xRange.x + _xRange.y) * 0.5f;
-    point.x = Mathf.Lerp(xCenter, point.x, Mathf.Clamp01(_xSensitivity));
+    point.x = Mathf.Lerp(xCenter, point.x, Mathf.Clamp01(_horizontalSensitivity));
     return point;
   }
 
@@ -235,8 +267,9 @@ public sealed class HandCursorController
   // 正規化 depth をワールド座標の Z に変換する。
   private float GetHandDepthWorldZ(HandState handState)
   {
-    var normalizedDepth = ApplySensitivity(Mathf.Clamp01(handState.depth), _zSensitivity);
-    return Mathf.Lerp(_zRange.x, _zRange.y, normalizedDepth);
+    var normalizedDepth = ApplyDepthSensitivityFromFront(Mathf.Clamp01(handState.depth), _depthSensitivity);
+    ResolveVisualDepthRange(out var frontWorldZ, out var backWorldZ);
+    return Mathf.Lerp(backWorldZ, frontWorldZ, normalizedDepth);
   }
 
   // カーソルオブジェクトの表示状態を切り替える。
@@ -249,14 +282,16 @@ public sealed class HandCursorController
   }
 
   // pinch 状態に応じてカーソル色を更新する。
-  private void ApplyCursorColor(bool isPinching)
+  private void ApplyCursorColor(bool isPinching, bool isDepthReady)
   {
     if (_cursorMaterial == null)
     {
       return;
     }
 
-    var color = isPinching ? _cursorPinchColor : _cursorIdleColor;
+    var color = !isDepthReady
+      ? UncalibratedCursorColor
+      : isPinching ? _cursorPinchColor : _cursorIdleColor;
     _cursorMaterial.color = color;
     if (_cursorMaterial.HasProperty("_EmissionColor"))
     {
@@ -268,6 +303,34 @@ public sealed class HandCursorController
   private static float ApplySensitivity(float normalizedValue, float sensitivity)
   {
     return Mathf.Clamp01(0.5f + (normalizedValue - 0.5f) * sensitivity);
+  }
+
+  // 手前アンカーは固定し、奥方向へ離れる量だけを感度で伸縮する。
+  private static float ApplyDepthSensitivityFromFront(float normalizedDepth, float sensitivity)
+  {
+    return Mathf.Clamp01(1f - (1f - normalizedDepth) * sensitivity);
+  }
+
+  // `HandState.depth` は見た目の手前/奥で表現されるため、
+  // カメラ基準で実際に手前側へ見える Z 端を毎フレーム解決してから割り当てる。
+  private void ResolveVisualDepthRange(out float frontWorldZ, out float backWorldZ)
+  {
+    var centerX = (_xRange.x + _xRange.y) * 0.5f;
+    var minPoint = new Vector3(centerX, _cursorPlaneY, _zRange.x);
+    var maxPoint = new Vector3(centerX, _cursorPlaneY, _zRange.y);
+    var cameraTransform = _worldCamera.transform;
+    var minDepth = Vector3.Dot(minPoint - cameraTransform.position, cameraTransform.forward);
+    var maxDepth = Vector3.Dot(maxPoint - cameraTransform.position, cameraTransform.forward);
+
+    if (minDepth <= maxDepth)
+    {
+      frontWorldZ = _zRange.x;
+      backWorldZ = _zRange.y;
+      return;
+    }
+
+    frontWorldZ = _zRange.y;
+    backWorldZ = _zRange.x;
   }
 
   // ビューポート座標を床面へ射影する。
