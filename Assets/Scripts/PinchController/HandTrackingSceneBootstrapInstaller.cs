@@ -25,7 +25,7 @@ public static class HandTrackingSceneBootstrapInstaller
       return;
     }
 
-    if (GameObject.Find(BootstrapObjectName) != null)
+    if (FindBootstrapInScene(scene, BootstrapObjectName) != null)
     {
       return;
     }

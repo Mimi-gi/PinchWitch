@@ -41,8 +41,6 @@ public sealed class HandCursorController
   private bool _createdCursorAtRuntime;
   private Vector3 _smoothedCursorPoint;
   private bool _hasSmoothedCursorPoint;
-  private int _cachedCursorFrame = -1;
-  private Vector3 _cachedCursorPoint;
 
   // カーソル制御を設定付きで生成する。
   public HandCursorController(Transform ownerTransform, Config config)
@@ -99,10 +97,9 @@ public sealed class HandCursorController
     ShowStandbyCursor();
   }
 
-  // 同一フレーム内のキャッシュを破棄する。
+  // 平滑化済みカーソル位置の状態を破棄する。
   public void ResetTrackingCache()
   {
-    _cachedCursorFrame = -1;
     _hasSmoothedCursorPoint = false;
   }
 
@@ -211,14 +208,9 @@ public sealed class HandCursorController
     ShowCursor(standbyPoint, false, false);
   }
 
-  // 手状態から床面上のカーソル位置を求める。
+  // 手状態から平滑化済みの床面カーソル位置を求める。
   private Vector3 GetCursorPointOnPlane(HandState handState)
   {
-    if (_cachedCursorFrame == Time.frameCount)
-    {
-      return _cachedCursorPoint;
-    }
-
     var rawPoint = ComputeRawCursorPointOnPlane(handState);
     if (!_hasSmoothedCursorPoint)
     {
@@ -232,9 +224,7 @@ public sealed class HandCursorController
       _smoothedCursorPoint.y = _cursorPlaneY;
     }
 
-    _cachedCursorPoint = _smoothedCursorPoint;
-    _cachedCursorFrame = Time.frameCount;
-    return _cachedCursorPoint;
+    return _smoothedCursorPoint;
   }
 
   // 手状態から未平滑の床面カーソル位置を計算する。
