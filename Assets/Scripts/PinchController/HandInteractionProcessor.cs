@@ -80,7 +80,7 @@ public sealed class HandInteractionProcessor
     }
   }
 
-  // grab と回転まわりの一時状態をまとめてリセットする。
+  // カーソル・grab・回転まわりの一時状態をまとめてリセットする。
   public void ResetInteractionState()
   {
     _handCursorController?.ResetTrackingCache();

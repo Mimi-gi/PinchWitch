@@ -96,14 +96,14 @@ public class HandPinchController : MonoBehaviour
     _mediaPipeReceiver?.Start(this);
   }
 
-  // 受信停止と grab 解放を行う。
+  // 受信停止と操作状態のリセットを行う。
   private void OnDisable()
   {
     _mediaPipeReceiver?.Stop(this);
     _handInteractionProcessor?.ResetInteractionState();
   }
 
-  // 生成したリソースを破棄する。
+  // 受信停止後に操作状態と生成リソースを破棄する。
   private void OnDestroy()
   {
     _mediaPipeReceiver?.Stop(this);

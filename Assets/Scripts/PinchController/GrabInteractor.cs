@@ -33,6 +33,7 @@ public sealed class GrabInteractor
     ApplyConfiguration(config);
   }
 
+  // 現在 grab 中の Rigidbody を保持しているかを返す。
   public bool HasGrabbedBody => _grabbedBody != null;
 
   // grab と回転に使う設定を更新する。
@@ -41,7 +42,7 @@ public sealed class GrabInteractor
     _config = config;
   }
 
-  // 手元に最も近い掴める Rigidbody を取得する。
+  // 手元の XZ 位置に最も近い掴める Rigidbody を見つけて grab を開始する。
   public void TryBeginGrab(Vector3 handTarget)
   {
     var capsuleBottom = new Vector3(handTarget.x, -1000f, handTarget.z);
@@ -101,7 +102,7 @@ public sealed class GrabInteractor
     _targetRotation = _grabbedBody.rotation;
   }
 
-  // grab 中オブジェクトの位置と回転を更新する。
+  // grab 中オブジェクトの位置を追従させ、回転も目標値へ更新する。
   public void UpdateGrabbedObject(Vector3 handTarget)
   {
     if (_grabbedBody == null)

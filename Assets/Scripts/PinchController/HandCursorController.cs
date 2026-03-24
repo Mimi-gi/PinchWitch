@@ -41,6 +41,7 @@ public sealed class HandCursorController
   private bool _createdCursorAtRuntime;
   private Vector3 _smoothedCursorPoint;
   private bool _hasSmoothedCursorPoint;
+  private bool _wasDepthReady;
 
   // カーソル制御を設定付きで生成する。
   public HandCursorController(Transform ownerTransform, Config config)
@@ -75,24 +76,32 @@ public sealed class HandCursorController
     handTarget = Vector3.zero;
     if (_worldCamera == null || !handState.detected)
     {
+      _wasDepthReady = false;
       ShowStandbyCursor();
       return false;
     }
 
     if (!handState.depthReady)
     {
+      _wasDepthReady = false;
+      ResetTrackingCache();
+    }
+    else if (!_wasDepthReady)
+    {
       ResetTrackingCache();
     }
 
+    _wasDepthReady = handState.depthReady;
     var cursorPoint = GetCursorPointOnPlane(handState);
     ShowCursor(cursorPoint, handState.pinch, handState.depthReady);
     handTarget = GetHandTargetPoint(handState, cursorPoint);
     return true;
   }
 
-  // カーソル表示を非表示にする。
+  // 追跡状態を破棄し、カーソル表示を待機中の見た目へ戻す。
   public void HideCursor()
   {
+    _wasDepthReady = false;
     ResetTrackingCache();
     ShowStandbyCursor();
   }

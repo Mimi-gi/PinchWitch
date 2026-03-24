@@ -22,6 +22,7 @@ public sealed class HandStateCalculator
   private const int PinkyMcpIndex = 17;
   private const float RelativeNearPalmScaleRatioFromFront = 1.27f;
   private const float MinimumFrontPalmScale = 0.0001f;
+  private const float PalmScaleStabilizeLerp = 0.2f;
   private const float DepthDeadZone = 0.04f;
   private const float DepthResponseLerp = 0.16f;
   private const float FrontCaptureDelaySeconds = 2f;
@@ -32,6 +33,8 @@ public sealed class HandStateCalculator
   private float _frontCaptureVisibleSince = float.NegativeInfinity;
   private float _frontCaptureMinPalmScale;
   private float _lastDetectedTime = float.NegativeInfinity;
+  private bool _hasStabilizedPalmScale;
+  private float _stabilizedPalmScale;
   private bool _xMirrorResolved;
   private bool _xShouldMirror;
 
@@ -55,6 +58,7 @@ public sealed class HandStateCalculator
     handState.detected = false;
     handState.depthReady = _hasFrontPalmScale;
     handState.pinch = false;
+    _hasStabilizedPalmScale = false;
     ResetFrontCaptureTimer();
 
     if (_hasFrontPalmScale && Time.unscaledTime - _lastDetectedTime > FrontRetentionSeconds)
@@ -87,8 +91,9 @@ public sealed class HandStateCalculator
       : pinchDistance < pinchOnThreshold;
 
     var palmScale = GetPalmScale(landmarks);
-    TryCaptureFrontPalmScale(palmScale);
-    UpdateHandDepthFromPalmScale(palmScale, ref handState);
+    var stabilizedPalmScale = GetStabilizedPalmScale(palmScale);
+    var depthReadyThisFrame = TryCaptureFrontPalmScale(stabilizedPalmScale);
+    UpdateHandDepthFromPalmScale(stabilizedPalmScale, depthReadyThisFrame, ref handState);
     handState.depthReady = _hasFrontPalmScale;
     handState.pinch = isPinching;
   }
@@ -114,33 +119,48 @@ public sealed class HandStateCalculator
     return Mathf.Sqrt(dx * dx + dy * dy);
   }
 
+  // 手サイズの瞬間ノイズを抑えた値を返す。
+  private float GetStabilizedPalmScale(float palmScale)
+  {
+    if (!_hasStabilizedPalmScale)
+    {
+      _stabilizedPalmScale = palmScale;
+      _hasStabilizedPalmScale = true;
+      return _stabilizedPalmScale;
+    }
+
+    _stabilizedPalmScale = Mathf.Lerp(_stabilizedPalmScale, palmScale, PalmScaleStabilizeLerp);
+    return _stabilizedPalmScale;
+  }
+
   // 手が見えてから 2 秒のあいだで最も小さかった手サイズを、
-  // ゲーム世界の手前基準として一度だけ確定する。
-  private void TryCaptureFrontPalmScale(float palmScale)
+  // ゲーム世界の手前基準として一度だけ確定し、確定したフレームなら true を返す。
+  private bool TryCaptureFrontPalmScale(float palmScale)
   {
     if (_hasFrontPalmScale)
     {
-      return;
+      return false;
     }
 
     if (float.IsNegativeInfinity(_frontCaptureVisibleSince))
     {
       _frontCaptureVisibleSince = Time.unscaledTime;
       _frontCaptureMinPalmScale = palmScale;
-      return;
+      return false;
     }
 
     _frontCaptureMinPalmScale = Mathf.Min(_frontCaptureMinPalmScale, palmScale);
 
     if (Time.unscaledTime - _frontCaptureVisibleSince < FrontCaptureDelaySeconds)
     {
-      return;
+      return false;
     }
 
     _frontPalmScale = Mathf.Max(_frontCaptureMinPalmScale, MinimumFrontPalmScale);
     _hasFrontPalmScale = true;
     ResetFrontCaptureTimer();
     Debug.Log("認識しました。");
+    return true;
   }
 
   // 次回の手前基準確定待ち時間を初期化する。
@@ -151,7 +171,7 @@ public sealed class HandStateCalculator
   }
 
   // カメラから遠い手サイズをゲーム手前として、手サイズを depth に変換する。
-  private void UpdateHandDepthFromPalmScale(float palmScale, ref HandState handState)
+  private void UpdateHandDepthFromPalmScale(float palmScale, bool depthReadyThisFrame, ref HandState handState)
   {
     if (!_hasFrontPalmScale)
     {
@@ -165,6 +185,12 @@ public sealed class HandStateCalculator
     if (Mathf.Abs(normalizedDepth - handState.depth) < DepthDeadZone)
     {
       normalizedDepth = handState.depth;
+    }
+
+    if (depthReadyThisFrame)
+    {
+      handState.depth = normalizedDepth;
+      return;
     }
 
     handState.depth = Mathf.Lerp(handState.depth, normalizedDepth, DepthResponseLerp);
