@@ -126,9 +126,10 @@ public sealed class HandCursorController
     }
 
     _wasDepthReady = handState.depthReady;
-    var cursorPoint = GetCursorPointOnPlane(handState);
+    var rawCursorPoint = ComputeRawCursorPointOnPlane(handState);
+    var cursorPoint = GetCursorPointOnPlane(rawCursorPoint);
     ShowCursor(cursorPoint, handState.pinch, handState.depthReady);
-    handTarget = GetHandTargetPoint(handState, cursorPoint);
+    handTarget = GetHandTargetPoint(handState, rawCursorPoint);
     return true;
   }
 
@@ -254,7 +255,12 @@ public sealed class HandCursorController
   // 手状態から平滑化済みの床面カーソル位置を求める。
   private Vector3 GetCursorPointOnPlane(HandState handState)
   {
-    var rawPoint = ComputeRawCursorPointOnPlane(handState);
+    return GetCursorPointOnPlane(ComputeRawCursorPointOnPlane(handState));
+  }
+
+  // 未平滑の床面カーソル位置から平滑化済み表示位置を求める。
+  private Vector3 GetCursorPointOnPlane(Vector3 rawPoint)
+  {
     if (!_hasSmoothedCursorPoint)
     {
       _smoothedCursorPoint = rawPoint;

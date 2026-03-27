@@ -167,6 +167,12 @@ public class HandPinchController : MonoBehaviour
     UpdateRotationInteraction(handRoles);
   }
 
+  // 物理オブジェクトの追従を FixedUpdate で更新する。
+  private void FixedUpdate()
+  {
+    _grabInteractor?.FixedTick(Time.fixedDeltaTime);
+  }
+
   // 必要なコンポーネント参照を補完する。
   private void EnsureReferences()
   {

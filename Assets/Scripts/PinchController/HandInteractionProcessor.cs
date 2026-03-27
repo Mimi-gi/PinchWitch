@@ -35,16 +35,18 @@ public sealed class HandInteractionProcessor
       return false;
     }
 
-    var pinchStarted = movementHandState.pinch && !_prevPinch;
-    var pinchEnded = !movementHandState.pinch && _prevPinch;
-    _prevPinch = movementHandState.pinch;
+    // depth キャリブレーション完了までは grab 判定に使う pinch を無効化する。
+    var interactionPinch = movementHandState.depthReady && movementHandState.pinch;
+    var pinchStarted = interactionPinch && !_prevPinch;
+    var pinchEnded = !interactionPinch && _prevPinch;
+    _prevPinch = interactionPinch;
 
     if (pinchStarted && !_grabInteractor.HasGrabbedBody)
     {
       _grabInteractor.TryBeginGrab(handTarget);
     }
 
-    if (_grabInteractor.HasGrabbedBody && movementHandState.pinch)
+    if (_grabInteractor.HasGrabbedBody && interactionPinch)
     {
       _grabInteractor.UpdateGrabbedObject(handTarget);
     }
