@@ -11,6 +11,10 @@ public sealed class TrackedHandStateStore
   private readonly HandStateCalculator _leftHandStateCalculator;
   // 右手の HandState を計算する計算機。
   private readonly HandStateCalculator _rightHandStateCalculator;
+  // 左手の生入力を安定化するフィルタ。
+  private readonly HandInputStabilizer _leftHandInputStabilizer;
+  // 右手の生入力を安定化するフィルタ。
+  private readonly HandInputStabilizer _rightHandInputStabilizer;
 
   // 左手の最新 HandState。
   private HandState _leftHandState;
@@ -22,11 +26,14 @@ public sealed class TrackedHandStateStore
   {
     _leftHandStateCalculator = new HandStateCalculator();
     _rightHandStateCalculator = new HandStateCalculator();
+    _leftHandInputStabilizer = new HandInputStabilizer();
+    _rightHandInputStabilizer = new HandInputStabilizer();
     _leftHandState = _leftHandStateCalculator.CreateInitialState();
     _rightHandState = _rightHandStateCalculator.CreateInitialState();
   }
 
-  // MediaPipe の最新受信内容で左右の手状態を更新する。
+  // MediaPipe の最新受信内容から、
+  // 生の手状態の計算と入力安定化を順に適用して左右の手状態を更新する。
   public void Update(MediaPipeReceiver mediaPipeReceiver)
   {
     UpdateTrackedHandState(mediaPipeReceiver, MediaPipeReceiver.TrackedHandType.Left, _leftFrameLandmarks);
@@ -54,9 +61,11 @@ public sealed class TrackedHandStateStore
     {
       case MediaPipeReceiver.TrackedHandType.Left:
         _leftHandStateCalculator.SetUndetected(ref _leftHandState);
+        _leftHandInputStabilizer.Reset();
         return;
       case MediaPipeReceiver.TrackedHandType.Right:
         _rightHandStateCalculator.SetUndetected(ref _rightHandState);
+        _rightHandInputStabilizer.Reset();
         return;
       default:
         return;
@@ -68,6 +77,8 @@ public sealed class TrackedHandStateStore
   {
     _leftHandStateCalculator.SetUndetected(ref _leftHandState);
     _rightHandStateCalculator.SetUndetected(ref _rightHandState);
+    _leftHandInputStabilizer.Reset();
+    _rightHandInputStabilizer.Reset();
   }
 
   // 指定した手の最新フレームを手状態へ反映する。
@@ -76,25 +87,28 @@ public sealed class TrackedHandStateStore
     switch (handType)
     {
       case MediaPipeReceiver.TrackedHandType.Left:
-        UpdateTrackedHandState(mediaPipeReceiver, _leftHandStateCalculator, ref _leftHandState, handType, frameLandmarks);
+        UpdateTrackedHandState(mediaPipeReceiver, _leftHandStateCalculator, _leftHandInputStabilizer, ref _leftHandState, handType, frameLandmarks);
         return;
       case MediaPipeReceiver.TrackedHandType.Right:
-        UpdateTrackedHandState(mediaPipeReceiver, _rightHandStateCalculator, ref _rightHandState, handType, frameLandmarks);
+        UpdateTrackedHandState(mediaPipeReceiver, _rightHandStateCalculator, _rightHandInputStabilizer, ref _rightHandState, handType, frameLandmarks);
         return;
       default:
         return;
     }
   }
 
-  // 受信結果に応じて手状態を更新し、未検知ならリセットする。
-  private static void UpdateTrackedHandState(MediaPipeReceiver mediaPipeReceiver, HandStateCalculator calculator, ref HandState handState, MediaPipeReceiver.TrackedHandType handType, Vector3[] frameLandmarks)
+  // 受信結果に応じて生の手状態を計算し、
+  // その後に安定化済みの手状態へ変換する。
+  private static void UpdateTrackedHandState(MediaPipeReceiver mediaPipeReceiver, HandStateCalculator calculator, HandInputStabilizer stabilizer, ref HandState handState, MediaPipeReceiver.TrackedHandType handType, Vector3[] frameLandmarks)
   {
     if (mediaPipeReceiver == null || !mediaPipeReceiver.TryGetLatestLandmarks(handType, frameLandmarks))
     {
       calculator.SetUndetected(ref handState);
+      stabilizer.Reset();
       return;
     }
 
     calculator.UpdateHandState(frameLandmarks, ref handState);
+    stabilizer.Stabilize(ref handState);
   }
 }

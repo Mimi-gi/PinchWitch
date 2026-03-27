@@ -38,20 +38,10 @@ public class HandPinchController : MonoBehaviour
   [SerializeField] private Vector2 yRange = new Vector2(0f, 9f);
   // 掴み対象やカーソルが動ける Z 範囲。
   [SerializeField] private Vector2 zRange = new Vector2(-4.5f, 4.5f);
-  // 掴んだ物体が X 方向へ追従する速さ。
-  [SerializeField] private float followLerpX = 0.3f;
-  // 掴んだ物体が Y 方向へ追従する速さ。
-  [SerializeField] private float followLerpY = 0.3f;
-  // 掴んだ物体が Z 方向へ追従する速さ。
-  [SerializeField] private float followLerpZ = 0.2f;
   // 解放時に元の isKinematic を復元するかどうか。
   [SerializeField] private bool restoreIsKinematicOnRelease;
   // 解放時に元の useGravity を復元するかどうか。
   [SerializeField] private bool restoreUseGravityOnRelease;
-  // カーソルの X 方向平滑化率。
-  [SerializeField] private float cursorLerpX = 0.35f;
-  // カーソルの Z 方向平滑化率。
-  [SerializeField] private float cursorLerpZ = 0.22f;
 
   [Header("Input Sensitivity")]
   [FormerlySerializedAs("xSensitivity")]
@@ -224,8 +214,6 @@ public class HandPinchController : MonoBehaviour
       xRange = xRange,
       yRange = yRange,
       zRange = zRange,
-      cursorLerpX = cursorLerpX,
-      cursorLerpZ = cursorLerpZ,
       horizontalSensitivity = horizontalSensitivity,
       depthSensitivity = depthSensitivity,
     };
@@ -241,9 +229,6 @@ public class HandPinchController : MonoBehaviour
       xRange = xRange,
       yRange = yRange,
       zRange = zRange,
-      followLerpX = followLerpX,
-      followLerpY = followLerpY,
-      followLerpZ = followLerpZ,
       rotationDegreesPerSecond = rotationDegreesPerSecond,
       restoreIsKinematicOnRelease = restoreIsKinematicOnRelease,
       restoreUseGravityOnRelease = restoreUseGravityOnRelease,
@@ -286,11 +271,6 @@ public class HandPinchController : MonoBehaviour
     cursorSphereDiameter = Mathf.Max(0.01f, cursorSphereDiameter);
     reach = Mathf.Max(0f, reach);
     handLostTimeoutSeconds = Mathf.Max(0.01f, handLostTimeoutSeconds);
-    followLerpX = Mathf.Clamp01(followLerpX);
-    followLerpY = Mathf.Clamp01(followLerpY);
-    followLerpZ = Mathf.Clamp01(followLerpZ);
-    cursorLerpX = Mathf.Clamp01(cursorLerpX);
-    cursorLerpZ = Mathf.Clamp01(cursorLerpZ);
     horizontalSensitivity = Mathf.Clamp(horizontalSensitivity, 0.1f, 2f);
     depthSensitivity = Mathf.Clamp(depthSensitivity, 0.1f, 4f);
     xSwipeRotationDegrees = Mathf.Max(0f, xSwipeRotationDegrees);

@@ -25,10 +25,6 @@ public sealed class HandCursorController
     public Vector2 yRange;
     // カーソルが動ける Z 範囲。
     public Vector2 zRange;
-    // カーソルの X 平滑化率。
-    public float cursorLerpX;
-    // カーソルの Z 平滑化率。
-    public float cursorLerpZ;
     // 左右操作の感度。
     public float horizontalSensitivity;
     // 前後操作の感度。
@@ -55,10 +51,6 @@ public sealed class HandCursorController
   private Vector2 _yRange;
   // カーソルの Z 可動範囲設定。
   private Vector2 _zRange;
-  // カーソル X 平滑化率設定。
-  private float _cursorLerpX;
-  // カーソル Z 平滑化率設定。
-  private float _cursorLerpZ;
   // 左右感度設定。
   private float _horizontalSensitivity;
   // depth 感度設定。
@@ -70,13 +62,6 @@ public sealed class HandCursorController
   private Material _cursorMaterial;
   // カーソル球をコードから生成したかどうか。
   private bool _createdCursorAtRuntime;
-  // 平滑化後のカーソル位置。
-  private Vector3 _smoothedCursorPoint;
-  // 平滑化位置が初期化済みかどうか。
-  private bool _hasSmoothedCursorPoint;
-  // 前フレームで depth が確定済みだったかどうか。
-  private bool _wasDepthReady;
-
   // カーソル制御を設定付きで生成する。
   public HandCursorController(Transform ownerTransform, Config config)
   {
@@ -95,8 +80,6 @@ public sealed class HandCursorController
     _xRange = config.xRange;
     _yRange = config.yRange;
     _zRange = config.zRange;
-    _cursorLerpX = config.cursorLerpX;
-    _cursorLerpZ = config.cursorLerpZ;
     _horizontalSensitivity = config.horizontalSensitivity;
     _depthSensitivity = config.depthSensitivity;
     _cursorSphere = config.cursorSphere != null ? config.cursorSphere : _cursorSphere;
@@ -110,41 +93,20 @@ public sealed class HandCursorController
     handTarget = Vector3.zero;
     if (_worldCamera == null || !handState.detected)
     {
-      _wasDepthReady = false;
       ShowStandbyCursor();
       return false;
     }
 
-    if (!handState.depthReady)
-    {
-      _wasDepthReady = false;
-      ResetTrackingCache();
-    }
-    else if (!_wasDepthReady)
-    {
-      ResetTrackingCache();
-    }
-
-    _wasDepthReady = handState.depthReady;
-    var rawCursorPoint = ComputeRawCursorPointOnPlane(handState);
-    var cursorPoint = GetCursorPointOnPlane(rawCursorPoint);
+    var cursorPoint = GetCursorPointOnPlane(handState);
     ShowCursor(cursorPoint, handState.pinch, handState.depthReady);
-    handTarget = GetHandTargetPoint(handState, rawCursorPoint);
+    handTarget = GetHandTargetPoint(handState, cursorPoint);
     return true;
   }
 
   // 追跡状態を破棄し、カーソル表示を待機中の見た目へ戻す。
   public void HideCursor()
   {
-    _wasDepthReady = false;
-    ResetTrackingCache();
     ShowStandbyCursor();
-  }
-
-  // 平滑化済みカーソル位置の状態を破棄する。
-  public void ResetTrackingCache()
-  {
-    _hasSmoothedCursorPoint = false;
   }
 
   // 動的生成したリソースを破棄する。
@@ -213,7 +175,6 @@ public sealed class HandCursorController
     }
 
     _cursorSphere.gameObject.hideFlags = HideFlags.None;
-    ResetTrackingCache();
     ShowStandbyCursor();
   }
 
@@ -252,28 +213,10 @@ public sealed class HandCursorController
     ShowCursor(standbyPoint, false, false);
   }
 
-  // 手状態から平滑化済みの床面カーソル位置を求める。
+  // 手状態から床面上のカーソル位置を求める。
   private Vector3 GetCursorPointOnPlane(HandState handState)
   {
-    return GetCursorPointOnPlane(ComputeRawCursorPointOnPlane(handState));
-  }
-
-  // 未平滑の床面カーソル位置から平滑化済み表示位置を求める。
-  private Vector3 GetCursorPointOnPlane(Vector3 rawPoint)
-  {
-    if (!_hasSmoothedCursorPoint)
-    {
-      _smoothedCursorPoint = rawPoint;
-      _hasSmoothedCursorPoint = true;
-    }
-    else
-    {
-      _smoothedCursorPoint.x = Mathf.Lerp(_smoothedCursorPoint.x, rawPoint.x, _cursorLerpX);
-      _smoothedCursorPoint.z = Mathf.Lerp(_smoothedCursorPoint.z, rawPoint.z, _cursorLerpZ);
-      _smoothedCursorPoint.y = _cursorPlaneY;
-    }
-
-    return _smoothedCursorPoint;
+    return ComputeRawCursorPointOnPlane(handState);
   }
 
   // 手状態から未平滑の床面カーソル位置を計算する。
@@ -297,6 +240,7 @@ public sealed class HandCursorController
   }
 
   // カーソル位置と手の高さから 3D 追従位置を作る。
+  // カーソル表示と同じ X/Z を使い、プレイヤーの手の動きとリンクさせる。
   private Vector3 GetHandTargetPoint(HandState handState, Vector3 cursorPoint)
   {
     var handY = Mathf.Lerp(_yRange.x, _yRange.y, 1f - Mathf.Clamp01(handState.y));
