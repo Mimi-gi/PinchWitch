@@ -338,10 +338,10 @@ public sealed class HandCursorController
     return Mathf.Clamp01(0.5f + (normalizedValue - 0.5f) * sensitivity);
   }
 
-  // 手前アンカーは固定し、奥方向へ離れる量だけを感度で伸縮する。
-  private static float ApplyDepthSensitivityFromFront(float normalizedDepth, float sensitivity)
+  // 前後全域で均一に反応させるため、depth は線形のまま使う。
+  private static float ApplyDepthSensitivityFromFront(float normalizedDepth, float _depthSensitivity)
   {
-    return Mathf.Clamp01(1f - (1f - normalizedDepth) * sensitivity);
+    return Mathf.Clamp01(normalizedDepth);
   }
 
   // `HandState.depth` は見た目の手前/奥で表現されるため、
