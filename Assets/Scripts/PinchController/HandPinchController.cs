@@ -331,7 +331,7 @@ public class HandPinchController : MonoBehaviour
 
     _handInteractionProcessor.ProcessRotationInteraction(
       _mediaPipeReceiver,
-      _trackedHandStateStore.GetHandState(handRoles.RotationHandType),
+      _trackedHandStateStore.GetRotationHandState(handRoles.RotationHandType),
       handRoles);
   }
 

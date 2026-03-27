@@ -583,7 +583,7 @@ MonoBehaviour:
   xSwipeRotationDegrees: 90
   ySwipeRotationDegrees: 90
   horizontalSwipeTriggerDistance: 0.18
-  verticalSwipeTriggerDistance: 0.45
+  verticalSwipeTriggerDistance: 0.18
   swipeDominanceRatio: 1.25
   swipeCooldownSeconds: 0.3
   rearmStillnessDistance: 0.012

@@ -2,28 +2,30 @@ using UnityEngine;
 
 public sealed class HandInputStabilizer
 {
+  public struct Config
+  {
+    // X の静止時に使うベースのカットオフ周波数。
+    public float xMinCutoff;
+    // X を素早く動かしたときに追従性を上げる係数。
+    public float xBeta;
+    // X の速度推定を平滑化するカットオフ周波数。
+    public float xDerivativeCutoff;
+    // Y の静止時に使うベースのカットオフ周波数。
+    public float yMinCutoff;
+    // Y を素早く動かしたときに追従性を上げる係数。
+    public float yBeta;
+    // Y の速度推定を平滑化するカットオフ周波数。
+    public float yDerivativeCutoff;
+    // depth の静止時に使うベースのカットオフ周波数。
+    public float depthMinCutoff;
+    // depth を素早く動かしたときに追従性を上げる係数。
+    public float depthBeta;
+    // depth の速度推定を平滑化するカットオフ周波数。
+    public float depthDerivativeCutoff;
+  }
+
   // フィルタ計算で極端に小さい deltaTime を避ける下限値。
   private const float MinimumDeltaTime = 0.0001f;
-  // X の静止時に使うベースのカットオフ周波数。
-  // 横移動のガタつきを抑えるため 0 ベースでかなり安定寄りにしている。
-  private const float XMinCutoff = 0f;
-  // X を素早く動かしたときに追従性を上げる係数。
-  // 横方向はリンク感を残しつつも jitter 優先でかなり小さめにしている。
-  private const float XBeta = 0.05f;
-  // X の速度推定を平滑化するカットオフ周波数。
-  private const float XDerivativeCutoff = 1f;
-  // Y の静止時に使うベースのカットオフ周波数。
-  private const float YMinCutoff = 0.85f;
-  // Y を素早く動かしたときに追従性を上げる係数。
-  private const float YBeta = 0.35f;
-  // Y の速度推定を平滑化するカットオフ周波数。
-  private const float YDerivativeCutoff = 1.2f;
-  // depth の静止時に使うベースのカットオフ周波数。
-  private const float DepthMinCutoff = 1.2f;
-  // depth を素早く動かしたときに追従性を上げる係数。
-  private const float DepthBeta = 0.35f;
-  // depth の速度推定を平滑化するカットオフ周波数。
-  private const float DepthDerivativeCutoff = 1.2f;
 
   // 1 つの float 値に対して単純な低域通過フィルタを適用する。
   private sealed class LowPassFilterFloat
@@ -108,19 +110,58 @@ public sealed class HandInputStabilizer
   }
 
   // X 用の入力安定化フィルタ。
-  private readonly OneEuroFilterFloat _xFilter =
-    new OneEuroFilterFloat(XMinCutoff, XBeta, XDerivativeCutoff);
+  private readonly OneEuroFilterFloat _xFilter;
   // Y 用の入力安定化フィルタ。
-  private readonly OneEuroFilterFloat _yFilter =
-    new OneEuroFilterFloat(YMinCutoff, YBeta, YDerivativeCutoff);
+  private readonly OneEuroFilterFloat _yFilter;
   // depth 用の入力安定化フィルタ。
-  private readonly OneEuroFilterFloat _depthFilter =
-    new OneEuroFilterFloat(DepthMinCutoff, DepthBeta, DepthDerivativeCutoff);
+  private readonly OneEuroFilterFloat _depthFilter;
 
   // フィルタが現在の検知セッションで初期化済みかどうか。
   private bool _hasTrackedState;
   // 前フレームで depthReady だったかどうか。
   private bool _wasDepthReady;
+
+  // オブジェクト移動向けの、安定性重視のフィルタ設定を返す。
+  public static Config CreateMovementConfig()
+  {
+    return new Config
+    {
+      xMinCutoff = 0f,
+      xBeta = 0.05f,
+      xDerivativeCutoff = 1f,
+      yMinCutoff = 0.85f,
+      yBeta = 0.35f,
+      yDerivativeCutoff = 1.2f,
+      depthMinCutoff = 1.2f,
+      depthBeta = 0.35f,
+      depthDerivativeCutoff = 1.2f,
+    };
+  }
+
+  // 回転ジェスチャー向けの、リンク感重視で軽めなフィルタ設定を返す。
+  public static Config CreateRotationConfig()
+  {
+    return new Config
+    {
+      xMinCutoff = 2f,
+      xBeta = 0.8f,
+      xDerivativeCutoff = 1.4f,
+      yMinCutoff = 1.8f,
+      yBeta = 0.65f,
+      yDerivativeCutoff = 1.4f,
+      depthMinCutoff = 1.2f,
+      depthBeta = 0.35f,
+      depthDerivativeCutoff = 1.2f,
+    };
+  }
+
+  // 指定した用途向けのフィルタ設定で入力安定化器を生成する。
+  public HandInputStabilizer(Config config)
+  {
+    _xFilter = new OneEuroFilterFloat(config.xMinCutoff, config.xBeta, config.xDerivativeCutoff);
+    _yFilter = new OneEuroFilterFloat(config.yMinCutoff, config.yBeta, config.yDerivativeCutoff);
+    _depthFilter = new OneEuroFilterFloat(config.depthMinCutoff, config.depthBeta, config.depthDerivativeCutoff);
+  }
 
   // 手を見失ったときや再認識時に、入力安定化の内部状態を破棄する。
   public void Reset()
