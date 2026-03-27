@@ -32,6 +32,10 @@ public class HandPinchController : MonoBehaviour
   [SerializeField] private LayerMask grabbableLayerMask = 1 << 3;
   // 手元から掴み判定を行う半径。
   [SerializeField] private float reach = 2.3f;
+  // 掴みを離した直後に再掴みを禁止する時間。
+  [SerializeField] private float grabReacquireCooldownSeconds = 0.12f;
+  // 再掴み前に、指を開いたまま確認する時間。
+  [SerializeField] private float grabReopenConfirmSeconds = 0.08f;
   // 掴み対象やカーソルが動ける X 範囲。
   [SerializeField] private Vector2 xRange = new Vector2(-4.5f, 4.5f);
   // 掴み対象やカーソルが動ける Y 範囲。
@@ -185,7 +189,7 @@ public class HandPinchController : MonoBehaviour
     _handCursorController = new HandCursorController(transform, BuildCursorConfig());
     _grabInteractor = new GrabInteractor(BuildGrabConfig());
     _rotationGestureDetector = new RotationGestureDetector(BuildRotationConfig());
-    _handInteractionProcessor = new HandInteractionProcessor(_handCursorController, _grabInteractor, _rotationGestureDetector);
+    _handInteractionProcessor = new HandInteractionProcessor(_handCursorController, _grabInteractor, _rotationGestureDetector, BuildInteractionConfig());
   }
 
   // 変更された設定を各責務クラスへ反映する。
@@ -198,6 +202,7 @@ public class HandPinchController : MonoBehaviour
     _grabInteractor?.ApplyConfiguration(BuildGrabConfig());
     _rotationGestureDetector?.ApplyConfiguration(BuildRotationConfig());
     _handInteractionProcessor?.UpdateDependencies(_handCursorController, _grabInteractor, _rotationGestureDetector);
+    _handInteractionProcessor?.ApplyConfiguration(BuildInteractionConfig());
   }
 
   // Cursor 制御に渡す設定を構築する。
@@ -251,6 +256,16 @@ public class HandPinchController : MonoBehaviour
     };
   }
 
+  // grab の再開クールダウンなど、操作制御に渡す設定を構築する。
+  private HandInteractionProcessor.Config BuildInteractionConfig()
+  {
+    return new HandInteractionProcessor.Config
+    {
+      grabReacquireCooldownSeconds = grabReacquireCooldownSeconds,
+      grabReopenConfirmSeconds = grabReopenConfirmSeconds,
+    };
+  }
+
   // Interaction 用に扱う手数を Graph 設定へ反映する。
   private void ApplyHandTrackingConfiguration()
   {
@@ -270,6 +285,8 @@ public class HandPinchController : MonoBehaviour
     NormalizeRange(ref zRange);
     cursorSphereDiameter = Mathf.Max(0.01f, cursorSphereDiameter);
     reach = Mathf.Max(0f, reach);
+    grabReacquireCooldownSeconds = Mathf.Clamp(grabReacquireCooldownSeconds, 0f, 0.5f);
+    grabReopenConfirmSeconds = Mathf.Clamp(grabReopenConfirmSeconds, 0f, 0.5f);
     handLostTimeoutSeconds = Mathf.Max(0.01f, handLostTimeoutSeconds);
     horizontalSensitivity = Mathf.Clamp(horizontalSensitivity, 0.1f, 2f);
     depthSensitivity = Mathf.Clamp(depthSensitivity, 0.1f, 4f);

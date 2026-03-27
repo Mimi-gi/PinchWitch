@@ -3,13 +3,21 @@ using UnityEngine;
 public sealed class HandInputStabilizer
 {
   // フィルタ計算で極端に小さい deltaTime を避ける下限値。
-  private const float MinimumDeltaTime = 0.0002f;
-  // X/Y の静止時に使うベースのカットオフ周波数。
-  private const float PositionMinCutoff = 0.95f;
-  // X/Y を素早く動かしたときに追従性を上げる係数。
-  private const float PositionBeta = 0.5f;
-  // X/Y の速度推定を平滑化するカットオフ周波数。
-  private const float PositionDerivativeCutoff = 1.2f;
+  private const float MinimumDeltaTime = 0.0001f;
+  // X の静止時に使うベースのカットオフ周波数。
+  // 横移動のガタつきを抑えるため 0 ベースでかなり安定寄りにしている。
+  private const float XMinCutoff = 0f;
+  // X を素早く動かしたときに追従性を上げる係数。
+  // 横方向はリンク感を残しつつも jitter 優先でかなり小さめにしている。
+  private const float XBeta = 0.05f;
+  // X の速度推定を平滑化するカットオフ周波数。
+  private const float XDerivativeCutoff = 1f;
+  // Y の静止時に使うベースのカットオフ周波数。
+  private const float YMinCutoff = 0.85f;
+  // Y を素早く動かしたときに追従性を上げる係数。
+  private const float YBeta = 0.35f;
+  // Y の速度推定を平滑化するカットオフ周波数。
+  private const float YDerivativeCutoff = 1.2f;
   // depth の静止時に使うベースのカットオフ周波数。
   private const float DepthMinCutoff = 1.2f;
   // depth を素早く動かしたときに追従性を上げる係数。
@@ -101,10 +109,10 @@ public sealed class HandInputStabilizer
 
   // X 用の入力安定化フィルタ。
   private readonly OneEuroFilterFloat _xFilter =
-    new OneEuroFilterFloat(PositionMinCutoff, PositionBeta, PositionDerivativeCutoff);
+    new OneEuroFilterFloat(XMinCutoff, XBeta, XDerivativeCutoff);
   // Y 用の入力安定化フィルタ。
   private readonly OneEuroFilterFloat _yFilter =
-    new OneEuroFilterFloat(PositionMinCutoff, PositionBeta, PositionDerivativeCutoff);
+    new OneEuroFilterFloat(YMinCutoff, YBeta, YDerivativeCutoff);
   // depth 用の入力安定化フィルタ。
   private readonly OneEuroFilterFloat _depthFilter =
     new OneEuroFilterFloat(DepthMinCutoff, DepthBeta, DepthDerivativeCutoff);
@@ -122,6 +130,7 @@ public sealed class HandInputStabilizer
   }
 
   // 生の手入力に対して安定化を適用する。
+  // X は横ブレ抑制を優先、Y と depth はリンク感を残すよう別係数で処理する。
   public void Stabilize(ref HandState handState)
   {
     if (!handState.detected)
