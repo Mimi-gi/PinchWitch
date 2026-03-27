@@ -1,8 +1,12 @@
 public sealed class HandInteractionProcessor
 {
+  // 手カーソルの表示と手ターゲット計算を担当する依存。
   private HandCursorController _handCursorController;
+  // 掴み・解放・回転を担当する依存。
   private GrabInteractor _grabInteractor;
+  // 回転ジェスチャー判定を担当する依存。
   private RotationGestureDetector _rotationGestureDetector;
+  // 前フレームで pinch 中だったかどうか。
   private bool _prevPinch;
 
   // 操作実行に使う各責務クラスを受け取って初期化する。

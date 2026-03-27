@@ -582,7 +582,7 @@ MonoBehaviour:
   cursorLerpX: 0.35
   cursorLerpZ: 0.22
   horizontalSensitivity: 0.8
-  depthSensitivity: 1
+  depthSensitivity: 0.9
   xSwipeRotationDegrees: 90
   ySwipeRotationDegrees: 90
   horizontalSwipeTriggerDistance: 0.18
@@ -2423,7 +2423,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1165179509
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2932,13 +2932,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1471524776}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 2.89, z: -10}
+  m_LocalRotation: {x: 0.29845774, y: 0, z: 0, w: 0.95442283}
+  m_LocalPosition: {x: 0, y: 10.97, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 34.73, y: 0, z: 0}
 --- !u!114 &1471524780
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3725,7 +3725,7 @@ Transform:
   m_GameObject: {fileID: 2001088758}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 3.11, y: 0.07, z: 5.61}
+  m_LocalPosition: {x: 3.11, y: 0.07, z: 3.44}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

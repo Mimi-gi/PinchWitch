@@ -2,45 +2,79 @@ using UnityEngine;
 
 public sealed class HandCursorController
 {
+  // depth 未確定時に使うカーソル色。
   private static readonly Color UncalibratedCursorColor = Color.red;
 
   public struct Config
   {
+    // 表示に使うカーソル球の Transform。
     public Transform cursorSphere;
+    // 画面座標をワールド座標へ変換するカメラ。
     public Camera worldCamera;
+    // カーソル球の直径。
     public float cursorSphereDiameter;
+    // 通常時のカーソル色。
     public Color cursorIdleColor;
+    // pinch 中のカーソル色。
     public Color cursorPinchColor;
+    // カーソルを置く平面の Y 座標。
     public float cursorPlaneY;
+    // カーソルが動ける X 範囲。
     public Vector2 xRange;
+    // 掴み対象に渡す Y 範囲。
     public Vector2 yRange;
+    // カーソルが動ける Z 範囲。
     public Vector2 zRange;
+    // カーソルの X 平滑化率。
     public float cursorLerpX;
+    // カーソルの Z 平滑化率。
     public float cursorLerpZ;
+    // 左右操作の感度。
     public float horizontalSensitivity;
+    // 前後操作の感度。
     public float depthSensitivity;
   }
 
+  // 動的生成したカーソルをぶら下げる親 Transform。
   private Transform _ownerTransform;
+  // 実際に表示するカーソル球。
   private Transform _cursorSphere;
+  // 座標変換に使うワールドカメラ。
   private Camera _worldCamera;
+  // カーソル球の直径設定。
   private float _cursorSphereDiameter;
+  // 通常時のカーソル色設定。
   private Color _cursorIdleColor;
+  // pinch 中のカーソル色設定。
   private Color _cursorPinchColor;
+  // カーソルを動かす平面の Y 座標設定。
   private float _cursorPlaneY;
+  // カーソルの X 可動範囲設定。
   private Vector2 _xRange;
+  // 手ターゲットの Y 可動範囲設定。
   private Vector2 _yRange;
+  // カーソルの Z 可動範囲設定。
   private Vector2 _zRange;
+  // カーソル X 平滑化率設定。
   private float _cursorLerpX;
+  // カーソル Z 平滑化率設定。
   private float _cursorLerpZ;
+  // 左右感度設定。
   private float _horizontalSensitivity;
+  // depth 感度設定。
   private float _depthSensitivity;
 
+  // カーソル球の Renderer 参照。
   private Renderer _cursorRenderer;
+  // カーソル色変更に使う Material 参照。
   private Material _cursorMaterial;
+  // カーソル球をコードから生成したかどうか。
   private bool _createdCursorAtRuntime;
+  // 平滑化後のカーソル位置。
   private Vector3 _smoothedCursorPoint;
+  // 平滑化位置が初期化済みかどうか。
   private bool _hasSmoothedCursorPoint;
+  // 前フレームで depth が確定済みだったかどうか。
   private bool _wasDepthReady;
 
   // カーソル制御を設定付きで生成する。

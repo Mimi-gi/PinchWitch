@@ -4,27 +4,46 @@ public sealed class GrabInteractor
 {
   public struct Config
   {
+    // 掴める対象を検索するレイヤーマスク。
     public LayerMask grabbableLayerMask;
+    // 掴み判定に使う半径。
     public float reach;
+    // 掴み対象の X 可動範囲。
     public Vector2 xRange;
+    // 掴み対象の Y 可動範囲。
     public Vector2 yRange;
+    // 掴み対象の Z 可動範囲。
     public Vector2 zRange;
+    // 追従時の X 補間率。
     public float followLerpX;
+    // 追従時の Y 補間率。
     public float followLerpY;
+    // 追従時の Z 補間率。
     public float followLerpZ;
+    // 回転目標へ追従する速度。
     public float rotationDegreesPerSecond;
+    // 解放時に元の isKinematic を戻すかどうか。
     public bool restoreIsKinematicOnRelease;
+    // 解放時に元の useGravity を戻すかどうか。
     public bool restoreUseGravityOnRelease;
   }
 
+  // OverlapCapsuleNonAlloc の結果を受ける使い回しバッファ。
   private readonly Collider[] _overlapColliders = new Collider[64];
 
+  // 掴み挙動全体の設定。
   private Config _config;
+  // 現在掴んでいる Rigidbody。
   private Rigidbody _grabbedBody;
+  // 掴み開始時の手位置との差分。
   private Vector3 _grabOffset;
+  // 掴み前の isKinematic 設定。
   private bool _grabbedOriginalIsKinematic;
+  // 掴み前の useGravity 設定。
   private bool _grabbedOriginalUseGravity;
+  // 掴み前の Rigidbody constraints。
   private RigidbodyConstraints _grabbedOriginalConstraints;
+  // 目標としている回転値。
   private Quaternion _targetRotation;
 
   // grab 操作用の設定でインタラクタを生成する。

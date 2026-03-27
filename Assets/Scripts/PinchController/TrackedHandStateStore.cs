@@ -2,13 +2,19 @@ using UnityEngine;
 
 public sealed class TrackedHandStateStore
 {
+  // 左手の最新ランドマーク作業バッファ。
   private readonly Vector3[] _leftFrameLandmarks = new Vector3[MediaPipeReceiver.HandLandmarkCount];
+  // 右手の最新ランドマーク作業バッファ。
   private readonly Vector3[] _rightFrameLandmarks = new Vector3[MediaPipeReceiver.HandLandmarkCount];
 
+  // 左手の HandState を計算する計算機。
   private readonly HandStateCalculator _leftHandStateCalculator;
+  // 右手の HandState を計算する計算機。
   private readonly HandStateCalculator _rightHandStateCalculator;
 
+  // 左手の最新 HandState。
   private HandState _leftHandState;
+  // 右手の最新 HandState。
   private HandState _rightHandState;
 
   // 左右の手状態ストアを初期化する。

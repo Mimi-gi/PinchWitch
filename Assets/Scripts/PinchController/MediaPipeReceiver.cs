@@ -8,6 +8,7 @@ using UnityEngine;
 
 public sealed class MediaPipeReceiver
 {
+  // ランドマークと handedness を同一フレームとみなす時間差の許容値。
   private const double HandednessPairingToleranceSeconds = 0.02d;
 
   public enum TrackedHandType
@@ -16,23 +17,39 @@ public sealed class MediaPipeReceiver
     Right,
   }
 
+  // 本システムで扱う手の最大数。
   public const int InteractionHandCount = 2;
+  // 1 手あたりのランドマーク数。
   public const int HandLandmarkCount = 21;
 
+  // ランドマークと handedness の共有キャッシュを守るロック。
   private readonly object _frameLock = new object();
+  // 左手の最新ランドマークを保持する配列。
   private readonly Vector3[] _latestLeftLandmarks = new Vector3[HandLandmarkCount];
+  // 右手の最新ランドマークを保持する配列。
   private readonly Vector3[] _latestRightLandmarks = new Vector3[HandLandmarkCount];
+  // MediaPipe の出力インデックスごとの左右判定キャッシュ。
   private readonly TrackedHandType?[] _latestHandednessByIndex = new TrackedHandType?[InteractionHandCount];
 
+  // 現在購読対象になっている HandTrackingGraph。
   private HandTrackingGraph _handTrackingGraph;
+  // 手を見失ったとみなすまでの猶予時間。
   private float _handLostTimeoutSeconds;
+  // 最新フレームに左手が存在したかどうか。
   private bool _hasLeftHandOnLatestFrame;
+  // 最新フレームに右手が存在したかどうか。
   private bool _hasRightHandOnLatestFrame;
+  // 左手キャッシュを更新した時刻。
   private long _latestLeftHandTicks;
+  // 右手キャッシュを更新した時刻。
   private long _latestRightHandTicks;
+  // handedness キャッシュを更新した時刻。
   private long _latestHandednessTicks;
+  // graph にイベント購読済みかどうか。
   private bool _isSubscribed;
+  // graph 準備待ち中の購読 coroutine。
   private Coroutine _subscribeCoroutine;
+  // coroutine の開始と停止に使う MonoBehaviour。
   private MonoBehaviour _subscriptionHost;
 
   // 受信対象の graph とタイムアウト設定を初期化する。

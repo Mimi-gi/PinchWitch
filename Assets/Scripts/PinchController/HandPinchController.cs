@@ -6,59 +6,98 @@ using UnityEngine.Serialization;
 public class HandPinchController : MonoBehaviour
 {
   [Header("MediaPipe")]
+  // MediaPipe の手検出グラフ本体。
   [SerializeField] private HandTrackingGraph handTrackingGraph;
+  // ワールド座標へ変換するときに使う基準カメラ。
   [SerializeField] private Camera worldCamera;
 
   [Header("Hand Roles")]
+  // 左右の役割を入れ替えるかどうか。
   [SerializeField] private bool swapLeftRightRoles;
 
   [Header("Cursor (Sphere)")]
+  // 手位置を示すカーソル球の Transform。
   [SerializeField] private Transform cursorSphere;
+  // カーソル球の直径。
   [SerializeField] private float cursorSphereDiameter = 0.22f;
+  // 待機時のカーソル色。
   [SerializeField] private Color cursorIdleColor = new Color(0f, 0.898f, 1f, 1f);
+  // pinch 中のカーソル色。
   [SerializeField] private Color cursorPinchColor = new Color(1f, 0.922f, 0.231f, 1f);
+  // カーソルを動かす床面の Y 座標。
   [SerializeField] private float cursorPlaneY;
 
   [Header("Grabbing")]
+  // 掴めるオブジェクトを探す対象レイヤー。
   [SerializeField] private LayerMask grabbableLayerMask = 1 << 3;
+  // 手元から掴み判定を行う半径。
   [SerializeField] private float reach = 2.3f;
+  // 掴み対象やカーソルが動ける X 範囲。
   [SerializeField] private Vector2 xRange = new Vector2(-4.5f, 4.5f);
+  // 掴み対象やカーソルが動ける Y 範囲。
   [SerializeField] private Vector2 yRange = new Vector2(0f, 9f);
+  // 掴み対象やカーソルが動ける Z 範囲。
   [SerializeField] private Vector2 zRange = new Vector2(-4.5f, 4.5f);
+  // 掴んだ物体が X 方向へ追従する速さ。
   [SerializeField] private float followLerpX = 0.3f;
+  // 掴んだ物体が Y 方向へ追従する速さ。
   [SerializeField] private float followLerpY = 0.3f;
+  // 掴んだ物体が Z 方向へ追従する速さ。
   [SerializeField] private float followLerpZ = 0.2f;
+  // 解放時に元の isKinematic を復元するかどうか。
   [SerializeField] private bool restoreIsKinematicOnRelease;
+  // 解放時に元の useGravity を復元するかどうか。
   [SerializeField] private bool restoreUseGravityOnRelease;
+  // カーソルの X 方向平滑化率。
   [SerializeField] private float cursorLerpX = 0.35f;
+  // カーソルの Z 方向平滑化率。
   [SerializeField] private float cursorLerpZ = 0.22f;
 
   [Header("Input Sensitivity")]
   [FormerlySerializedAs("xSensitivity")]
+  // 手の左右移動をゲーム内 X へ反映する感度。
   [SerializeField] private float horizontalSensitivity = 0.65f;
   [FormerlySerializedAs("zSensitivity")]
+  // 手の前後移動をゲーム内 depth へ反映する感度。
   [SerializeField] private float depthSensitivity = 0.65f;
 
   [Header("Rotation")]
+  // 縦スワイプで発生させる X 軸回転量。
   [SerializeField] private float xSwipeRotationDegrees = 90f;
+  // 横スワイプで発生させる Y 軸回転量。
   [SerializeField] private float ySwipeRotationDegrees = 45f;
+  // 横スワイプとして認める最小移動量。
   [SerializeField] private float horizontalSwipeTriggerDistance = 0.18f;
+  // 縦スワイプとして認める最小移動量。
   [SerializeField] private float verticalSwipeTriggerDistance = 0.16f;
+  // 主方向の移動がどれだけ優勢ならスワイプとみなすか。
   [SerializeField] private float swipeDominanceRatio = 1.25f;
+  // スワイプ発火後の再発火待ち時間。
   [SerializeField] private float swipeCooldownSeconds = 0.3f;
+  // 再アーム判定で静止とみなす移動量。
   [SerializeField] private float rearmStillnessDistance = 0.012f;
+  // 再アームに必要な静止時間。
   [SerializeField] private float rearmStillnessDurationSeconds = 0.16f;
+  // 掴み中オブジェクトが回転目標へ追従する速度。
   [SerializeField] private float rotationDegreesPerSecond = 180f;
 
   [Header("Fail Safe")]
+  // 手を見失ったとみなすまでの猶予時間。
   [SerializeField] private float handLostTimeoutSeconds = 0.25f;
 
+  // MediaPipe の出力を受け取る窓口。
   private MediaPipeReceiver _mediaPipeReceiver;
+  // 左右の手状態を保持するストア。
   private TrackedHandStateStore _trackedHandStateStore;
+  // 手カーソルの表示と座標変換を担当する制御クラス。
   private HandCursorController _handCursorController;
+  // 掴み・追従・解放を担当する制御クラス。
   private GrabInteractor _grabInteractor;
+  // 回転ジェスチャー判定を担当する制御クラス。
   private RotationGestureDetector _rotationGestureDetector;
+  // 実際の移動・回転操作をまとめる制御クラス。
   private HandInteractionProcessor _handInteractionProcessor;
+  // 前回適用済みの左右役割入れ替え設定。
   private bool _lastAppliedSwapLeftRightRoles;
 
   // Inspector 上の初期参照とデフォルト設定を補完する。
