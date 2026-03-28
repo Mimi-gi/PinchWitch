@@ -578,7 +578,7 @@ MonoBehaviour:
   zRange: {x: -4.5, y: 2}
   restoreIsKinematicOnRelease: 0
   restoreUseGravityOnRelease: 0
-  horizontalSensitivity: 1.2
+  horizontalSensitivity: 2
   depthSensitivity: 1
   xSwipeRotationDegrees: 90
   ySwipeRotationDegrees: 90
