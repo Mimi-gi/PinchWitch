@@ -126,8 +126,10 @@ public sealed class HandInputStabilizer
   {
     return new Config
     {
-      xMinCutoff = 0f,
-      xBeta = 0.05f,
+      // 端でも小さな戻し入力が反映されやすいよう、X の静止時追従を少し上げる。
+      xMinCutoff = 0.2f,
+      // 横方向を大きく動かしたときは、追従性を少し早めに上げる。
+      xBeta = 0.1f,
       xDerivativeCutoff = 1f,
       yMinCutoff = 0.85f,
       yBeta = 0.35f,

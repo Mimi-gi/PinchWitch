@@ -50,6 +50,7 @@ public class HandPinchController : MonoBehaviour
   [Header("Input Sensitivity")]
   [FormerlySerializedAs("xSensitivity")]
   // 手の左右移動をゲーム内 X へ反映する感度。
+  // 1 以下では線形のまま使い、1 を超えたときだけ中心からの変位を増幅する。
   [SerializeField] private float horizontalSensitivity = 0.65f;
   [FormerlySerializedAs("zSensitivity")]
   // 手の前後移動をゲーム内 depth へ反映する感度。

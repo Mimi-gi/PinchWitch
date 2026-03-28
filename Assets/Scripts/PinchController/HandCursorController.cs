@@ -223,20 +223,8 @@ public sealed class HandCursorController
   private Vector3 ComputeRawCursorPointOnPlane(HandState handState)
   {
     var depthZ = Mathf.Clamp(GetHandDepthWorldZ(handState), _zRange.x, _zRange.y);
-    var xNorm = ApplySensitivity(Mathf.Clamp01(handState.x), _horizontalSensitivity);
-    var point = new Vector3(Mathf.Lerp(_xRange.x, _xRange.y, xNorm), _cursorPlaneY, depthZ);
-
-    var viewportX = xNorm;
-    if (TryProjectToFloorPlane(viewportX, 0.5f, out var floorPoint)
-        || TryProjectToFloorPlane(viewportX, 0.45f, out floorPoint)
-        || TryProjectToFloorPlane(viewportX, 0.55f, out floorPoint))
-    {
-      point.x = Mathf.Clamp(floorPoint.x, _xRange.x, _xRange.y);
-    }
-
-    var xCenter = (_xRange.x + _xRange.y) * 0.5f;
-    point.x = Mathf.Lerp(xCenter, point.x, Mathf.Clamp01(_horizontalSensitivity));
-    return point;
+    var xNorm = ApplyHorizontalSensitivity(Mathf.Clamp01(handState.x), _horizontalSensitivity);
+    return new Vector3(Mathf.Lerp(_xRange.x, _xRange.y, xNorm), _cursorPlaneY, depthZ);
   }
 
   // カーソル位置と手の高さから 3D 追従位置を作る。
@@ -282,10 +270,17 @@ public sealed class HandCursorController
     }
   }
 
-  // 入力感度を中心基準で正規化値へ反映する。
-  private static float ApplySensitivity(float normalizedValue, float sensitivity)
+  // 左右移動は端での動き出しを優先する。
+  // 1 以下では線形のまま使い、1 を超えたときだけ中心からの変位を増幅する。
+  private static float ApplyHorizontalSensitivity(float normalizedValue, float sensitivity)
   {
-    return Mathf.Clamp01(0.5f + (normalizedValue - 0.5f) * sensitivity);
+    var clampedValue = Mathf.Clamp01(normalizedValue);
+    if (sensitivity <= 1f)
+    {
+      return clampedValue;
+    }
+
+    return Mathf.Clamp01(0.5f + ((clampedValue - 0.5f) * sensitivity));
   }
 
   // 前後全域で均一に反応させるため、depth は線形のまま使う。
@@ -314,20 +309,5 @@ public sealed class HandCursorController
 
     frontWorldZ = _zRange.y;
     backWorldZ = _zRange.x;
-  }
-
-  // ビューポート座標を床面へ射影する。
-  private bool TryProjectToFloorPlane(float viewportX, float viewportY, out Vector3 hitPoint)
-  {
-    hitPoint = Vector3.zero;
-    var ray = _worldCamera.ViewportPointToRay(new Vector3(viewportX, viewportY, 0f));
-    var floorPlane = new Plane(Vector3.up, new Vector3(0f, _cursorPlaneY, 0f));
-    if (!floorPlane.Raycast(ray, out var distance))
-    {
-      return false;
-    }
-
-    hitPoint = ray.GetPoint(distance);
-    return true;
   }
 }
