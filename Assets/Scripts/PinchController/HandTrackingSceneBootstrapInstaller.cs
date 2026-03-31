@@ -5,7 +5,9 @@ using UnityEngine.SceneManagement;
 
 public static class HandTrackingSceneBootstrapInstaller
 {
+  // 自動生成する Bootstrap オブジェクト名。
   private const string BootstrapObjectName = "Bootstrap";
+  // コピー対象の Serialize フィールドを拾うための BindingFlags。
   private const BindingFlags SerializableFieldFlags =
     BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
 
@@ -25,7 +27,7 @@ public static class HandTrackingSceneBootstrapInstaller
       return;
     }
 
-    if (GameObject.Find(BootstrapObjectName) != null)
+    if (FindBootstrapInScene(scene, BootstrapObjectName) != null)
     {
       return;
     }

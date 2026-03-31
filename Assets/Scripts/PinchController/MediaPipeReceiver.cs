@@ -8,6 +8,7 @@ using UnityEngine;
 
 public sealed class MediaPipeReceiver
 {
+  // ランドマークと handedness を同一フレームとみなす時間差の許容値。
   private const double HandednessPairingToleranceSeconds = 0.02d;
 
   public enum TrackedHandType
@@ -16,23 +17,40 @@ public sealed class MediaPipeReceiver
     Right,
   }
 
+  // 本システムで扱う手の最大数。
   public const int InteractionHandCount = 2;
+  // 1 手あたりのランドマーク数。
   public const int HandLandmarkCount = 21;
 
+  // ランドマークと handedness の共有キャッシュを守るロック。
   private readonly object _frameLock = new object();
+  // 左手の最新ランドマークを保持する配列。
   private readonly Vector3[] _latestLeftLandmarks = new Vector3[HandLandmarkCount];
+  // 右手の最新ランドマークを保持する配列。
   private readonly Vector3[] _latestRightLandmarks = new Vector3[HandLandmarkCount];
+  // MediaPipe の出力インデックスごとの左右判定キャッシュ。
   private readonly TrackedHandType?[] _latestHandednessByIndex = new TrackedHandType?[InteractionHandCount];
 
+  // 現在購読対象になっている HandTrackingGraph。
   private HandTrackingGraph _handTrackingGraph;
+  // 手を見失ったとみなすまでの猶予時間。
   private float _handLostTimeoutSeconds;
+  // 最新フレームに左手が存在したかどうか。
   private bool _hasLeftHandOnLatestFrame;
+  // 最新フレームに右手が存在したかどうか。
   private bool _hasRightHandOnLatestFrame;
+  // 左手キャッシュを更新した時刻。
   private long _latestLeftHandTicks;
+  // 右手キャッシュを更新した時刻。
   private long _latestRightHandTicks;
+  // handedness キャッシュを更新した時刻。
   private long _latestHandednessTicks;
+  // graph にイベント購読済みかどうか。
   private bool _isSubscribed;
+  // graph 準備待ち中の購読 coroutine。
   private Coroutine _subscribeCoroutine;
+  // coroutine の開始と停止に使う MonoBehaviour。
+  private MonoBehaviour _subscriptionHost;
 
   // 受信対象の graph とタイムアウト設定を初期化する。
   public MediaPipeReceiver(HandTrackingGraph handTrackingGraph, float handLostTimeoutSeconds)
@@ -44,10 +62,34 @@ public sealed class MediaPipeReceiver
   // 対象の HandTrackingGraph を更新する。
   public void UpdateGraph(HandTrackingGraph handTrackingGraph)
   {
+    if (ReferenceEquals(_handTrackingGraph, handTrackingGraph))
+    {
+      if (_handTrackingGraph != null)
+      {
+        _handTrackingGraph.maxNumHands = InteractionHandCount;
+      }
+
+      return;
+    }
+
+    var shouldResumeSubscription = _isSubscribed || _subscribeCoroutine != null;
+    StopPendingSubscription(_subscriptionHost);
+    if (_isSubscribed)
+    {
+      DetachFromGraph(_handTrackingGraph);
+      _isSubscribed = false;
+    }
+
     _handTrackingGraph = handTrackingGraph;
+    ResetFrameCache();
     if (_handTrackingGraph != null)
     {
       _handTrackingGraph.maxNumHands = InteractionHandCount;
+    }
+
+    if (shouldResumeSubscription)
+    {
+      RestartSubscription();
     }
   }
 
@@ -60,23 +102,25 @@ public sealed class MediaPipeReceiver
   // graph の出力購読を開始する。
   public void Start(MonoBehaviour host)
   {
-    if (host == null || _subscribeCoroutine != null)
+    if (host == null)
     {
       return;
     }
 
-    _subscribeCoroutine = host.StartCoroutine(SubscribeWhenGraphIsReady(host));
+    _subscriptionHost = host;
+    if (_isSubscribed)
+    {
+      return;
+    }
+
+    RestartSubscription();
   }
 
   // graph の出力購読を停止する。
   public void Stop(MonoBehaviour host)
   {
-    if (_subscribeCoroutine != null && host != null)
-    {
-      host.StopCoroutine(_subscribeCoroutine);
-    }
-
-    _subscribeCoroutine = null;
+    StopPendingSubscription(host != null ? host : _subscriptionHost);
+    _subscriptionHost = null;
     UnsubscribeFromGraph();
   }
 
@@ -164,11 +208,14 @@ public sealed class MediaPipeReceiver
       SubscribeToGraph();
       if (_isSubscribed)
       {
+        _subscribeCoroutine = null;
         yield break;
       }
 
       yield return null;
     }
+
+    _subscribeCoroutine = null;
   }
 
   // graph の出力イベントに購読する。
@@ -191,26 +238,62 @@ public sealed class MediaPipeReceiver
     }
   }
 
+  // 購読待機中の coroutine を停止し、必要なら即時再購読を試みる。
+  private void RestartSubscription()
+  {
+    if (_subscriptionHost == null || !_subscriptionHost.isActiveAndEnabled)
+    {
+      return;
+    }
+
+    StopPendingSubscription(_subscriptionHost);
+    SubscribeToGraph();
+    if (!_isSubscribed)
+    {
+      _subscribeCoroutine = _subscriptionHost.StartCoroutine(SubscribeWhenGraphIsReady(_subscriptionHost));
+    }
+  }
+
+  // 購読開始待ちの coroutine を停止する。
+  private void StopPendingSubscription(MonoBehaviour host)
+  {
+    if (_subscribeCoroutine != null && host != null)
+    {
+      host.StopCoroutine(_subscribeCoroutine);
+    }
+
+    _subscribeCoroutine = null;
+  }
+
   // graph の出力イベント購読を解除する。
   private void UnsubscribeFromGraph()
   {
-    if (!_isSubscribed || _handTrackingGraph == null)
+    if (_isSubscribed)
+    {
+      DetachFromGraph(_handTrackingGraph);
+      _isSubscribed = false;
+    }
+
+    ResetFrameCache();
+  }
+
+  // 指定 graph から出力イベント購読を解除する。
+  private void DetachFromGraph(HandTrackingGraph handTrackingGraph)
+  {
+    if (handTrackingGraph == null)
     {
       return;
     }
 
     try
     {
-      _handTrackingGraph.OnHandLandmarksOutput -= OnHandLandmarksOutput;
-      _handTrackingGraph.OnHandednessOutput -= OnHandednessOutput;
+      handTrackingGraph.OnHandLandmarksOutput -= OnHandLandmarksOutput;
+      handTrackingGraph.OnHandednessOutput -= OnHandednessOutput;
     }
     catch (System.NullReferenceException)
     {
       // Graph is already disposed/stopped.
     }
-
-    ResetFrameCache();
-    _isSubscribed = false;
   }
 
   // ランドマーク出力を左右の手キャッシュへ反映する。

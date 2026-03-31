@@ -10,29 +10,47 @@ public sealed class RotationGestureDetector
 
   public struct Config
   {
+    // 縦スワイプで発生させる X 軸回転角。
     public float xRotationDegrees;
+    // 横スワイプで発生させる Y 軸回転角。
     public float yRotationDegrees;
+    // 横スワイプとして認める最小移動量。
     public float horizontalSwipeTriggerDistance;
+    // 縦スワイプとして認める最小移動量。
     public float verticalSwipeTriggerDistance;
+    // 主方向が副方向よりどれだけ優勢なら発火するか。
     public float swipeDominanceRatio;
+    // 発火後のクールダウン時間。
     public float swipeCooldownSeconds;
+    // 再アーム判定で静止とみなす移動量。
     public float rearmStillnessDistance;
+    // 再アームに必要な静止時間。
     public float rearmStillnessDurationSeconds;
   }
 
   public struct RotationCommand
   {
+    // 回転させるワールド軸。
     public Vector3 worldAxis;
+    // 回転角度。
     public float angleDegrees;
   }
 
+  // 回転判定に使うしきい値設定。
   private Config _config;
+  // 現在の再アーム状態。
   private RearmState _rearmState;
+  // スワイプ基準点がセット済みかどうか。
   private bool _hasSwipeAnchor;
+  // スワイプ量を測る基準点。
   private Vector2 _swipeAnchor;
+  // 次に発火を許可する時刻。
   private float _cooldownUntilTime;
+  // 静止判定サンプルが初期化済みかどうか。
   private bool _hasStillnessSample;
+  // 前回の静止判定サンプル位置。
   private Vector2 _lastStillnessSample;
+  // 静止していた累積時間。
   private float _stillnessTimer;
 
   // 回転ジェスチャー判定器を設定付きで生成する。
