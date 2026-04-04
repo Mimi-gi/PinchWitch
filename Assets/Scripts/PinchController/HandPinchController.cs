@@ -1,3 +1,4 @@
+using System;
 using Mediapipe.Unity.HandTracking;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -5,6 +6,9 @@ using UnityEngine.Serialization;
 [DisallowMultipleComponent]
 public class HandPinchController : MonoBehaviour
 {
+  public event Action<Rigidbody> GrabStarted;
+  public event Action<Rigidbody> GrabReleased;
+
   [Header("MediaPipe")]
   // MediaPipe の手検出グラフ本体。
   [SerializeField] private HandTrackingGraph handTrackingGraph;
@@ -122,6 +126,7 @@ public class HandPinchController : MonoBehaviour
     ApplyHandTrackingConfiguration();
     _lastAppliedSwapLeftRightRoles = swapLeftRightRoles;
     InitializeSystems();
+    EnsureShadowDirtyRegistryExists();
   }
 
   // MediaPipe からの受信開始を行う。
@@ -143,6 +148,7 @@ public class HandPinchController : MonoBehaviour
     _mediaPipeReceiver?.Stop(this);
     _handInteractionProcessor?.ResetInteractionState();
     _handCursorController?.Dispose();
+    UnsubscribeFromGrabInteractor();
   }
 
   // Inspector から変更された設定値を反映する。
@@ -182,6 +188,18 @@ public class HandPinchController : MonoBehaviour
     }
   }
 
+  private void EnsureShadowDirtyRegistryExists()
+  {
+    var existingRegistry = FindFirstObjectByType<ShadowDirtyRegistry>(FindObjectsInactive.Include);
+    if (existingRegistry != null)
+    {
+      return;
+    }
+
+    var registryObject = new GameObject("ShadowDirtyRegistry");
+    registryObject.AddComponent<ShadowDirtyRegistry>();
+  }
+
   // 分割した各責務クラスを初期化する。
   private void InitializeSystems()
   {
@@ -191,6 +209,7 @@ public class HandPinchController : MonoBehaviour
     _grabInteractor = new GrabInteractor(BuildGrabConfig());
     _rotationGestureDetector = new RotationGestureDetector(BuildRotationConfig());
     _handInteractionProcessor = new HandInteractionProcessor(_handCursorController, _grabInteractor, _rotationGestureDetector, BuildInteractionConfig());
+    SubscribeToGrabInteractor();
   }
 
   // 変更された設定を各責務クラスへ反映する。
@@ -204,6 +223,40 @@ public class HandPinchController : MonoBehaviour
     _rotationGestureDetector?.ApplyConfiguration(BuildRotationConfig());
     _handInteractionProcessor?.UpdateDependencies(_handCursorController, _grabInteractor, _rotationGestureDetector);
     _handInteractionProcessor?.ApplyConfiguration(BuildInteractionConfig());
+  }
+
+  private void SubscribeToGrabInteractor()
+  {
+    if (_grabInteractor == null)
+    {
+      return;
+    }
+
+    _grabInteractor.GrabStarted -= HandleGrabStarted;
+    _grabInteractor.GrabReleased -= HandleGrabReleased;
+    _grabInteractor.GrabStarted += HandleGrabStarted;
+    _grabInteractor.GrabReleased += HandleGrabReleased;
+  }
+
+  private void UnsubscribeFromGrabInteractor()
+  {
+    if (_grabInteractor == null)
+    {
+      return;
+    }
+
+    _grabInteractor.GrabStarted -= HandleGrabStarted;
+    _grabInteractor.GrabReleased -= HandleGrabReleased;
+  }
+
+  private void HandleGrabStarted(Rigidbody grabbedBody)
+  {
+    GrabStarted?.Invoke(grabbedBody);
+  }
+
+  private void HandleGrabReleased(Rigidbody releasedBody)
+  {
+    GrabReleased?.Invoke(releasedBody);
   }
 
   // Cursor 制御に渡す設定を構築する。

@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 public sealed class GrabInteractor
@@ -45,6 +46,9 @@ public sealed class GrabInteractor
   private Vector3 _desiredGrabPosition;
   // 掴み位置が初期化済みかどうか。
   private bool _hasDesiredGrabPosition;
+
+  public event Action<Rigidbody> GrabStarted;
+  public event Action<Rigidbody> GrabReleased;
 
   // grab 操作用の設定でインタラクタを生成する。
   public GrabInteractor(Config config)
@@ -123,6 +127,7 @@ public sealed class GrabInteractor
     _targetRotation = _grabbedBody.rotation;
     _desiredGrabPosition = _grabbedBody.position;
     _hasDesiredGrabPosition = true;
+    GrabStarted?.Invoke(_grabbedBody);
   }
 
   // grab 中オブジェクトの目標位置を更新する。
@@ -173,6 +178,8 @@ public sealed class GrabInteractor
       return;
     }
 
+    var releasedBody = _grabbedBody;
+
     _grabbedBody.linearVelocity = Vector3.zero;
     _grabbedBody.angularVelocity = Vector3.zero;
     _grabbedBody.constraints = _grabbedOriginalConstraints;
@@ -198,6 +205,7 @@ public sealed class GrabInteractor
     _grabbedBody.interpolation = _grabbedOriginalInterpolation;
     _grabbedBody = null;
     _hasDesiredGrabPosition = false;
+    GrabReleased?.Invoke(releasedBody);
   }
 
   // 現在の回転から次フレームで到達させる回転を計算する。

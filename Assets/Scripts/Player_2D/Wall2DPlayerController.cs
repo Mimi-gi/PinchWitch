@@ -23,6 +23,10 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   [SerializeField] private float groundCheckDistance = 0.08f;
   [SerializeField] private float minimumGroundNormalY = 0.65f;
 
+  [Header("Physics")]
+  [SerializeField] private CollisionDetectionMode2D collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+  [SerializeField] private RigidbodyInterpolation2D interpolationMode = RigidbodyInterpolation2D.Interpolate;
+
   private readonly RaycastHit2D[] _groundHits = new RaycastHit2D[8];
 
   private Rigidbody2D _rigidbody2D;
@@ -42,11 +46,24 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     _rigidbody2D = GetComponent<Rigidbody2D>();
     _collider2D = GetComponent<Collider2D>();
     ClampSerializedValues();
+    ApplyPhysicsConfiguration();
   }
 
   private void OnValidate()
   {
     ClampSerializedValues();
+
+    if (!Application.isPlaying)
+    {
+      return;
+    }
+
+    if (_rigidbody2D == null)
+    {
+      _rigidbody2D = GetComponent<Rigidbody2D>();
+    }
+
+    ApplyPhysicsConfiguration();
   }
 
   private void OnDisable()
@@ -133,5 +150,16 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     jumpVelocity = Mathf.Max(0.1f, jumpVelocity);
     groundCheckDistance = Mathf.Max(0.01f, groundCheckDistance);
     minimumGroundNormalY = Mathf.Clamp(minimumGroundNormalY, 0f, 1f);
+  }
+
+  private void ApplyPhysicsConfiguration()
+  {
+    if (_rigidbody2D == null)
+    {
+      return;
+    }
+
+    _rigidbody2D.collisionDetectionMode = collisionDetectionMode;
+    _rigidbody2D.interpolation = interpolationMode;
   }
 }

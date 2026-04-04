@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -17,17 +18,21 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   [SerializeField] private bool respawnFromLastKnownPosition = true;
   [SerializeField] private bool respawnAtInitialPointWhenFallen = true;
   [SerializeField] private float fallRespawnYThreshold = -10f;
+  [SerializeField] private LayerMask overlapRecoveryLayers = ~0;
 
   private GameObject _spawnedPlayerInstance;
   private Wall2DPlayerController _spawnedPlayerController;
   private Wall2DPlayerCrushDetector _spawnedPlayerCrushDetector;
   private Rigidbody2D _spawnedPlayerRigidbody2D;
+  private Collider2D _spawnedPlayerCollider2D;
   private bool _hasSavedSpawnState;
   private Vector3 _savedSpawnPosition;
   private Quaternion _savedSpawnRotation;
   private bool _hasInitialPlacedPlayerState;
   private Vector3 _initialPlacedPlayerPosition;
   private Quaternion _initialPlacedPlayerRotation;
+  private readonly Collider2D[] _overlapResults = new Collider2D[8];
+  private Coroutine _overlapRecoveryCoroutine;
 
   public int ResetOrder => 0;
 
@@ -60,6 +65,8 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     {
       viewModeSwitcher.ModeChanged -= OnModeChanged;
     }
+
+    StopOverlapRecoveryCoroutine();
   }
 
   private void Update()
@@ -149,16 +156,20 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   {
     if (_spawnedPlayerInstance != null)
     {
-      // 既存インスタンスがあれば再利用し、2D操作だけ再開する。
-      SetSpawnedPlayer2DGameplayEnabled(
-        isEnabled: true,
-        keepPhysicsSimulationWhenDisabled: true,
-        preserveCurrentMotion: true);
+      // 3D中に drift していないよう、最後に保存した 2D 位置へ戻してから再開する。
+      var placementTarget = respawnFromLastKnownPosition && _hasSavedSpawnState
+        ? PlayerPlacementTarget.SavedPosition
+        : PlayerPlacementTarget.InitialScenePlacement;
+
+      RepositionExistingPlayer(placementTarget);
+      SetSpawnedPlayer2DGameplayEnabled(true);
       SetSpawnedPlayerVisible(true);
+      ScheduleOverlapRecovery();
       return;
     }
 
     RespawnPlayer();
+    ScheduleOverlapRecovery();
   }
 
   private void Leave2DMode()
@@ -170,13 +181,13 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
     SaveCurrentPlayerTransform();
 
-    // 3D中は見た目を残しつつ、2D操作だけ止めて物理落下は継続させる。
+    // 3D中は見た目だけ残し、2D物理は止めて位置ずれを防ぐ。
     SetSpawnedPlayer2DGameplayEnabled(
       isEnabled: false,
-      keepPhysicsSimulationWhenDisabled: true,
-      preserveCurrentMotion: true);
-    KeepOnlyVerticalMotion();
+      keepPhysicsSimulationWhenDisabled: false,
+      preserveCurrentMotion: false);
     SetSpawnedPlayerVisible(true);
+    StopOverlapRecoveryCoroutine();
   }
 
   private void SpawnPlayer(bool useSavedPosition, bool saveCurrentTransformBeforeReset)
@@ -241,6 +252,8 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     // 再配置時は古い速度を残さないようにする。
     if (_spawnedPlayerRigidbody2D != null)
     {
+      _spawnedPlayerRigidbody2D.position = targetPosition;
+      _spawnedPlayerRigidbody2D.rotation = targetRotation.eulerAngles.z;
       _spawnedPlayerRigidbody2D.linearVelocity = Vector2.zero;
       _spawnedPlayerRigidbody2D.angularVelocity = 0f;
     }
@@ -286,19 +299,6 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
       _spawnedPlayerRigidbody2D.simulated = isEnabled || keepPhysicsSimulationWhenDisabled;
     }
-  }
-
-  private void KeepOnlyVerticalMotion()
-  {
-    if (_spawnedPlayerRigidbody2D == null)
-    {
-      return;
-    }
-
-    var velocity = _spawnedPlayerRigidbody2D.linearVelocity;
-    velocity.x = 0f;
-    _spawnedPlayerRigidbody2D.linearVelocity = velocity;
-    _spawnedPlayerRigidbody2D.angularVelocity = 0f;
   }
 
   private void AutoAssignMissingReferences()
@@ -385,6 +385,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     _spawnedPlayerController = spawnedPlayer.GetComponent<Wall2DPlayerController>();
     _spawnedPlayerCrushDetector = spawnedPlayer.GetComponent<Wall2DPlayerCrushDetector>();
     _spawnedPlayerRigidbody2D = spawnedPlayer.GetComponent<Rigidbody2D>();
+    _spawnedPlayerCollider2D = spawnedPlayer.GetComponent<Collider2D>();
   }
 
   private void SubscribeToSpawnedPlayerCrushDetector()
@@ -417,12 +418,92 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     _spawnedPlayerController = null;
     _spawnedPlayerCrushDetector = null;
     _spawnedPlayerRigidbody2D = null;
+    _spawnedPlayerCollider2D = null;
   }
 
   private void OnSpawnedPlayerCrushed()
   {
     // 圧死時は必ず初期地点へ戻す。
     RespawnPlayerAtInitialPoint();
+  }
+
+  private void ResolveOverlapIfNeeded()
+  {
+    Physics2D.SyncTransforms();
+
+    if (!IsSpawnedPlayerOverlappingSolid())
+    {
+      return;
+    }
+
+    RepositionExistingPlayer(PlayerPlacementTarget.InitialScenePlacement);
+    SetSpawnedPlayer2DGameplayEnabled(true);
+    SetSpawnedPlayerVisible(true);
+
+    if (IsSpawnedPlayerOverlappingSolid())
+    {
+      Debug.LogWarning("Wall2D player is still overlapping a blocking collider after overlap recovery.");
+    }
+  }
+
+  private void ScheduleOverlapRecovery()
+  {
+    StopOverlapRecoveryCoroutine();
+    _overlapRecoveryCoroutine = StartCoroutine(RecoverOverlapAfter2DEnter());
+  }
+
+  private IEnumerator RecoverOverlapAfter2DEnter()
+  {
+    yield return null;
+    ResolveOverlapIfNeeded();
+    yield return new WaitForFixedUpdate();
+    ResolveOverlapIfNeeded();
+    _overlapRecoveryCoroutine = null;
+  }
+
+  private void StopOverlapRecoveryCoroutine()
+  {
+    if (_overlapRecoveryCoroutine == null)
+    {
+      return;
+    }
+
+    StopCoroutine(_overlapRecoveryCoroutine);
+    _overlapRecoveryCoroutine = null;
+  }
+
+  private bool IsSpawnedPlayerOverlappingSolid()
+  {
+    if (_spawnedPlayerCollider2D == null)
+    {
+      return false;
+    }
+
+    var filter = new ContactFilter2D
+    {
+      useLayerMask = true,
+      layerMask = overlapRecoveryLayers,
+      useTriggers = false,
+    };
+
+    var overlapCount = _spawnedPlayerCollider2D.Overlap(filter, _overlapResults);
+    for (var i = 0; i < overlapCount; i++)
+    {
+      var overlapCollider = _overlapResults[i];
+      if (overlapCollider == null)
+      {
+        continue;
+      }
+
+      if (overlapCollider == _spawnedPlayerCollider2D || overlapCollider.transform.IsChildOf(_spawnedPlayerInstance.transform))
+      {
+        continue;
+      }
+
+      return true;
+    }
+
+    return false;
   }
 
   /// <summary>
