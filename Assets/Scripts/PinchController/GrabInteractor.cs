@@ -94,8 +94,10 @@ public sealed class GrabInteractor
         continue;
       }
 
-      var toBody = body.worldCenterOfMass - handTarget;
-      var horizontalDistanceSq = toBody.x * toBody.x + toBody.z * toBody.z;
+      var closestPoint = collider.ClosestPoint(handTarget);
+      var horizontalDistanceX = closestPoint.x - handTarget.x;
+      var horizontalDistanceZ = closestPoint.z - handTarget.z;
+      var horizontalDistanceSq = horizontalDistanceX * horizontalDistanceX + horizontalDistanceZ * horizontalDistanceZ;
       if (horizontalDistanceSq > maxHorizontalDistanceSq || horizontalDistanceSq >= nearestHorizontalDistanceSq)
       {
         continue;
