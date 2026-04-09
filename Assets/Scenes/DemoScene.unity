@@ -599,6 +599,7 @@ GameObject:
   - component: {fileID: 275874973}
   - component: {fileID: 275874972}
   - component: {fileID: 275874971}
+  - component: {fileID: 275874976}
   m_Layer: 0
   m_Name: Solution
   m_TagString: Untagged
@@ -768,7 +769,7 @@ MonoBehaviour:
   _defaultImageSource: 0
   _preferableInferenceMode: 0
   _assetLoaderType: 2
-  _enableGlog: 1
+  _enableGlog: 0
 --- !u!114 &275874975
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -812,6 +813,20 @@ MonoBehaviour:
   rearmStillnessDurationSeconds: 0.16
   rotationDegreesPerSecond: 180
   handLostTimeoutSeconds: 0.25
+--- !u!114 &275874976
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 275874966}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c71aaded9c4c4350884b8a1c8693ae89, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  sceneName: DemoScene
+  reloadKey: 114
 --- !u!1001 &296605791
 PrefabInstance:
   m_ObjectHideFlags: 0
