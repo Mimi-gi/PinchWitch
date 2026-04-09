@@ -40,6 +40,13 @@ public sealed class GrabInteractor
   private RigidbodyConstraints _grabbedOriginalConstraints;
   // 掴み前の Rigidbody interpolation 設定。
   private RigidbodyInterpolation _grabbedOriginalInterpolation;
+  // 掴み前の各 Collider の isTrigger 設定。
+  private Collider[] _grabbedColliders;
+  private bool[] _grabbedOriginalIsTrigger;
+  // 掴み開始時の位置（配置不可時の復帰先）。
+  private Vector3 _grabbedOriginalPosition;
+  // 掴み中の重なり検知コンポーネント。
+  private ColliderDetection _colliderDetection;
   // 目標としている回転値。
   private Quaternion _targetRotation;
   // 最新フレームで要求された掴み位置。
@@ -126,6 +133,21 @@ public sealed class GrabInteractor
     _grabbedBody.useGravity = false;
     _grabbedBody.interpolation = RigidbodyInterpolation.Interpolate;
     _grabbedBody.constraints = _grabbedOriginalConstraints & ~RigidbodyConstraints.FreezeRotation;
+
+    // 掴み中は衝突による予期せぬ回転を防ぐため、全コライダーをトリガーに切り替える。
+    _grabbedColliders = _grabbedBody.GetComponentsInChildren<Collider>();
+    _grabbedOriginalIsTrigger = new bool[_grabbedColliders.Length];
+    for (var i = 0; i < _grabbedColliders.Length; i++)
+    {
+      _grabbedOriginalIsTrigger[i] = _grabbedColliders[i].isTrigger;
+      _grabbedColliders[i].isTrigger = true;
+    }
+
+    // 元の位置を保存し、重なり検知を開始する。
+    _grabbedOriginalPosition = _grabbedBody.position;
+    _colliderDetection = _grabbedBody.gameObject.AddComponent<ColliderDetection>();
+    _colliderDetection.Initialize(_config.grabbableLayerMask);
+
     _targetRotation = _grabbedBody.rotation;
     _desiredGrabPosition = _grabbedBody.position;
     _hasDesiredGrabPosition = true;
@@ -182,6 +204,19 @@ public sealed class GrabInteractor
 
     var releasedBody = _grabbedBody;
 
+    // 他の掴み対象と重なっている場合は元の位置に戻す。
+    if (_colliderDetection != null && _colliderDetection.IsOverlapping)
+    {
+      _grabbedBody.position = _grabbedOriginalPosition;
+    }
+
+    // 重なり検知コンポーネントを除去する。
+    if (_colliderDetection != null)
+    {
+      UnityEngine.Object.Destroy(_colliderDetection);
+      _colliderDetection = null;
+    }
+
     _grabbedBody.linearVelocity = Vector3.zero;
     _grabbedBody.angularVelocity = Vector3.zero;
     _grabbedBody.constraints = _grabbedOriginalConstraints;
@@ -205,6 +240,22 @@ public sealed class GrabInteractor
     }
 
     _grabbedBody.interpolation = _grabbedOriginalInterpolation;
+
+    // 掴み前の isTrigger 設定を復元する。
+    if (_grabbedColliders != null)
+    {
+      for (var i = 0; i < _grabbedColliders.Length; i++)
+      {
+        if (_grabbedColliders[i] != null)
+        {
+          _grabbedColliders[i].isTrigger = _grabbedOriginalIsTrigger[i];
+        }
+      }
+
+      _grabbedColliders = null;
+      _grabbedOriginalIsTrigger = null;
+    }
+
     _grabbedBody = null;
     _hasDesiredGrabPosition = false;
     GrabReleased?.Invoke(releasedBody);
