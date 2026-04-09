@@ -16,6 +16,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   [SerializeField] private Transform spawnPoint;
   [SerializeField] private Transform spawnedPlayerParent;
   [SerializeField] private bool respawnFromLastKnownPosition = true;
+  [SerializeField] private bool keepPlayerRunningInWorld3D = true;
   [SerializeField] private bool respawnAtInitialPointWhenFallen = true;
   [SerializeField] private float fallRespawnYThreshold = -10f;
   [SerializeField] private LayerMask overlapRecoveryLayers = ~0;
@@ -74,8 +75,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     // 落下判定は 2D モード中だけ行う。
     if (!respawnAtInitialPointWhenFallen
         || _spawnedPlayerInstance == null
-        || viewModeSwitcher == null
-        || viewModeSwitcher.CurrentMode != SpaceViewMode.Wall2D)
+        || !IsPlayerGameplayExpectedForCurrentMode())
     {
       return;
     }
@@ -157,11 +157,14 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     if (_spawnedPlayerInstance != null)
     {
       // 3D中に drift していないよう、最後に保存した 2D 位置へ戻してから再開する。
-      var placementTarget = respawnFromLastKnownPosition && _hasSavedSpawnState
-        ? PlayerPlacementTarget.SavedPosition
-        : PlayerPlacementTarget.InitialScenePlacement;
+      if (!keepPlayerRunningInWorld3D)
+      {
+        var placementTarget = respawnFromLastKnownPosition && _hasSavedSpawnState
+          ? PlayerPlacementTarget.SavedPosition
+          : PlayerPlacementTarget.InitialScenePlacement;
 
-      RepositionExistingPlayer(placementTarget);
+        RepositionExistingPlayer(placementTarget);
+      }
       SetSpawnedPlayer2DGameplayEnabled(true);
       SetSpawnedPlayerVisible(true);
       ScheduleOverlapRecovery();
@@ -176,16 +179,31 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   {
     if (_spawnedPlayerInstance == null)
     {
+      if (keepPlayerRunningInWorld3D)
+      {
+        RespawnPlayer();
+      }
+
       return;
     }
 
     SaveCurrentPlayerTransform();
 
     // 3D中は見た目だけ残し、2D物理は止めて位置ずれを防ぐ。
-    SetSpawnedPlayer2DGameplayEnabled(
-      isEnabled: false,
-      keepPhysicsSimulationWhenDisabled: false,
-      preserveCurrentMotion: false);
+    if (keepPlayerRunningInWorld3D)
+    {
+      SetSpawnedPlayer2DGameplayEnabled(
+        isEnabled: true,
+        keepPhysicsSimulationWhenDisabled: true,
+        preserveCurrentMotion: true);
+    }
+    else
+    {
+      SetSpawnedPlayer2DGameplayEnabled(
+        isEnabled: false,
+        keepPhysicsSimulationWhenDisabled: false,
+        preserveCurrentMotion: false);
+    }
     SetSpawnedPlayerVisible(true);
     StopOverlapRecoveryCoroutine();
   }
@@ -470,6 +488,21 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
     StopCoroutine(_overlapRecoveryCoroutine);
     _overlapRecoveryCoroutine = null;
+  }
+
+  private bool IsPlayerGameplayExpectedForCurrentMode()
+  {
+    if (viewModeSwitcher == null)
+    {
+      return true;
+    }
+
+    if (viewModeSwitcher.CurrentMode == SpaceViewMode.Wall2D)
+    {
+      return true;
+    }
+
+    return keepPlayerRunningInWorld3D;
   }
 
   private bool IsSpawnedPlayerOverlappingSolid()

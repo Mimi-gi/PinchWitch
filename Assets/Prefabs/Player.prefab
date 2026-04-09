@@ -173,16 +173,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 08be128cf88842918b15ec6c6a74c4f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Wall2DPlayerController
-  moveSpeed: 6
-  airControlMultiplier: 0.8
-  jumpVelocity: 8
-  jumpKey: 119
-  alternateJumpKey: 273
+  moveSpeed: 3
+  traversalDirection: 0
+  surfaceStickVelocity: 5
   groundLayers:
     serializedVersion: 2
     m_Bits: 4294967295
   groundCheckDistance: 0.08
-  minimumGroundNormalY: 0.65
+  forwardProbeDistance: 0.18
+  surfaceSearchDistance: 0.2
+  detachedGravityScale: 2
+  preserveMomentumWhenDetached: 1
+  rotationDegreesPerSecond: 360
+  rotationSnapThreshold: 2
+  chooseTraversalDirectionFromFacingOnLanding: 1
   collisionDetectionMode: 1
   interpolationMode: 1
 --- !u!114 &-8191500760691961841

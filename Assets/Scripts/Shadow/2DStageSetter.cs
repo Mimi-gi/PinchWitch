@@ -8,6 +8,7 @@ public class PlaneStageSetter : MonoBehaviour
     [SerializeField] SpaceViewModeSwitcher viewModeSwitcher;
     [SerializeField] bool autoDiscoverBuilders = true;
     [SerializeField] bool syncWithViewMode = true;
+    [SerializeField] bool keepShadowInWorld3D = true;
     [SerializeField] bool buildBuildersOnStart = true;
     [SerializeField] bool rebuildBuildersOnWall2DEnterIfNeeded = true;
 
@@ -188,7 +189,7 @@ public class PlaneStageSetter : MonoBehaviour
             return;
         }
 
-        IsShadow = mode == SpaceViewMode.Wall2D;
+        IsShadow = ShouldEnableShadowForMode(mode);
 
         if (IsShadow && rebuildBuildersOnWall2DEnterIfNeeded)
         {
@@ -205,6 +206,16 @@ public class PlaneStageSetter : MonoBehaviour
             return;
         }
 
-        IsShadow = viewModeSwitcher.CurrentMode == SpaceViewMode.Wall2D;
+        IsShadow = ShouldEnableShadowForMode(viewModeSwitcher.CurrentMode);
+    }
+
+    private bool ShouldEnableShadowForMode(SpaceViewMode mode)
+    {
+        if (mode == SpaceViewMode.Wall2D)
+        {
+            return true;
+        }
+
+        return keepShadowInWorld3D;
     }
 }

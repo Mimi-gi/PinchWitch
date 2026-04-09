@@ -12,6 +12,7 @@ public sealed class ShadowProjectionContext : MonoBehaviour
   [SerializeField] private Transform generatedOutputRoot;
   [SerializeField] private SpaceViewModeSwitcher viewModeSwitcher;
   [SerializeField] private bool rebuildOnWall2DEnter = false;
+  [SerializeField] private bool keepShadowEnabledInWorld3D = true;
 
   [Header("Runtime")]
   [SerializeField] private bool shadowEnabled = true;
@@ -200,7 +201,7 @@ public sealed class ShadowProjectionContext : MonoBehaviour
 
   private void HandleModeChanged(SpaceViewMode mode)
   {
-    shadowEnabled = mode == SpaceViewMode.Wall2D;
+    shadowEnabled = ShouldEnableShadowForMode(mode);
 
     if (mode != SpaceViewMode.Wall2D || !rebuildOnWall2DEnter)
     {
@@ -218,5 +219,15 @@ public sealed class ShadowProjectionContext : MonoBehaviour
     }
 
     RebuildAll();
+  }
+
+  private bool ShouldEnableShadowForMode(SpaceViewMode mode)
+  {
+    if (mode == SpaceViewMode.Wall2D)
+    {
+      return true;
+    }
+
+    return keepShadowEnabledInWorld3D;
   }
 }
