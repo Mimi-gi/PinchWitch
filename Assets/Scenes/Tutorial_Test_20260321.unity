@@ -596,7 +596,7 @@ MonoBehaviour:
   _defaultImageSource: 0
   _preferableInferenceMode: 0
   _assetLoaderType: 2
-  _enableGlog: 1
+  _enableGlog: 0
 --- !u!114 &275874975
 MonoBehaviour:
   m_ObjectHideFlags: 0
