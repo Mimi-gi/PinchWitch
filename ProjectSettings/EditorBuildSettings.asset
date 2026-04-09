@@ -6,6 +6,18 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Personal/Ayano/Title.unity
+    guid: 6d4a2394a1061bb43b5064a36d4859a9
+  - enabled: 1
+    path: Assets/Personal/Ayano/Loading.unity
+    guid: 308f4289de26e4945ad82410e06e3707
+  - enabled: 1
+    path: Assets/Personal/Ayano/StageSelect.unity
+    guid: bd7f4c18ec0f3684a924745b2c416b42
+  - enabled: 1
+    path: Assets/Personal/Ayano/Stage_1.unity
+    guid: a865f867e8cc389468840325cae259f0
+  - enabled: 1
     path: Assets/MediaPipeUnity/Samples/Scenes/Start Scene.unity
     guid: f7b359c19e6ae2d208e5ca4608b7c0b8
   - enabled: 1
@@ -38,11 +50,5 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/MediaPipeUnity/Samples/Scenes/MediaPipe Video/MediaPipe Video.unity
     guid: 16062faf4cda54140b781b925351b119
-  - enabled: 1
-    path: Assets/Personal/Ayano/TitileScene.unity
-    guid: 6d4a2394a1061bb43b5064a36d4859a9
-  - enabled: 1
-    path: Assets/Personal/Ayano/StageSelect.unity
-    guid: bd7f4c18ec0f3684a924745b2c416b42
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0
