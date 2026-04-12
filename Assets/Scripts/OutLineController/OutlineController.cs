@@ -14,6 +14,8 @@ public class OutlineController
 
     private Rigidbody _currentHighlightedBody;
 
+    private Renderer[] _cachedRenderers;
+
     public OutlineController()
     {
         _propBlock = new MaterialPropertyBlock();
@@ -42,31 +44,49 @@ public class OutlineController
     {
         if (_currentHighlightedBody != null)
         {
-            ApplyOutline(_currentHighlightedBody, Color.black, 0f);
+            ApplyOutlineToCachedRenderers(Color.black, 0f);
             _currentHighlightedBody = null;
+            _cachedRenderers = null;
         }
     }
 
     private void UpdateOutline(Rigidbody targetBody, Color color)
     {
-        if (_currentHighlightedBody != null && _currentHighlightedBody != targetBody)
+        // ターゲットが新しくなった時だけ GetComponentsInChildren を実行する (GC Alloc・パフォーマンス対策)
+        if (_currentHighlightedBody != targetBody)
         {
-            ApplyOutline(_currentHighlightedBody, Color.black, 0f);
+            if (_currentHighlightedBody != null)
+            {
+                ApplyOutlineToCachedRenderers(Color.black, 0f);
+            }
+
+            _currentHighlightedBody = targetBody;
+
+            if (targetBody != null)
+            {
+                _cachedRenderers = targetBody.GetComponentsInChildren<Renderer>();
+            }
+            else
+            {
+                _cachedRenderers = null;
+            }
         }
 
-        _currentHighlightedBody = targetBody;
-
-        if (targetBody != null)
+        // キャッシュされた Renderer に対して色を適用
+        if (_currentHighlightedBody != null)
         {
-            ApplyOutline(targetBody, color, outlineWidth);
+            ApplyOutlineToCachedRenderers(color, outlineWidth);
         }
     }
 
-    private void ApplyOutline(Rigidbody body, Color color, float width)
+    // キャッシュされたRenderer配列に対してマテリアル情報を流し込む
+    private void ApplyOutlineToCachedRenderers(Color color, float width)
     {
-        var renderers = body.GetComponentsInChildren<Renderer>();
-        foreach (var r in renderers)
+        if (_cachedRenderers == null) return;
+
+        foreach (var r in _cachedRenderers)
         {
+            if (r == null) continue; // 万が一途中でRendererが破壊された時の安全策
             r.GetPropertyBlock(_propBlock);
             _propBlock.SetColor(OutlineColorID, color);
             _propBlock.SetFloat(OutlineWidthID, width);

@@ -86,7 +86,7 @@ Shader "Custom/ObjectOutLineShader"
         }
 
         // ==========================================
-        // 2パス目: オブジェクトそのものの「通常描画」
+        // 2パス目: オブジェクトそのものの描画＋UV疑似エッジ合成
         // ==========================================
         Pass
         {
@@ -121,7 +121,7 @@ Shader "Custom/ObjectOutLineShader"
                 float4 _BaseMap_ST;
                 half4 _OutlineColor;
                 float _OutlineWidth;
-                float _ExpandMode; // 追加
+                float _ExpandMode;
             CBUFFER_END
 
             Varyings vert(Attributes IN)
@@ -134,8 +134,31 @@ Shader "Custom/ObjectOutLineShader"
 
             half4 frag(Varyings IN) : SV_Target
             {
-                half4 color = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv) * _BaseColor;
-                return color;
+                // 元のテクスチャの色
+                half4 baseColor = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv) * _BaseColor;
+
+                // アウトラインがOFF（0）の場合はそのまま返す
+                if (_OutlineWidth <= 0.0001)
+                {
+                    return baseColor;
+                }
+
+                // --- UVの端を使って全ての辺（内側のエッジ）を検知する（Mac対応版） ---
+                // テクスチャのUV座標の端（0 または 1 に近ければ辺とみなす）
+                float edgeU = min(IN.uv.x, 1.0 - frac(IN.uv.x));
+                float edgeV = min(IN.uv.y, 1.0 - frac(IN.uv.y));
+                float edgeDist = min(edgeU, edgeV);
+
+                // _OutlineWidth (通常0.02〜0.08) に基づいて、UV上での端からの閾値を決める
+                float edgeThickness = _OutlineWidth * 0.5;
+
+                // 端からの距離が edgeThickness よりも小さければ色を重ねる
+                if (edgeDist < edgeThickness)
+                {
+                    return _OutlineColor;
+                }
+
+                return baseColor;
             }
             ENDHLSL
         }
