@@ -42,6 +42,13 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   [SerializeField] private float detachedGravityScale = 2f;
   [SerializeField] private bool preserveMomentumWhenDetached = true;
 
+  [Header("Wall Bounds")]
+  [SerializeField] private bool reverseDirectionAtWallBounds = true;
+  [SerializeField] private bool autoFindWallBounds = true;
+  [SerializeField] private Transform wallBoundsSource;
+  [SerializeField] private Vector2 wallBoundsMin = new Vector2(-10f, -10f);
+  [SerializeField] private Vector2 wallBoundsMax = new Vector2(10f, 10f);
+
   [Header("Rotation")]
   [SerializeField] private float rotationDegreesPerSecond = 360f;
   [SerializeField] private float rotationSnapThreshold = 2f;
@@ -57,9 +64,12 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   private Collider2D _collider2D;
   private Vector2 _currentSurfaceNormal = Vector2.up;
   private bool _isAttachedToSurface;
+  private bool _hasCachedWallBounds;
 
   private void Reset()
   {
+    AutoAssignWallBoundsSource();
+    RefreshWallBoundsCache();
     ClampSerializedValues();
   }
 
@@ -67,12 +77,16 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   {
     _rigidbody2D = GetComponent<Rigidbody2D>();
     _collider2D = GetComponent<Collider2D>();
+    AutoAssignWallBoundsSource();
+    RefreshWallBoundsCache();
     ClampSerializedValues();
     ApplyPhysicsConfiguration();
   }
 
   private void OnEnable()
   {
+    AutoAssignWallBoundsSource();
+    RefreshWallBoundsCache();
     TryAcquireAnyNearbySurface();
     SnapRotationToSurface();
   }
@@ -96,6 +110,8 @@ public sealed class Wall2DPlayerController : MonoBehaviour
       _collider2D = GetComponent<Collider2D>();
     }
 
+    AutoAssignWallBoundsSource();
+    RefreshWallBoundsCache();
     ApplyPhysicsConfiguration();
   }
 
@@ -117,6 +133,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     UpdateSurfaceState();
     UpdateTraversalDirectionOnLandingIfNeeded(wasAttachedToSurface);
     ApplyAutomaticMovement();
+    ReverseTraversalDirectionAtWallBoundsIfNeeded();
   }
 
   private void UpdateSurfaceState()
@@ -333,6 +350,117 @@ public sealed class Wall2DPlayerController : MonoBehaviour
       : AutoTraversalDirection.CounterClockwise;
   }
 
+  private void ReverseTraversalDirectionAtWallBoundsIfNeeded()
+  {
+    if (!reverseDirectionAtWallBounds || !_hasCachedWallBounds || _rigidbody2D == null || _collider2D == null)
+    {
+      return;
+    }
+
+    var colliderBounds = _collider2D.bounds;
+    var offset = Vector2.zero;
+    var touchedBoundary = false;
+
+    if (colliderBounds.min.x < wallBoundsMin.x)
+    {
+      offset.x = wallBoundsMin.x - colliderBounds.min.x;
+      touchedBoundary = true;
+    }
+    else if (colliderBounds.max.x > wallBoundsMax.x)
+    {
+      offset.x = wallBoundsMax.x - colliderBounds.max.x;
+      touchedBoundary = true;
+    }
+
+    if (colliderBounds.min.y < wallBoundsMin.y)
+    {
+      offset.y = wallBoundsMin.y - colliderBounds.min.y;
+      touchedBoundary = true;
+    }
+    else if (colliderBounds.max.y > wallBoundsMax.y)
+    {
+      offset.y = wallBoundsMax.y - colliderBounds.max.y;
+      touchedBoundary = true;
+    }
+
+    if (!touchedBoundary)
+    {
+      return;
+    }
+
+    _rigidbody2D.position += offset;
+    _rigidbody2D.linearVelocity = Vector2.zero;
+    traversalDirection = traversalDirection == AutoTraversalDirection.Clockwise
+      ? AutoTraversalDirection.CounterClockwise
+      : AutoTraversalDirection.Clockwise;
+  }
+
+  private void AutoAssignWallBoundsSource()
+  {
+    if (!autoFindWallBounds || wallBoundsSource != null)
+    {
+      return;
+    }
+
+    var wallObject = GameObject.Find("Wall");
+    if (wallObject != null)
+    {
+      wallBoundsSource = wallObject.transform;
+    }
+  }
+
+  private void RefreshWallBoundsCache()
+  {
+    _hasCachedWallBounds = TryResolveWallBounds(out var min, out var max);
+    if (!_hasCachedWallBounds)
+    {
+      return;
+    }
+
+    wallBoundsMin = min;
+    wallBoundsMax = max;
+  }
+
+  private bool TryResolveWallBounds(out Vector2 min, out Vector2 max)
+  {
+    min = default;
+    max = default;
+
+    if (wallBoundsSource == null)
+    {
+      return false;
+    }
+
+    var collider2D = wallBoundsSource.GetComponent<Collider2D>();
+    if (collider2D != null)
+    {
+      var bounds = collider2D.bounds;
+      min = bounds.min;
+      max = bounds.max;
+      return true;
+    }
+
+    var collider3D = wallBoundsSource.GetComponent<Collider>();
+    if (collider3D != null)
+    {
+      var bounds = collider3D.bounds;
+      min = bounds.min;
+      max = bounds.max;
+      return true;
+    }
+
+    var rendererComponent = wallBoundsSource.GetComponent<Renderer>();
+    if (rendererComponent != null)
+    {
+      var bounds = rendererComponent.bounds;
+      min = bounds.min;
+      max = bounds.max;
+      return true;
+    }
+
+    return false;
+  }
+
   private float ResolveProbeDistance(float baseDistance)
   {
     return Mathf.Max(baseDistance, moveSpeed * Time.fixedDeltaTime + 0.02f);
@@ -346,6 +474,15 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     forwardProbeDistance = Mathf.Max(0.01f, forwardProbeDistance);
     surfaceSearchDistance = Mathf.Max(groundCheckDistance, surfaceSearchDistance);
     detachedGravityScale = Mathf.Max(0f, detachedGravityScale);
+    if (wallBoundsMin.x > wallBoundsMax.x)
+    {
+      (wallBoundsMin.x, wallBoundsMax.x) = (wallBoundsMax.x, wallBoundsMin.x);
+    }
+
+    if (wallBoundsMin.y > wallBoundsMax.y)
+    {
+      (wallBoundsMin.y, wallBoundsMax.y) = (wallBoundsMax.y, wallBoundsMin.y);
+    }
     rotationDegreesPerSecond = Mathf.Max(1f, rotationDegreesPerSecond);
     rotationSnapThreshold = Mathf.Clamp(rotationSnapThreshold, 0f, 45f);
   }
