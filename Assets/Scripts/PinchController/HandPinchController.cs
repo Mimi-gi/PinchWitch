@@ -94,6 +94,8 @@ public class HandPinchController : MonoBehaviour
   private GrabInteractor _grabInteractor;
   // 回転ジェスチャー判定を担当する制御クラス。
   private RotationGestureDetector _rotationGestureDetector;
+  // アウトラインの表示制御を担当するクラス。
+  private OutlineController _outlineController;
   // 実際の移動・回転操作をまとめる制御クラス。
   private HandInteractionProcessor _handInteractionProcessor;
   // 前回適用済みの左右役割入れ替え設定。
@@ -208,7 +210,8 @@ public class HandPinchController : MonoBehaviour
     _handCursorController = new HandCursorController(transform, BuildCursorConfig());
     _grabInteractor = new GrabInteractor(BuildGrabConfig());
     _rotationGestureDetector = new RotationGestureDetector(BuildRotationConfig());
-    _handInteractionProcessor = new HandInteractionProcessor(_handCursorController, _grabInteractor, _rotationGestureDetector, BuildInteractionConfig());
+    _outlineController = new OutlineController();
+    _handInteractionProcessor = new HandInteractionProcessor(_handCursorController, _grabInteractor, _rotationGestureDetector, _outlineController, BuildInteractionConfig());
     SubscribeToGrabInteractor();
   }
 
@@ -221,7 +224,7 @@ public class HandPinchController : MonoBehaviour
     _handCursorController?.Configure(transform, BuildCursorConfig());
     _grabInteractor?.ApplyConfiguration(BuildGrabConfig());
     _rotationGestureDetector?.ApplyConfiguration(BuildRotationConfig());
-    _handInteractionProcessor?.UpdateDependencies(_handCursorController, _grabInteractor, _rotationGestureDetector);
+    _handInteractionProcessor?.UpdateDependencies(_handCursorController, _grabInteractor, _rotationGestureDetector, _outlineController);
     _handInteractionProcessor?.ApplyConfiguration(BuildInteractionConfig());
   }
 

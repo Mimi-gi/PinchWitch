@@ -16,6 +16,9 @@ public sealed class HandInteractionProcessor
   private GrabInteractor _grabInteractor;
   // 回転ジェスチャー判定を担当する依存。
   private RotationGestureDetector _rotationGestureDetector;
+  // アウトラインの表示制御を担当する依存。
+  private OutlineController _outlineController;
+  
   // 掴み再開クールダウンなどの操作設定。
   private Config _config;
   // 前フレームで pinch 中だったかどうか。
@@ -28,18 +31,19 @@ public sealed class HandInteractionProcessor
   private float _grabReopenStartedAt = float.PositiveInfinity;
 
   // 操作実行に使う各責務クラスを受け取って初期化する。
-  public HandInteractionProcessor(HandCursorController handCursorController, GrabInteractor grabInteractor, RotationGestureDetector rotationGestureDetector, Config config)
+  public HandInteractionProcessor(HandCursorController handCursorController, GrabInteractor grabInteractor, RotationGestureDetector rotationGestureDetector, OutlineController outlineController, Config config)
   {
-    UpdateDependencies(handCursorController, grabInteractor, rotationGestureDetector);
+    UpdateDependencies(handCursorController, grabInteractor, rotationGestureDetector, outlineController);
     ApplyConfiguration(config);
   }
 
   // 操作実行に使う依存オブジェクトを更新する。
-  public void UpdateDependencies(HandCursorController handCursorController, GrabInteractor grabInteractor, RotationGestureDetector rotationGestureDetector)
+  public void UpdateDependencies(HandCursorController handCursorController, GrabInteractor grabInteractor, RotationGestureDetector rotationGestureDetector, OutlineController outlineController)
   {
     _handCursorController = handCursorController;
     _grabInteractor = grabInteractor;
     _rotationGestureDetector = rotationGestureDetector;
+    _outlineController = outlineController;
   }
 
   // 掴み再開クールダウンなどの設定を更新する。
@@ -91,6 +95,8 @@ public sealed class HandInteractionProcessor
       }
     }
 
+    UpdateOutlineFeedback(handTarget);
+
     return true;
   }
 
@@ -126,6 +132,7 @@ public sealed class HandInteractionProcessor
     _handCursorController?.HideCursor();
     _grabInteractor?.ReleaseGrabbedObject();
     _rotationGestureDetector?.Reset();
+    _outlineController?.ClearCurrentOutline();
     _prevPinch = false;
     _nextGrabAllowedTime = 0f;
     _requiresGrabRearm = false;
@@ -155,6 +162,40 @@ public sealed class HandInteractionProcessor
     {
       _requiresGrabRearm = false;
       _grabReopenStartedAt = float.PositiveInfinity;
+    }
+  }
+
+  // 状態に合わせて対象オブジェクトのアウトライン表示を更新する。
+  private void UpdateOutlineFeedback(Vector3 handTarget)
+  {
+    if (_outlineController == null || _grabInteractor == null)
+    {
+      return;
+    }
+
+    if (_grabInteractor.HasGrabbedBody)
+    {
+      // 置けない場所ならエラー表示、正常なら掴み表示
+      if (_grabInteractor.IsGrabbedObjectOverlapping)
+      {
+        _outlineController.ShowError(_grabInteractor.GrabbedBody);
+      }
+      else
+      {
+        _outlineController.ShowGrabbed(_grabInteractor.GrabbedBody);
+      }
+    }
+    else
+    {
+      // 掴める位置にあるオブジェクトならホバー表示
+      if (_grabInteractor.TryGetNearestGrabbableBody(handTarget, out var nearestBody))
+      {
+        _outlineController.ShowHover(nearestBody);
+      }
+      else
+      {
+        _outlineController.ClearCurrentOutline();
+      }
     }
   }
 }

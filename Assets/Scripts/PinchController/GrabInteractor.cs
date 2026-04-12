@@ -66,20 +66,26 @@ public sealed class GrabInteractor
   // 現在 grab 中の Rigidbody を保持しているかを返す。
   public bool HasGrabbedBody => _grabbedBody != null;
 
+  // 現在 grab 中の Rigidbody。
+  public Rigidbody GrabbedBody => _grabbedBody;
+
+  // 現在掴んでいるオブジェクトが、他のコライダーと重なっている（置けない状態）かどうか。
+  public bool IsGrabbedObjectOverlapping => _colliderDetection != null && _colliderDetection.IsOverlapping;
+
   // grab と回転に使う設定を更新する。
   public void ApplyConfiguration(Config config)
   {
     _config = config;
   }
 
-  // 手元の XZ 位置に最も近い掴める Rigidbody を見つけて grab を開始する。
-  public void TryBeginGrab(Vector3 handTarget)
+  // 指定した手元の XZ 位置に最も近い、掴める Rigidbody を検索して取得する。
+  public bool TryGetNearestGrabbableBody(Vector3 handTarget, out Rigidbody nearestBody)
   {
     var capsuleBottom = new Vector3(handTarget.x, -1000f, handTarget.z);
     var capsuleTop = new Vector3(handTarget.x, 1000f, handTarget.z);
     var hitCount = Physics.OverlapCapsuleNonAlloc(capsuleBottom, capsuleTop, _config.reach, _overlapColliders, _config.grabbableLayerMask, QueryTriggerInteraction.Ignore);
 
-    Rigidbody nearestBody = null;
+    nearestBody = null;
     var nearestHorizontalDistanceSq = float.MaxValue;
     var maxHorizontalDistanceSq = _config.reach * _config.reach;
 
@@ -114,7 +120,13 @@ public sealed class GrabInteractor
       nearestBody = body;
     }
 
-    if (nearestBody == null)
+    return nearestBody != null;
+  }
+
+  // 手元の XZ 位置に最も近い掴める Rigidbody を見つけて grab を開始する。
+  public void TryBeginGrab(Vector3 handTarget)
+  {
+    if (!TryGetNearestGrabbableBody(handTarget, out var nearestBody))
     {
       return;
     }
