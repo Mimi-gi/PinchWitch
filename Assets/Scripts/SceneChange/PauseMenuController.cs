@@ -1,7 +1,7 @@
 //=============================================================
 // ファイル名  : PauseMenuController.cs
 // 作成者     : 彩乃
-// 作成日     : 2025/04/10
+// 作成日     : 2025/04/15
 // 説明       : ポーズメニュー管理。
 //              ポーズボタンから OnPauseButtonPressed() を呼ぶ。
 //              NextStageは念のため保持。
@@ -12,18 +12,38 @@ using UnityEngine;
 public class PauseMenuController : MonoBehaviour
 {
   //=========================================================
-  // フィールド
+  // 定数
   //=========================================================
 
-  /// <summary>ポーズメニューのパネル</summary>
-  [SerializeField] private GameObject _pauseMenuPanel;
+  /// <summary>ポーズメニューパネルのオブジェクト名。Hierarchyの名前と合わせること。</summary>
+  private const string PauseMenuPanelName = "PauseMenu";
 
-  /// <summary>現在ポーズ中かどうか</summary>
+  //=========================================================
+  // 内部変数
+  //=========================================================
+
+  /// <summary>ポーズメニューのパネル。Awakeで子から取得。</summary>
+  private GameObject _pauseMenuPanel;
+
+  /// <summary>現在ポーズ中かどうか。</summary>
   private bool _isPaused = false;
 
   //=========================================================
   // Unity イベント
   //=========================================================
+
+  private void Awake()
+  {
+    Transform found = transform.Find(PauseMenuPanelName);
+
+    if (found == null)
+    {
+      Debug.LogError($"PauseMenuController: '{PauseMenuPanelName}'という名前の子オブジェクトが見つかりません。");
+      return;
+    }
+
+    _pauseMenuPanel = found.gameObject;
+  }
 
   private void Start()
   {
