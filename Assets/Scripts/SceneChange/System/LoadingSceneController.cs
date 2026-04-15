@@ -7,7 +7,6 @@
 //              進捗をProgressBarに反映する。
 //              最低表示時間を設けることでローディングの瞬殺を防ぐ。
 //=============================================================
-
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
@@ -20,25 +19,29 @@ public class LoadingSceneController : MonoBehaviour
   //=========================================================
   // 定数
   //=========================================================
-
   /// <summary>最低表示秒数。</summary>
   private const float MinDisplayTime = 1.5f;
 
   //=========================================================
   // 内部変数
   //=========================================================
-
   /// <summary>進捗バー。なければnullのまま動作する。</summary>
   private Slider _progressBar;
+
+  /// <summary>カーテン演出担当。なければnullのまま動作する。</summary>
+  private LoadingCurtainDirector _curtain;
 
   //=========================================================
   // Unity イベント
   //=========================================================
-
   private void Awake()
   {
-    // 子オブジェクトからSliderを自動取得。なくてもエラーにならない。
+    // ★ FindObjectOfType でシーン全体から探す（兄弟階層対応）
     _progressBar = GetComponentInChildren<Slider>();
+    _curtain = FindObjectOfType<LoadingCurtainDirector>();
+
+    // デバッグログで取得確認
+    Debug.Log($"[Loading] _curtain: {(_curtain != null ? "取得OK" : "null！")}");
   }
 
   private void Start()
@@ -49,31 +52,45 @@ public class LoadingSceneController : MonoBehaviour
   //=========================================================
   // ローディング処理
   //=========================================================
-
   private IEnumerator LoadRoutine()
   {
+    // フェードを即座に透明に戻す
+    GameSceneManager.Instance?.ClearFade();
+    Debug.Log("[Loading] ClearFade 呼び出し");
+
+    // 開幕カーテン演出
+    if (_curtain != null)
+    {
+      Debug.Log("[Loading] PlayOpen 開始");
+      yield return StartCoroutine(_curtain.PlayOpen());
+      Debug.Log("[Loading] PlayOpen 完了");
+    }
+    else
+    {
+      Debug.LogWarning("[Loading] _curtain が null のため演出スキップ");
+    }
+
     float elapsed = 0f;
     AsyncOperation op = GameSceneManager.StartPendingLoad();
     op.allowSceneActivation = false;
+    Debug.Log("[Loading] 非同期ロード開始");
 
     while (!op.isDone)
     {
       elapsed += Time.deltaTime;
-
-      // 進捗を0〜1に変換（AsyncOperationは最大0.9まで）
       float progress = Mathf.Clamp01(op.progress / 0.9f);
+      if (_progressBar != null) _progressBar.value = progress;
 
-      if (_progressBar != null)
-      {
-        _progressBar.value = progress;
-      }
-
-      // ロード完了 かつ 最低表示時間を超えたら遷移
       if (op.progress >= 0.9f && elapsed >= MinDisplayTime)
       {
+        if (_curtain != null)
+        {
+          Debug.Log("[Loading] PlayClose 開始");
+          yield return StartCoroutine(_curtain.PlayClose());
+          Debug.Log("[Loading] PlayClose 完了");
+        }
         op.allowSceneActivation = true;
       }
-
       yield return null;
     }
   }

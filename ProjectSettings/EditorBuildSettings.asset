@@ -19,13 +19,16 @@ EditorBuildSettings:
     guid: 1393a21e920eda9489eb4129de14cb7b
   - enabled: 1
     path: Assets/Scenes/Stage_1.unity
-    guid: e30d2f143031cba4c84b67a73cd72338
+    guid: 4e1e47618dc5d0b49adb734c60a2c77c
   - enabled: 1
     path: Assets/Scenes/Stage_2.unity
     guid: 84cde222c5855984a822daa0531565b0
   - enabled: 1
     path: Assets/Scenes/Stage_3.unity
     guid: 01f998d675320dc46af88abb46744170
+  - enabled: 1
+    path: Assets/Scenes/Stage_1old.unity
+    guid: e30d2f143031cba4c84b67a73cd72338
   - enabled: 1
     path: Assets/Personal/Ayano/Ayano_Title.unity
     guid: 6d4a2394a1061bb43b5064a36d4859a9

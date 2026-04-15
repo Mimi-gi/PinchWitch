@@ -10,6 +10,7 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 /// <summary>
 /// シーン名はここで一元管理。Build Settingsのシーン名と合わせること。
@@ -62,6 +63,10 @@ public class GameSceneManager : MonoBehaviour
   // デバッグ設定
   //=========================================================
 
+  [Header("画面フェード")]
+  [SerializeField] private CanvasGroup _fadeCanvasGroup; // ← 追加
+  [SerializeField] private float _fadeDuration = 0.3f;   // ← 追加
+
   [Header("デバッグ設定")]
   [SerializeField] private bool _isDebug = false;
   [SerializeField] private int _debugStartStage = 1;
@@ -83,6 +88,13 @@ public class GameSceneManager : MonoBehaviour
     {
       _instance = this;
       DontDestroyOnLoad(gameObject);
+
+      // FadePanelを最初は透明にする
+      if (_fadeCanvasGroup != null)
+      {
+        _fadeCanvasGroup.alpha = 0f;
+      }
+
 
       // 起動時にPlayerPrefsからクリア済みステージ数を読み込む
       ClearStageCount = PlayerPrefs.GetInt("ClearStageCount", 0);
@@ -176,7 +188,35 @@ public class GameSceneManager : MonoBehaviour
   /// </summary>
   private static void LoadViaLoading(string targetScene)
   {
+
+    Debug.Log($"[GameSceneManager] LoadViaLoading 呼ばれた: {targetScene}");
     _pendingSceneName = targetScene;
+    _instance.StartCoroutine(_instance.FadeAndLoad()); // ← 変更
+  }
+
+  private IEnumerator FadeAndLoad()
+  {
+    Debug.Log("[GameSceneManager] FadeAndLoad 開始");
+
+    if (_fadeCanvasGroup != null)
+    {
+      Debug.Log("[GameSceneManager] フェード開始");
+      _fadeCanvasGroup.alpha = 0f;
+      float elapsed = 0f;
+      while (elapsed < _fadeDuration)
+      {
+        elapsed += Time.deltaTime;
+        _fadeCanvasGroup.alpha = Mathf.Clamp01(elapsed / _fadeDuration);
+        yield return null;
+      }
+      Debug.Log("[GameSceneManager] フェード完了");
+    }
+    else
+    {
+      Debug.LogWarning("[GameSceneManager] _fadeCanvasGroup が null！");
+    }
+
+    Debug.Log($"[GameSceneManager] LoadScene 呼ぶ: {_instance._loadingSceneName}");
     SceneManager.LoadScene(_instance._loadingSceneName);
   }
 
@@ -188,5 +228,14 @@ public class GameSceneManager : MonoBehaviour
   public static AsyncOperation StartPendingLoad()
   {
     return SceneManager.LoadSceneAsync(_pendingSceneName);
+  }
+
+  /// <summary>フェードパネルを即座に透明にする。</summary>
+  public void ClearFade()
+  {
+    if (_fadeCanvasGroup != null)
+    {
+      _fadeCanvasGroup.alpha = 0f;
+    }
   }
 }
