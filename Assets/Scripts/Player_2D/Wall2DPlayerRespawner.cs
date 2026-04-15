@@ -2,10 +2,9 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// 2Dプレイヤーの生成と再利用を管理するスクリプト。
-/// シーンに配置済みのプレイヤーを優先して使い、進行位置の保存、
-/// 落下や圧死時の初期位置復帰、削除後の spawnPoint 再生成、
-/// そして常時有効な 2D プレイヤーの復帰処理を担当する。
+/// 2D プレイヤーの生成と復帰を管理する。
+/// シーン配置済みのプレイヤーを優先して使い、保存位置・初期位置・spawnPoint の3段階で復帰する。
+/// 落下、圧死、詰まり停止のどれからでも同じ復帰経路に入るようにまとめている。
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
@@ -62,6 +61,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
   private void Update()
   {
+    // 落下復帰は常時監視する。2D/3D 切り替え前提のゲートは持たない。
     if (!respawnAtInitialPointWhenFallen
         || _spawnedPlayerInstance == null)
     {
@@ -86,7 +86,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
     try
     {
-      // 通常の再スポーンでは、必要に応じて保存済み位置から再開する。
+      // 通常復帰は、最後に保存した位置を優先する。
       SpawnPlayer(useSavedPosition: respawnFromLastKnownPosition && _hasSavedSpawnState, saveCurrentTransformBeforeReset: true);
       ScheduleOverlapRecovery();
     }
@@ -108,8 +108,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
     try
     {
-      // 既存プレイヤーがいる間は、シーン配置された初期位置へ戻す。
-      // プレイヤーが削除されている時だけ spawnPoint から再生成する。
+      // 既存プレイヤーがいればその場で初期位置へ戻し、いなければ spawnPoint から作り直す。
       ClearSavedRespawnPoint();
 
       if (_spawnedPlayerInstance != null)
@@ -148,6 +147,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     {
       if (saveCurrentTransformBeforeReset)
       {
+        // いまの位置を保存しておけば、あとで自然な場所へ戻しやすい。
         SaveCurrentPlayerTransform();
       }
 
@@ -170,6 +170,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
       return;
     }
 
+    // 保存済み位置を使うか、初期配置に戻すか、完全な再生成先かをここで決める。
     var placementTarget = useSavedPosition ? PlayerPlacementTarget.SavedPosition : PlayerPlacementTarget.RespawnPoint;
     var spawnPosition = GetPlacementPosition(placementTarget);
     var spawnRotation = GetPlacementRotation(placementTarget);
@@ -235,11 +236,13 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
     if (_spawnedPlayerController != null)
     {
+      // 自動移動の有効/無効をここでまとめて切り替える。
       _spawnedPlayerController.enabled = isEnabled;
     }
 
     if (_spawnedPlayerCrushDetector != null)
     {
+      // 圧死検知も同時に止めて、余計な再リスポーンを防ぐ。
       _spawnedPlayerCrushDetector.enabled = isEnabled;
     }
 
@@ -247,6 +250,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     {
       if (!preserveCurrentMotion)
       {
+        // 再配置時は、古い慣性が残ると想定外のめり込みにつながるので消す。
         _spawnedPlayerRigidbody2D.linearVelocity = Vector2.zero;
         _spawnedPlayerRigidbody2D.angularVelocity = 0f;
       }
@@ -259,6 +263,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   {
     if (scenePlacedPlayerInstance == null)
     {
+      // シーン上に先に置かれているプレイヤーがいれば、それを初期実体として使う。
       var playerController = FindFirstObjectByType<Wall2DPlayerController>(FindObjectsInactive.Include);
       if (playerController != null)
       {
@@ -274,6 +279,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
       return;
     }
 
+    // 既にシーンに置かれているプレイヤーも、生成済みプレイヤーとして同じ経路で管理する。
     _spawnedPlayerInstance = scenePlacedPlayerInstance;
     CacheInitialPlacedPlayerState(scenePlacedPlayerInstance);
     CacheSpawnedPlayerComponents(scenePlacedPlayerInstance);
@@ -338,7 +344,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
   private void SubscribeToSpawnedPlayerEvents()
   {
-    // 古い購読が残らないように、再購読前に必ず解除する。
+    // 以前の購読が残ると二重リスポーンの原因になるので、先に全部外してから付け直す。
     UnsubscribeFromSpawnedPlayerEvents();
 
     if (_spawnedPlayerController != null)
@@ -379,17 +385,19 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
   private void OnSpawnedPlayerCrushed()
   {
-    // 圧死時は必ず初期地点へ戻す。
+    // 圧死したら、壁に挟まれたままでも必ず初期地点へ戻す。
     RespawnPlayerAtInitialPoint();
   }
 
   private void OnSpawnedPlayerMovementStalled()
   {
+    // 移動停止が続いた場合も、壁詰まりや引っ掛かりとみなして復帰する。
     RespawnPlayerAtInitialPoint();
   }
 
   private void ResolveOverlapIfNeeded()
   {
+    // 生成直後や再配置直後に壁へめり込んでいないかを再チェックする。
     Physics2D.SyncTransforms();
 
     if (!IsSpawnedPlayerOverlappingSolid())
@@ -409,6 +417,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
   private void ScheduleOverlapRecovery()
   {
+    // 1 フレーム遅らせてから再判定し、物理更新が終わってから安全に押し戻す。
     StopOverlapRecoveryCoroutine();
     _overlapRecoveryCoroutine = StartCoroutine(RecoverOverlapAfter2DEnter());
   }
@@ -440,6 +449,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
       return false;
     }
 
+    // 自分自身や子オブジェクトは除外し、外部の固いコライダーだけを対象にする。
     var filter = new ContactFilter2D
     {
       useLayerMask = true,
@@ -472,6 +482,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   /// </summary>
   public void ResetRuntimeState()
   {
+    // リセット時は、詰まり検知の状態もリスポーンの制御状態もすべて初期化する。
     ClearSavedRespawnPoint();
     _isRespawning = false;
     _respawnBlockedUntilTime = 0f;
@@ -499,6 +510,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
   private bool CanRespawnNow()
   {
+    // リスポーン中の再入と、短時間に連打される復帰要求を両方防ぐ。
     return !_isRespawning && Time.time >= _respawnBlockedUntilTime;
   }
 
@@ -515,6 +527,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
   private Vector3 GetPlacementPosition(PlayerPlacementTarget placementTarget)
   {
+    // 位置は「保存済み」→「初期配置」→「spawnPoint」の順で選ぶ。
     switch (placementTarget)
     {
       case PlayerPlacementTarget.SavedPosition:
@@ -533,6 +546,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
   private Quaternion GetPlacementRotation(PlayerPlacementTarget placementTarget)
   {
+    // 回転も位置と同じ優先順位で決める。
     switch (placementTarget)
     {
       case PlayerPlacementTarget.SavedPosition:

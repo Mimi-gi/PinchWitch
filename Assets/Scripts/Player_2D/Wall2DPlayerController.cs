@@ -2,8 +2,8 @@ using System;
 using UnityEngine;
 
 /// <summary>
-/// Automatically moves the 2D player along nearby surfaces.
-/// Floors, walls, and ceilings are all treated as valid traversal surfaces.
+/// 近くの面に沿って 2D プレイヤーを自動移動させる。
+/// 床・壁・天井のすべてを移動対象として扱い、詰まり検知も内包する。
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Rigidbody2D))]
@@ -144,6 +144,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
   private void FixedUpdate()
   {
+    // 1 フレームごとに、接地状態の更新 → 移動停止の監視 → 実際の移動の順で処理する。
     UpdateMovementStallState();
     var wasAttachedToSurface = _isAttachedToSurface;
     UpdateSurfaceState();
@@ -163,6 +164,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
     if (!_hasLastObservedPosition)
     {
+      // 最初の 1 回は比較対象がないので、現在位置だけ覚える。
       _lastObservedPosition = _rigidbody2D.position;
       _hasLastObservedPosition = true;
       return;
@@ -170,6 +172,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
     if (!_isAttachedToSurface)
     {
+      // 浮いている間は「詰まり」とみなさず、カウンタをリセットする。
       _movementStallDuration = 0f;
       _lastObservedPosition = _rigidbody2D.position;
       return;
@@ -179,6 +182,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     var positionDelta = currentPosition - _lastObservedPosition;
     if (positionDelta.sqrMagnitude <= movementStallPositionEpsilon * movementStallPositionEpsilon)
     {
+      // 一定時間ほとんど動いていないなら、壁やコライダーに引っかかっていると判断する。
       _movementStallDuration += Time.fixedDeltaTime;
       if (_movementStallDuration >= movementStallRespawnDelay)
       {
@@ -207,6 +211,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
   private void ResetStuckTracking()
   {
+    // 再有効化や初期化の直後に、古い判定を持ち越さないようにする。
     _movementStallDuration = 0f;
 
     if (_rigidbody2D == null)
@@ -227,6 +232,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
       return;
     }
 
+    // いま接地している面の前方を先読みし、角を曲がれるなら曲がる。
     if (_isAttachedToSurface)
     {
       TryTurnAlongForwardSurface();
@@ -251,8 +257,9 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
     if (_isAttachedToSurface)
     {
+      // 接地中は、接線方向に進みつつ法線方向へ押し付けて面から離れにくくする。
       var tangent = GetTraversalTangent(_currentSurfaceNormal);
-      var velocity = tangent * moveSpeed + (-_currentSurfaceNormal) * surfaceStickVelocity;
+      var velocity = (tangent * moveSpeed) + ((-_currentSurfaceNormal) * surfaceStickVelocity);
 
       _rigidbody2D.gravityScale = 0f;
       _rigidbody2D.linearVelocity = velocity;
@@ -274,6 +281,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
   private void TryTurnAlongForwardSurface()
   {
+    // 進行方向の少し先に別の面があれば、そこで向きを切り替える。
     var forwardDirection = GetTraversalTangent(_currentSurfaceNormal);
     if (!TryFindSurfaceInDirection(forwardDirection, ResolveProbeDistance(forwardProbeDistance), out var forwardHit))
     {
@@ -298,6 +306,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
   private bool TryAcquireAnyNearbySurface()
   {
+    // 周囲 8 方向を探して、最も近い面を現在の接地面として採用する。
     var bestDistance = float.PositiveInfinity;
     RaycastHit2D bestHit = default;
     var hasHit = false;
@@ -406,7 +415,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
   private static float GetSurfaceAlignmentAngle(Vector2 surfaceNormal)
   {
-    return Mathf.Atan2(surfaceNormal.y, surfaceNormal.x) * Mathf.Rad2Deg - 90f;
+    return (Mathf.Atan2(surfaceNormal.y, surfaceNormal.x) * Mathf.Rad2Deg) - 90f;
   }
 
   private void UpdateTraversalDirectionOnLandingIfNeeded(bool wasAttachedToSurface)
@@ -514,6 +523,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
       return false;
     }
 
+    // 2D コライダーがあればそれを優先し、なければ 3D コライダーや Renderer から外形を拾う。
     var collider2D = wallBoundsSource.GetComponent<Collider2D>();
     if (collider2D != null)
     {
@@ -546,7 +556,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
   private float ResolveProbeDistance(float baseDistance)
   {
-    return Mathf.Max(baseDistance, moveSpeed * Time.fixedDeltaTime + 0.02f);
+    return Mathf.Max(baseDistance, (moveSpeed * Time.fixedDeltaTime) + 0.02f);
   }
 
   private void ClampSerializedValues()

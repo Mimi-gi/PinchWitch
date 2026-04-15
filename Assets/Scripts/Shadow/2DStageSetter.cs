@@ -3,35 +3,40 @@ using UnityEngine;
 
 public class PlaneStageSetter : MonoBehaviour
 {
-    [SerializeField] ShadowColliderBuilder[] builders;
-    [SerializeField] ShadowProjectionContext context;
-    [SerializeField] bool autoDiscoverBuilders = true;
-    [SerializeField] bool buildBuildersOnStart = true;
+    [SerializeField] private ShadowColliderBuilder[] builders;
+    [SerializeField] private ShadowProjectionContext context;
+    [SerializeField] private bool autoDiscoverBuilders = true;
+    [SerializeField] private bool buildBuildersOnStart = true;
 
     public bool IsShadow = true;
 
-    void Reset()
+    // Inspector 未設定の参照を自動で埋める。
+    private void Reset()
     {
         AutoAssignMissingReferences();
     }
 
-    void Awake()
+    // 起動時にも参照を揃えておく。
+    private void Awake()
     {
         AutoAssignMissingReferences();
     }
 
-    void OnEnable()
+    // モード切替の購読はやめ、常時有効の設定だけを維持する。
+    private void OnEnable()
     {
         AutoAssignMissingReferences();
     }
 
-    void Start()
+    // 起動直後に一度だけ影出力を構築する。
+    private void Start()
     {
         BuildShadowOutputsIfNeeded(forceRebuild: false, ignoreBuildBuildersOnStart: false);
         ApplyShadowState();
     }
 
-    void OnValidate()
+    // エディタ上で変更したときも、実行中なら即反映する。
+    private void OnValidate()
     {
         AutoAssignMissingReferences();
 
@@ -46,6 +51,7 @@ public class PlaneStageSetter : MonoBehaviour
     [ContextMenu("Apply Shadow State")]
     public void ApplyShadowState()
     {
+        // この構成では影は常時有効として扱う。
         IsShadow = true;
 
         if (context != null)
@@ -82,6 +88,7 @@ public class PlaneStageSetter : MonoBehaviour
             return;
         }
 
+        // 必要なビルダーだけを順に再構築する。
         foreach (var builder in EnumerateBuilders())
         {
             if (builder == null)
