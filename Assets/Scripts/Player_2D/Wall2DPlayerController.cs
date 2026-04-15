@@ -44,6 +44,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
   [Header("Wall Bounds")]
   [SerializeField] private bool reverseDirectionAtWallBounds = true;
+  [SerializeField] private bool reverseDirectionAtBottomWallBoundary = false;
   [SerializeField] private bool autoFindWallBounds = true;
   [SerializeField] private Transform wallBoundsSource;
   [SerializeField] private Vector2 wallBoundsMin = new Vector2(-10f, -10f);
@@ -372,7 +373,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
       touchedBoundary = true;
     }
 
-    if (colliderBounds.min.y < wallBoundsMin.y)
+    if (reverseDirectionAtBottomWallBoundary && colliderBounds.min.y < wallBoundsMin.y)
     {
       offset.y = wallBoundsMin.y - colliderBounds.min.y;
       touchedBoundary = true;
