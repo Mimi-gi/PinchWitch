@@ -144,7 +144,7 @@ Transform:
   m_GameObject: {fileID: 19773978}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -2.55, y: 7.51, z: 5}
+  m_LocalPosition: {x: -4, y: 7.51, z: 4.9}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1434,8 +1434,6 @@ MonoBehaviour:
   pointLight: {fileID: 1542005796}
   projectionWall: {fileID: 390749895}
   generatedOutputRoot: {fileID: 1885471237}
-  viewModeSwitcher: {fileID: 222675968}
-  rebuildOnWall2DEnter: 1
   shadowEnabled: 1
   shadowOnlyProxyLayerName: ShadowCaster2D
 --- !u!1001 &705621525
@@ -2176,11 +2174,8 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   context: {fileID: 647550205}
-  viewModeSwitcher: {fileID: 222675968}
   autoDiscoverBuilders: 1
-  syncWithViewMode: 1
   buildBuildersOnStart: 1
-  rebuildBuildersOnWall2DEnterIfNeeded: 1
   IsShadow: 1
 --- !u!4 &874008860
 Transform:
@@ -5533,7 +5528,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2f6cd97ba8b448dc8c976fc474894d51, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Wall2DPlayerRespawner
-  viewModeSwitcher: {fileID: 222675968}
   scenePlacedPlayerInstance: {fileID: 0}
   wall2DPlayerPrefab: {fileID: 1190952654993941888, guid: 7e038e7d8caa05e48bbf944071d6e62a,
     type: 3}
@@ -5541,10 +5535,11 @@ MonoBehaviour:
   spawnedPlayerParent: {fileID: 0}
   respawnFromLastKnownPosition: 1
   respawnAtInitialPointWhenFallen: 1
-  fallRespawnYThreshold: -10
+  fallRespawnYThreshold: -0.1
   overlapRecoveryLayers:
     serializedVersion: 2
     m_Bits: 4294967295
+  respawnCooldownSeconds: 0.5
 --- !u!4 &1553755123
 Transform:
   m_ObjectHideFlags: 0

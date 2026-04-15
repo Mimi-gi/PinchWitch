@@ -3,12 +3,12 @@ using UnityEngine;
 
 /// <summary>
 /// 2Dプレイヤー周辺で使う Collider2D.Cast の共通処理をまとめた補助クラス。
-/// 地面判定や圧死判定で似たロジックを何度も書かないようにし、
-/// 呼び出し側では「どの条件を満たしたら有効な接触か」だけを意識できるようにする。
+/// 地面判定や圧死判定で同じ Cast 処理を何度も書かなくて済むようにし、
+/// 呼び出し側は「どの法線や向きなら有効か」だけを決めればよいようにする。
 /// </summary>
 public static class Wall2DContactCastUtility
 {
-  // Trigger を無視しつつ、指定レイヤーだけを対象にする ContactFilter2D を作る。
+  // 触れてほしくない Trigger を除外し、必要なレイヤーだけに絞ったフィルタを作る。
   public static ContactFilter2D CreateContactFilter(LayerMask layerMask)
   {
     return new ContactFilter2D
@@ -19,7 +19,7 @@ public static class Wall2DContactCastUtility
     };
   }
 
-  // 指定方向に Cast して、地面として扱える法線を持つ接触があるか調べる。
+  // 指定方向へ Cast して、上向き成分が十分ある接触を「地面候補」として扱う。
   public static bool HasHitWithMinimumNormalY(
     Collider2D collider2D,
     Vector2 direction,
@@ -37,7 +37,7 @@ public static class Wall2DContactCastUtility
       hit => hit.normal.y >= minimumNormalY);
   }
 
-  // 指定方向に Cast して、移動を塞ぐ接触があるか調べる。
+  // 指定方向へ Cast して、進行方向を塞ぐ障害物があるかを調べる。
   public static bool HasBlockingHit(
     Collider2D collider2D,
     Vector2 direction,
@@ -57,7 +57,7 @@ public static class Wall2DContactCastUtility
       hit => Vector2.Dot(hit.normal, expectedNormal) >= minimumContactAlignment);
   }
 
-  // Cast 結果の中から、指定条件を満たす接触があるかを返す共通処理。
+  // Cast 結果の中から、指定条件を満たす接触が 1 つでもあるかを返す。
   private static bool HasMatchingHit(
     Collider2D collider2D,
     Vector2 direction,

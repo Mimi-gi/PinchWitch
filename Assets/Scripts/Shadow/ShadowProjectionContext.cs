@@ -10,8 +10,6 @@ public sealed class ShadowProjectionContext : MonoBehaviour
 
   [Header("Generated Outputs")]
   [SerializeField] private Transform generatedOutputRoot;
-  [SerializeField] private SpaceViewModeSwitcher viewModeSwitcher;
-  [SerializeField] private bool rebuildOnWall2DEnter = false;
 
   [Header("Runtime")]
   [SerializeField] private bool shadowEnabled = true;
@@ -34,29 +32,35 @@ public sealed class ShadowProjectionContext : MonoBehaviour
 
   private void Reset()
   {
+    // 参照不足をエディタ上で埋めるための初期化。
     AutoAssignMissingReferences();
   }
 
   private void Awake()
   {
+    // 実行中は影を常時有効として扱う。
     AutoAssignMissingReferences();
+    shadowEnabled = true;
     EnsureGeneratedOutputRoot();
   }
 
   private void OnEnable()
   {
+    // 無効化してから戻ってきても、影の状態は有効に戻す。
     AutoAssignMissingReferences();
-    SubscribeToViewMode();
+    shadowEnabled = true;
   }
 
   private void OnDisable()
   {
-    UnsubscribeFromViewMode();
+    // ここでは保持するだけで、特別な後始末は不要。
   }
 
   private void OnValidate()
   {
+    // Inspector 変更時も、実行中なら常時有効の前提を崩さない。
     AutoAssignMissingReferences();
+    shadowEnabled = true;
   }
 
   public void Register(ShadowColliderBuilder builder)
@@ -81,7 +85,8 @@ public sealed class ShadowProjectionContext : MonoBehaviour
 
   public void SetShadowEnabled(bool enabled, bool rebuildImmediately = false)
   {
-    shadowEnabled = enabled;
+    // このプロジェクトでは影を常時使うため、無効化要求は受けず有効に固定する。
+    shadowEnabled = true;
     if (shadowEnabled && rebuildImmediately)
     {
       RebuildAll();
@@ -125,6 +130,7 @@ public sealed class ShadowProjectionContext : MonoBehaviour
       return;
     }
 
+    // 登録済みのビルダーをまとめて再構築する。
     var snapshot = new List<ShadowColliderBuilder>(_builders);
     foreach (var builder in snapshot)
     {
@@ -141,6 +147,7 @@ public sealed class ShadowProjectionContext : MonoBehaviour
   {
     if (pointLight == null)
     {
+      // 点光源またはスポットライトを優先して使う。
       var lights = FindObjectsByType<Light>(FindObjectsInactive.Include, FindObjectsSortMode.None);
       foreach (var candidate in lights)
       {
@@ -164,6 +171,7 @@ public sealed class ShadowProjectionContext : MonoBehaviour
 
     if (projectionWall == null)
     {
+      // 影を落とす対象の壁は、慣例として "Wall" という名前のオブジェクトを探す。
       var wallObject = GameObject.Find("Wall");
       if (wallObject != null)
       {
@@ -171,52 +179,5 @@ public sealed class ShadowProjectionContext : MonoBehaviour
       }
     }
 
-    if (viewModeSwitcher == null)
-    {
-      viewModeSwitcher = FindFirstObjectByType<SpaceViewModeSwitcher>(FindObjectsInactive.Include);
-    }
-  }
-
-  private void SubscribeToViewMode()
-  {
-    if (viewModeSwitcher == null)
-    {
-      return;
-    }
-
-    viewModeSwitcher.ModeChanged -= HandleModeChanged;
-    viewModeSwitcher.ModeChanged += HandleModeChanged;
-  }
-
-  private void UnsubscribeFromViewMode()
-  {
-    if (viewModeSwitcher == null)
-    {
-      return;
-    }
-
-    viewModeSwitcher.ModeChanged -= HandleModeChanged;
-  }
-
-  private void HandleModeChanged(SpaceViewMode mode)
-  {
-    shadowEnabled = mode == SpaceViewMode.Wall2D;
-
-    if (mode != SpaceViewMode.Wall2D || !rebuildOnWall2DEnter)
-    {
-      return;
-    }
-
-    if (FindFirstObjectByType<PlaneStageSetter>(FindObjectsInactive.Include) != null)
-    {
-      return;
-    }
-
-    if (FindFirstObjectByType<ShadowDirtyRegistry>(FindObjectsInactive.Include) != null)
-    {
-      return;
-    }
-
-    RebuildAll();
   }
 }
