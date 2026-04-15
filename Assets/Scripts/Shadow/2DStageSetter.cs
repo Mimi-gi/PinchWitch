@@ -5,14 +5,10 @@ public class PlaneStageSetter : MonoBehaviour
 {
     [SerializeField] ShadowColliderBuilder[] builders;
     [SerializeField] ShadowProjectionContext context;
-    [SerializeField] SpaceViewModeSwitcher viewModeSwitcher;
     [SerializeField] bool autoDiscoverBuilders = true;
-    [SerializeField] bool syncWithViewMode = true;
-    [SerializeField] bool keepShadowInWorld3D = true;
     [SerializeField] bool buildBuildersOnStart = true;
-    [SerializeField] bool rebuildBuildersOnWall2DEnterIfNeeded = true;
 
-    public bool IsShadow;
+    public bool IsShadow = true;
 
     void Reset()
     {
@@ -27,19 +23,12 @@ public class PlaneStageSetter : MonoBehaviour
     void OnEnable()
     {
         AutoAssignMissingReferences();
-        SubscribeToViewMode();
     }
 
     void Start()
     {
-        SyncShadowStateWithCurrentViewMode();
         BuildShadowOutputsIfNeeded(forceRebuild: false, ignoreBuildBuildersOnStart: false);
         ApplyShadowState();
-    }
-
-    void OnDisable()
-    {
-        UnsubscribeFromViewMode();
     }
 
     void OnValidate()
@@ -51,13 +40,14 @@ public class PlaneStageSetter : MonoBehaviour
             return;
         }
 
-        SyncShadowStateWithCurrentViewMode();
         ApplyShadowState();
     }
 
     [ContextMenu("Apply Shadow State")]
     public void ApplyShadowState()
     {
+        IsShadow = true;
+
         if (context != null)
         {
             context.SetShadowEnabled(IsShadow);
@@ -154,68 +144,5 @@ public class PlaneStageSetter : MonoBehaviour
         {
             context = FindFirstObjectByType<ShadowProjectionContext>(FindObjectsInactive.Include);
         }
-
-        if (viewModeSwitcher == null)
-        {
-            viewModeSwitcher = FindFirstObjectByType<SpaceViewModeSwitcher>(FindObjectsInactive.Include);
-        }
-    }
-
-    private void SubscribeToViewMode()
-    {
-        if (viewModeSwitcher == null)
-        {
-            return;
-        }
-
-        viewModeSwitcher.ModeChanged -= HandleModeChanged;
-        viewModeSwitcher.ModeChanged += HandleModeChanged;
-    }
-
-    private void UnsubscribeFromViewMode()
-    {
-        if (viewModeSwitcher == null)
-        {
-            return;
-        }
-
-        viewModeSwitcher.ModeChanged -= HandleModeChanged;
-    }
-
-    private void HandleModeChanged(SpaceViewMode mode)
-    {
-        if (!syncWithViewMode)
-        {
-            return;
-        }
-
-        IsShadow = ShouldEnableShadowForMode(mode);
-
-        if (IsShadow && rebuildBuildersOnWall2DEnterIfNeeded)
-        {
-            BuildShadowOutputsIfNeeded(forceRebuild: false, ignoreBuildBuildersOnStart: true);
-        }
-
-        ApplyShadowState();
-    }
-
-    private void SyncShadowStateWithCurrentViewMode()
-    {
-        if (!syncWithViewMode || viewModeSwitcher == null)
-        {
-            return;
-        }
-
-        IsShadow = ShouldEnableShadowForMode(viewModeSwitcher.CurrentMode);
-    }
-
-    private bool ShouldEnableShadowForMode(SpaceViewMode mode)
-    {
-        if (mode == SpaceViewMode.Wall2D)
-        {
-            return true;
-        }
-
-        return keepShadowInWorld3D;
     }
 }

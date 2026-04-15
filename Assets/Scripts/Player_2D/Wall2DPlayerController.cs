@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 /// <summary>
@@ -59,6 +60,12 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   [SerializeField] private CollisionDetectionMode2D collisionDetectionMode = CollisionDetectionMode2D.Continuous;
   [SerializeField] private RigidbodyInterpolation2D interpolationMode = RigidbodyInterpolation2D.Interpolate;
 
+  [Header("Stuck Recovery")]
+  [SerializeField] private float movementStallRespawnDelay = 2f;
+  [SerializeField] private float movementStallPositionEpsilon = 0.01f;
+
+  public event Action MovementStalled;
+
   private readonly RaycastHit2D[] _surfaceHits = new RaycastHit2D[16];
 
   private Rigidbody2D _rigidbody2D;
@@ -66,6 +73,9 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   private Vector2 _currentSurfaceNormal = Vector2.up;
   private bool _isAttachedToSurface;
   private bool _hasCachedWallBounds;
+  private Vector2 _lastObservedPosition;
+  private bool _hasLastObservedPosition;
+  private float _movementStallDuration;
 
   private void Reset()
   {
@@ -82,14 +92,16 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     RefreshWallBoundsCache();
     ClampSerializedValues();
     ApplyPhysicsConfiguration();
+    CacheObservedPosition();
   }
 
   private void OnEnable()
   {
     AutoAssignWallBoundsSource();
     RefreshWallBoundsCache();
-    TryAcquireAnyNearbySurface();
+    _isAttachedToSurface = TryAcquireAnyNearbySurface();
     SnapRotationToSurface();
+    ResetStuckTracking();
   }
 
   private void OnValidate()
@@ -126,15 +138,85 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
     _isAttachedToSurface = false;
     _currentSurfaceNormal = Vector2.up;
+    _movementStallDuration = 0f;
+    _hasLastObservedPosition = false;
   }
 
   private void FixedUpdate()
   {
+    UpdateMovementStallState();
     var wasAttachedToSurface = _isAttachedToSurface;
     UpdateSurfaceState();
     UpdateTraversalDirectionOnLandingIfNeeded(wasAttachedToSurface);
     ApplyAutomaticMovement();
     ReverseTraversalDirectionAtWallBoundsIfNeeded();
+    CacheObservedPosition();
+  }
+
+  private void UpdateMovementStallState()
+  {
+    if (_rigidbody2D == null)
+    {
+      ResetStuckTracking();
+      return;
+    }
+
+    if (!_hasLastObservedPosition)
+    {
+      _lastObservedPosition = _rigidbody2D.position;
+      _hasLastObservedPosition = true;
+      return;
+    }
+
+    if (!_isAttachedToSurface)
+    {
+      _movementStallDuration = 0f;
+      _lastObservedPosition = _rigidbody2D.position;
+      return;
+    }
+
+    var currentPosition = _rigidbody2D.position;
+    var positionDelta = currentPosition - _lastObservedPosition;
+    if (positionDelta.sqrMagnitude <= movementStallPositionEpsilon * movementStallPositionEpsilon)
+    {
+      _movementStallDuration += Time.fixedDeltaTime;
+      if (_movementStallDuration >= movementStallRespawnDelay)
+      {
+        _movementStallDuration = 0f;
+        MovementStalled?.Invoke();
+      }
+    }
+    else
+    {
+      _movementStallDuration = 0f;
+    }
+
+    _lastObservedPosition = currentPosition;
+  }
+
+  private void CacheObservedPosition()
+  {
+    if (_rigidbody2D == null)
+    {
+      return;
+    }
+
+    _lastObservedPosition = _rigidbody2D.position;
+    _hasLastObservedPosition = true;
+  }
+
+  private void ResetStuckTracking()
+  {
+    _movementStallDuration = 0f;
+
+    if (_rigidbody2D == null)
+    {
+      _hasLastObservedPosition = false;
+      return;
+    }
+
+    _lastObservedPosition = _rigidbody2D.position;
+    _hasLastObservedPosition = true;
   }
 
   private void UpdateSurfaceState()
@@ -475,6 +557,8 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     forwardProbeDistance = Mathf.Max(0.01f, forwardProbeDistance);
     surfaceSearchDistance = Mathf.Max(groundCheckDistance, surfaceSearchDistance);
     detachedGravityScale = Mathf.Max(0f, detachedGravityScale);
+    movementStallRespawnDelay = Mathf.Max(0.1f, movementStallRespawnDelay);
+    movementStallPositionEpsilon = Mathf.Max(0.0001f, movementStallPositionEpsilon);
     if (wallBoundsMin.x > wallBoundsMax.x)
     {
       (wallBoundsMin.x, wallBoundsMax.x) = (wallBoundsMax.x, wallBoundsMin.x);

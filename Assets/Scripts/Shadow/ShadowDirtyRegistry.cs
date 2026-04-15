@@ -5,8 +5,6 @@ using UnityEngine;
 public sealed class ShadowDirtyRegistry : MonoBehaviour
 {
     [SerializeField] private HandPinchController handPinchController;
-    [SerializeField] private SpaceViewModeSwitcher viewModeSwitcher;
-    [SerializeField] private bool processOnlyDuringWorld3D = true;
     [SerializeField] private int maxBuildsPerFrame = 1;
 
     private readonly Queue<ShadowDirtyTarget> _buildQueue = new Queue<ShadowDirtyTarget>();
@@ -61,13 +59,6 @@ public sealed class ShadowDirtyRegistry : MonoBehaviour
             SubscribeToGrabEvents();
         }
 
-        if (processOnlyDuringWorld3D
-            && viewModeSwitcher != null
-            && viewModeSwitcher.CurrentMode != SpaceViewMode.World3D)
-        {
-            return;
-        }
-
         var buildCount = 0;
         while (buildCount < maxBuildsPerFrame && _buildQueue.Count > 0)
         {
@@ -109,10 +100,6 @@ public sealed class ShadowDirtyRegistry : MonoBehaviour
             handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
         }
 
-        if (viewModeSwitcher == null)
-        {
-            viewModeSwitcher = FindFirstObjectByType<SpaceViewModeSwitcher>(FindObjectsInactive.Include);
-        }
     }
 
     private void ClampSerializedValues()

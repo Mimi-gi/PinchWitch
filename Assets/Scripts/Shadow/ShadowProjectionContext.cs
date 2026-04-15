@@ -10,9 +10,6 @@ public sealed class ShadowProjectionContext : MonoBehaviour
 
   [Header("Generated Outputs")]
   [SerializeField] private Transform generatedOutputRoot;
-  [SerializeField] private SpaceViewModeSwitcher viewModeSwitcher;
-  [SerializeField] private bool rebuildOnWall2DEnter = false;
-  [SerializeField] private bool keepShadowEnabledInWorld3D = true;
 
   [Header("Runtime")]
   [SerializeField] private bool shadowEnabled = true;
@@ -41,23 +38,24 @@ public sealed class ShadowProjectionContext : MonoBehaviour
   private void Awake()
   {
     AutoAssignMissingReferences();
+    shadowEnabled = true;
     EnsureGeneratedOutputRoot();
   }
 
   private void OnEnable()
   {
     AutoAssignMissingReferences();
-    SubscribeToViewMode();
+    shadowEnabled = true;
   }
 
   private void OnDisable()
   {
-    UnsubscribeFromViewMode();
   }
 
   private void OnValidate()
   {
     AutoAssignMissingReferences();
+    shadowEnabled = true;
   }
 
   public void Register(ShadowColliderBuilder builder)
@@ -82,7 +80,7 @@ public sealed class ShadowProjectionContext : MonoBehaviour
 
   public void SetShadowEnabled(bool enabled, bool rebuildImmediately = false)
   {
-    shadowEnabled = enabled;
+    shadowEnabled = true;
     if (shadowEnabled && rebuildImmediately)
     {
       RebuildAll();
@@ -172,62 +170,5 @@ public sealed class ShadowProjectionContext : MonoBehaviour
       }
     }
 
-    if (viewModeSwitcher == null)
-    {
-      viewModeSwitcher = FindFirstObjectByType<SpaceViewModeSwitcher>(FindObjectsInactive.Include);
-    }
-  }
-
-  private void SubscribeToViewMode()
-  {
-    if (viewModeSwitcher == null)
-    {
-      return;
-    }
-
-    viewModeSwitcher.ModeChanged -= HandleModeChanged;
-    viewModeSwitcher.ModeChanged += HandleModeChanged;
-  }
-
-  private void UnsubscribeFromViewMode()
-  {
-    if (viewModeSwitcher == null)
-    {
-      return;
-    }
-
-    viewModeSwitcher.ModeChanged -= HandleModeChanged;
-  }
-
-  private void HandleModeChanged(SpaceViewMode mode)
-  {
-    shadowEnabled = ShouldEnableShadowForMode(mode);
-
-    if (mode != SpaceViewMode.Wall2D || !rebuildOnWall2DEnter)
-    {
-      return;
-    }
-
-    if (FindFirstObjectByType<PlaneStageSetter>(FindObjectsInactive.Include) != null)
-    {
-      return;
-    }
-
-    if (FindFirstObjectByType<ShadowDirtyRegistry>(FindObjectsInactive.Include) != null)
-    {
-      return;
-    }
-
-    RebuildAll();
-  }
-
-  private bool ShouldEnableShadowForMode(SpaceViewMode mode)
-  {
-    if (mode == SpaceViewMode.Wall2D)
-    {
-      return true;
-    }
-
-    return keepShadowEnabledInWorld3D;
   }
 }
