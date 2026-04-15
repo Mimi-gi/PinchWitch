@@ -6,8 +6,47 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/DemoScene.unity
-    guid: 9984d7665ac064694a2339bae6d2e4f2
+    path: Assets/Scenes/Title.unity
+    guid: dab826862e64f584d9dce285860b735e
+  - enabled: 1
+    path: Assets/Scenes/Loading.unity
+    guid: 7bf2bbfaef7279e4fa4be989f36b41df
+  - enabled: 1
+    path: Assets/Scenes/Tutorial.unity
+    guid: 20ba2dfd4d427ec4c8a96e12223da0b6
+  - enabled: 1
+    path: Assets/Scenes/StageSelect.unity
+    guid: 1393a21e920eda9489eb4129de14cb7b
+  - enabled: 1
+    path: Assets/Scenes/Stage_1.unity
+    guid: e30d2f143031cba4c84b67a73cd72338
+  - enabled: 1
+    path: Assets/Scenes/Stage_2.unity
+    guid: 84cde222c5855984a822daa0531565b0
+  - enabled: 1
+    path: Assets/Scenes/Stage_3.unity
+    guid: 01f998d675320dc46af88abb46744170
+  - enabled: 1
+    path: Assets/Personal/Ayano/Ayano_Title.unity
+    guid: 6d4a2394a1061bb43b5064a36d4859a9
+  - enabled: 1
+    path: Assets/Personal/Ayano/Ayano_Loading.unity
+    guid: 308f4289de26e4945ad82410e06e3707
+  - enabled: 1
+    path: Assets/Personal/Ayano/Ayano_Tutorial.unity
+    guid: a0eda8d66ce4fe647996b28908f60ffd
+  - enabled: 1
+    path: Assets/Personal/Ayano/Ayano_StageSelect.unity
+    guid: bd7f4c18ec0f3684a924745b2c416b42
+  - enabled: 1
+    path: Assets/Personal/Ayano/Ayano_Stage_1.unity
+    guid: a865f867e8cc389468840325cae259f0
+  - enabled: 1
+    path: Assets/Personal/Ayano/Ayano_Stage_2.unity
+    guid: 57556ba0bef8da645a81ac2ddc823938
+  - enabled: 1
+    path: Assets/Personal/Ayano/Ayano_Stage_3.unity
+    guid: ae29a25bfac18794ea353091177d779d
   - enabled: 1
     path: Assets/MediaPipeUnity/Samples/Scenes/Start Scene.unity
     guid: f7b359c19e6ae2d208e5ca4608b7c0b8
