@@ -5,6 +5,7 @@
 // https://opensource.org/licenses/MIT.
 
 using System.Collections;
+using System.Reflection;
 using UnityEngine;
 
 namespace Mediapipe.Unity
@@ -90,22 +91,21 @@ namespace Mediapipe.Unity
 
     protected Bootstrap FindBootstrap()
     {
-      var bootstrapObj = GameObject.Find("Bootstrap");
-
-      if (bootstrapObj != null)
+      var bootstrap = PersistentBootstrapManager.TryGetExisting();
+      if (bootstrap != null)
       {
-        return bootstrapObj.GetComponent<Bootstrap>();
+        return bootstrap;
       }
 
-      Logger.LogWarning(TAG, "Global Bootstrap instance is not found (maybe running a sample scene directly), "
-                            + "so activating a fallback Bootstrap instance attached to each Solution object");
+      bootstrap = PersistentBootstrapManager.CreateFromTemplate(gameObject);
+      if (bootstrap != null)
+      {
+        Logger.LogWarning(TAG, "Global Bootstrap instance is not found, so creating a persistent Bootstrap from the local scene template");
+        DisableMenuButton();
+        return bootstrap;
+      }
 
-      var bootstrap = GetComponent<Bootstrap>();
-      bootstrap.enabled = true;
-
-      // hide menu button when trying a single scene.
-      DisableMenuButton();
-      return bootstrap;
+      throw new MissingComponentException($"{TAG} requires a Bootstrap template on the Solution object or an existing global Bootstrap");
     }
 
     private void DisableMenuButton()
@@ -115,6 +115,133 @@ namespace Mediapipe.Unity
       {
         menuButton.SetActive(false);
       }
+    }
+  }
+
+  internal static class PersistentBootstrapManager
+  {
+    private const string BootstrapObjectName = "Bootstrap";
+    private const BindingFlags SerializableFieldFlags =
+      BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+
+    private static Bootstrap s_bootstrap;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetState()
+    {
+      s_bootstrap = null;
+    }
+
+    public static Bootstrap TryGetExisting()
+    {
+      if (s_bootstrap != null)
+      {
+        return s_bootstrap;
+      }
+
+      var bootstrapObj = GameObject.Find(BootstrapObjectName);
+      if (bootstrapObj != null)
+      {
+        s_bootstrap = bootstrapObj.GetComponent<Bootstrap>();
+        if (s_bootstrap != null)
+        {
+          return s_bootstrap;
+        }
+      }
+
+      foreach (var candidate in Resources.FindObjectsOfTypeAll<Bootstrap>())
+      {
+        if (candidate == null)
+        {
+          continue;
+        }
+
+        if (candidate.gameObject.name != BootstrapObjectName)
+        {
+          continue;
+        }
+
+        s_bootstrap = candidate;
+        return s_bootstrap;
+      }
+
+      return null;
+    }
+
+    public static Bootstrap CreateFromTemplate(GameObject solutionObject)
+    {
+      var existing = TryGetExisting();
+      if (existing != null)
+      {
+        return existing;
+      }
+
+      if (solutionObject == null)
+      {
+        return null;
+      }
+
+      var sourceBootstrap = solutionObject.GetComponent<Bootstrap>();
+      if (sourceBootstrap == null)
+      {
+        return null;
+      }
+
+      var bootstrapObject = new GameObject(BootstrapObjectName);
+      bootstrapObject.SetActive(false);
+      Object.DontDestroyOnLoad(bootstrapObject);
+
+      var bootstrap = bootstrapObject.AddComponent<Bootstrap>();
+      bootstrap.enabled = false;
+      CopySerializedFields(sourceBootstrap, bootstrap);
+
+      CloneImageSourceComponent(sourceBootstrap.GetComponent<WebCamSource>(), bootstrapObject);
+      CloneImageSourceComponent(sourceBootstrap.GetComponent<StaticImageSource>(), bootstrapObject);
+      CloneImageSourceComponent(sourceBootstrap.GetComponent<VideoSource>(), bootstrapObject);
+
+      bootstrapObject.SetActive(true);
+      bootstrap.enabled = true;
+      s_bootstrap = bootstrap;
+      return s_bootstrap;
+    }
+
+    private static void CloneImageSourceComponent<T>(T sourceComponent, GameObject bootstrapObject) where T : Behaviour
+    {
+      if (sourceComponent == null)
+      {
+        return;
+      }
+
+      var clonedComponent = bootstrapObject.AddComponent<T>();
+      clonedComponent.enabled = false;
+      CopySerializedFields(sourceComponent, clonedComponent);
+      clonedComponent.enabled = false;
+    }
+
+    private static void CopySerializedFields(object source, object destination)
+    {
+      for (var type = source.GetType(); type != null && type != typeof(Behaviour); type = type.BaseType)
+      {
+        foreach (var field in type.GetFields(SerializableFieldFlags))
+        {
+          if (!ShouldCopyField(field))
+          {
+            continue;
+          }
+
+          field.SetValue(destination, field.GetValue(source));
+        }
+      }
+    }
+
+    private static bool ShouldCopyField(FieldInfo field)
+    {
+      if (field.IsStatic || field.IsLiteral || field.IsInitOnly || field.IsNotSerialized)
+      {
+        return false;
+      }
+
+      return field.IsPublic || field.IsDefined(typeof(SerializeField), true);
     }
   }
 }

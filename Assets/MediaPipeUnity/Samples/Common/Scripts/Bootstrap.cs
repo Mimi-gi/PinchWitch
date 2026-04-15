@@ -25,87 +25,122 @@ namespace Mediapipe.Unity
     [SerializeField] private ImageSourceType _defaultImageSource;
     [SerializeField] private InferenceMode _preferableInferenceMode;
     [SerializeField] private AssetLoaderType _assetLoaderType;
-    [SerializeField] private bool _enableGlog = true;
+    [SerializeField] private bool _enableGlog = false;
+
+    private static bool _IsGlogInitialized;
+    private static bool _SkipGlogInitialization;
 
     public InferenceMode inferenceMode { get; private set; }
     public bool isFinished { get; private set; }
     private bool _isGlogInitialized;
+    private bool _isInitialized;
+    private bool _isInitializing;
+    private bool _hasStartedInitialization;
+    private bool _hasCleanedUp;
 
     private void OnEnable()
     {
+      if (_isInitialized)
+      {
+        isFinished = true;
+        return;
+      }
+
+      if (_isInitializing)
+      {
+        return;
+      }
+
       var _ = StartCoroutine(Init());
     }
 
     private IEnumerator Init()
     {
-      Logger.SetLogger(new MemoizedLogger(100));
-      Logger.MinLogLevel = Logger.LogLevel.Debug;
+      _isInitializing = true;
+      _hasStartedInitialization = true;
+      _hasCleanedUp = false;
+      isFinished = false;
 
-      Protobuf.SetLogHandler(Protobuf.DefaultLogHandler);
-
-      Logger.LogInfo(_TAG, "Setting global flags...");
-      GlobalConfigManager.SetFlags();
-
-      if (_enableGlog)
+      try
       {
-        if (Glog.LogDir != null)
+        Logger.SetLogger(new MemoizedLogger(100));
+        Logger.MinLogLevel = Logger.LogLevel.Debug;
+
+        Protobuf.SetLogHandler(Protobuf.DefaultLogHandler);
+
+        Logger.LogInfo(_TAG, "Setting global flags...");
+        GlobalConfigManager.SetFlags();
+
+        if (_enableGlog)
         {
-          if (!Directory.Exists(Glog.LogDir))
+          if (Glog.LogDir != null)
           {
-            Directory.CreateDirectory(Glog.LogDir);
+            if (!Directory.Exists(Glog.LogDir))
+            {
+              Directory.CreateDirectory(Glog.LogDir);
+            }
+            Logger.LogVerbose(_TAG, $"Glog will output files under {Glog.LogDir}");
           }
-          Logger.LogVerbose(_TAG, $"Glog will output files under {Glog.LogDir}");
-        }
-        Glog.Initialize("MediaPipeUnityPlugin");
-        _isGlogInitialized = true;
-      }
 
-      Logger.LogInfo(_TAG, "Initializing AssetLoader...");
-      switch (_assetLoaderType)
-      {
-        case AssetLoaderType.AssetBundle:
+          if (!_IsGlogInitialized)
           {
-            AssetLoader.Provide(new AssetBundleResourceManager("mediapipe"));
-            break;
+            TryInitializeGlog();
           }
-        case AssetLoaderType.StreamingAssets:
-          {
-            AssetLoader.Provide(new StreamingAssetsResourceManager());
-            break;
-          }
-        case AssetLoaderType.Local:
-          {
+        }
+
+        Logger.LogInfo(_TAG, "Initializing AssetLoader...");
+        switch (_assetLoaderType)
+        {
+          case AssetLoaderType.AssetBundle:
+            {
+              AssetLoader.Provide(new AssetBundleResourceManager("mediapipe"));
+              break;
+            }
+          case AssetLoaderType.StreamingAssets:
+            {
+              AssetLoader.Provide(new StreamingAssetsResourceManager());
+              break;
+            }
+          case AssetLoaderType.Local:
+            {
 #if UNITY_EDITOR
-            AssetLoader.Provide(new LocalResourceManager());
-            break;
+              AssetLoader.Provide(new LocalResourceManager());
+              break;
 #else
-            Logger.LogError("LocalResourceManager is only supported on UnityEditor");
-            yield break;
+              Logger.LogWarning(_TAG, "LocalResourceManager is only supported on UnityEditor, so falling back to StreamingAssets");
+              AssetLoader.Provide(new StreamingAssetsResourceManager());
+              break;
 #endif
-          }
-        default:
-          {
-            Logger.LogError($"AssetLoaderType is unknown: {_assetLoaderType}");
-            yield break;
-          }
-      }
-
-      DecideInferenceMode();
-      if (inferenceMode == InferenceMode.GPU)
-      {
-        Logger.LogInfo(_TAG, "Initializing GPU resources...");
-        yield return GpuManager.Initialize();
-
-        if (!GpuManager.IsInitialized)
-        {
-          Logger.LogWarning("If your native library is built for CPU, change 'Preferable Inference Mode' to CPU from the Inspector Window for Bootstrap");
+            }
+          default:
+            {
+              Logger.LogError($"AssetLoaderType is unknown: {_assetLoaderType}");
+              yield break;
+            }
         }
+
+        DecideInferenceMode();
+        if (inferenceMode == InferenceMode.GPU)
+        {
+          Logger.LogInfo(_TAG, "Initializing GPU resources...");
+          yield return GpuManager.Initialize();
+
+          if (!GpuManager.IsInitialized)
+          {
+            Logger.LogWarning("If your native library is built for CPU, change 'Preferable Inference Mode' to CPU from the Inspector Window for Bootstrap");
+          }
+        }
+
+        Logger.LogInfo(_TAG, "Preparing ImageSource...");
+        ImageSourceProvider.ImageSource = GetImageSource(_defaultImageSource);
+
+        _isInitialized = true;
+        isFinished = true;
       }
-
-      Logger.LogInfo(_TAG, "Preparing ImageSource...");
-      ImageSourceProvider.ImageSource = GetImageSource(_defaultImageSource);
-
-      isFinished = true;
+      finally
+      {
+        _isInitializing = false;
+      }
     }
 
     public ImageSource GetImageSource(ImageSourceType imageSourceType)
@@ -144,17 +179,62 @@ namespace Mediapipe.Unity
 #endif
     }
 
+    private void OnDestroy()
+    {
+      Cleanup();
+    }
+
     private void OnApplicationQuit()
     {
+      Cleanup();
+    }
+
+    private void Cleanup()
+    {
+      if (_hasCleanedUp || !_hasStartedInitialization)
+      {
+        return;
+      }
+
+      _hasCleanedUp = true;
+      _isInitializing = false;
+      _isInitialized = false;
+      isFinished = false;
+
       GpuManager.Shutdown();
 
       if (_isGlogInitialized)
       {
         Glog.Shutdown();
+        _IsGlogInitialized = false;
+        _isGlogInitialized = false;
       }
 
       Protobuf.ResetLogHandler();
       Logger.SetLogger(null);
+    }
+
+    private void TryInitializeGlog()
+    {
+      if (_SkipGlogInitialization)
+      {
+        _enableGlog = false;
+        return;
+      }
+
+      try
+      {
+        Glog.Initialize("MediaPipeUnityPlugin");
+        _IsGlogInitialized = true;
+        _isGlogInitialized = true;
+      }
+      catch (MediaPipeException e)
+      {
+        _enableGlog = false;
+        _isGlogInitialized = false;
+        _SkipGlogInitialization = true;
+        Logger.LogWarning(_TAG, $"Glog initialization failed, so continuing without glog: {e.Message}");
+      }
     }
   }
 }

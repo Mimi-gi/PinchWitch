@@ -9,25 +9,53 @@ public static class ShadowMathUtility
     public static List<Vector3> ProjectVerticesToPlane(Vector3 lightPos, Vector3[] worldVertices, Transform plane)
     {
         List<Vector3> projectedPoints = new List<Vector3>();
-        Vector3 planePos = plane.position;
-        Vector3 planeNormal = plane.up; // このシーンでは回転したPlaneの法線として使う
 
         foreach (Vector3 vertex in worldVertices)
         {
-            Vector3 rayDir = vertex - lightPos;
-            float denominator = Vector3.Dot(rayDir, planeNormal);
-
-            // 光が平面と平行、または裏側から当たっている場合は除外
-            if (denominator >= -Mathf.Epsilon) continue;
-
-            float t = Vector3.Dot(planePos - lightPos, planeNormal) / denominator;
-            if (t <= 0) continue; // 光源より後ろ
-
-            Vector3 projectedPos3D = lightPos + rayDir * t;
-            projectedPoints.Add(projectedPos3D);
+            if (TryProjectPointToPlane(lightPos, vertex, plane, out var projectedPos3D))
+            {
+                projectedPoints.Add(projectedPos3D);
+            }
         }
 
         return projectedPoints;
+    }
+
+    /// <summary>
+    /// 1頂点を点光源から平面へ投影する。
+    /// </summary>
+    public static bool TryProjectPointToPlane(
+        Vector3 lightPos,
+        Vector3 worldPoint,
+        Transform plane,
+        out Vector3 projectedWorldPoint)
+    {
+        projectedWorldPoint = default;
+
+        if (plane == null)
+        {
+            return false;
+        }
+
+        Vector3 planePos = plane.position;
+        Vector3 planeNormal = plane.up;
+        Vector3 rayDir = worldPoint - lightPos;
+        float denominator = Vector3.Dot(rayDir, planeNormal);
+
+        // 光が平面と平行、または裏側から当たっている場合は除外
+        if (denominator >= -Mathf.Epsilon)
+        {
+            return false;
+        }
+
+        float t = Vector3.Dot(planePos - lightPos, planeNormal) / denominator;
+        if (t <= 0f)
+        {
+            return false;
+        }
+
+        projectedWorldPoint = lightPos + rayDir * t;
+        return true;
     }
 
     /// <summary>
@@ -39,6 +67,36 @@ public static class ShadowMathUtility
 
         // UnityのPlaneはローカルXZ平面なので、XYとして使うためにx/zを抽出する
         return new Vector2(localPos.x, localPos.z);
+    }
+
+    /// <summary>
+    /// 三角形の3頂点を投影し、平面ローカルの2D三角形として返す。
+    /// </summary>
+    public static bool TryProjectTriangleToPlane2D(
+        Vector3 lightPos,
+        Vector3 worldVertex0,
+        Vector3 worldVertex1,
+        Vector3 worldVertex2,
+        Transform plane,
+        out Vector2[] projectedTriangle)
+    {
+        projectedTriangle = null;
+
+        if (!TryProjectPointToPlane(lightPos, worldVertex0, plane, out var projectedWorldVertex0)
+            || !TryProjectPointToPlane(lightPos, worldVertex1, plane, out var projectedWorldVertex1)
+            || !TryProjectPointToPlane(lightPos, worldVertex2, plane, out var projectedWorldVertex2))
+        {
+            return false;
+        }
+
+        projectedTriangle = new[]
+        {
+            WorldPointToPlane2D(projectedWorldVertex0, plane),
+            WorldPointToPlane2D(projectedWorldVertex1, plane),
+            WorldPointToPlane2D(projectedWorldVertex2, plane),
+        };
+
+        return true;
     }
 
     /// <summary>
@@ -80,5 +138,10 @@ public static class ShadowMathUtility
     private static float CrossProduct(Vector2 o, Vector2 a, Vector2 b)
     {
         return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+    }
+
+    public static float GetSignedTriangleArea(Vector2 a, Vector2 b, Vector2 c)
+    {
+        return CrossProduct(a, b, c) * 0.5f;
     }
 }
