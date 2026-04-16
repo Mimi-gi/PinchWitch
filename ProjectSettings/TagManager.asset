@@ -42,5 +42,14 @@ TagManager:
   - name: Default
     uniqueID: 0
     locked: 0
+  - name: Wall
+    uniqueID: 1505245355
+    locked: 0
+  - name: Goal
+    uniqueID: 1813673533
+    locked: 0
+  - name: Player
+    uniqueID: 2392248435
+    locked: 0
   m_RenderingLayers:
   - Default
