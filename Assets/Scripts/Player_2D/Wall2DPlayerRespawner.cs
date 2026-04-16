@@ -77,23 +77,16 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   [ContextMenu("Respawn 2D Player")]
   public void RespawnPlayer()
   {
-    if (!CanRespawnNow())
-    {
-      return;
-    }
+    // 常に初期位置からリスポーンするように変更
+    RespawnPlayerAtInitialPoint();
+  }
 
-    BeginRespawnGuard();
-
-    try
-    {
-      // 通常復帰は、最後に保存した位置を優先する。
-      SpawnPlayer(useSavedPosition: respawnFromLastKnownPosition && _hasSavedSpawnState, saveCurrentTransformBeforeReset: true);
-      ScheduleOverlapRecovery();
-    }
-    finally
-    {
-      EndRespawnGuard();
-    }
+  /// <summary>
+  /// 外部（視点切り替え等）からプレイヤーの物理挙動をまとめて制御する。
+  /// </summary>
+  public void SetPlayerGameplayEnabled(bool isEnabled)
+  {
+    SetSpawnedPlayer2DGameplayEnabled(isEnabled, keepPhysicsSimulationWhenDisabled: false, preserveCurrentMotion: false);
   }
 
   [ContextMenu("Respawn 2D Player At Initial Point")]
@@ -152,7 +145,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
       }
 
       RepositionExistingPlayer(useSavedPosition ? PlayerPlacementTarget.SavedPosition : PlayerPlacementTarget.InitialScenePlacement);
-      SetSpawnedPlayer2DGameplayEnabled(true);
+      ApplyInitialGameplayState();
       SetSpawnedPlayerVisible(true);
       ScheduleOverlapRecovery();
       return;
@@ -183,8 +176,29 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
     CacheSpawnedPlayerComponents(_spawnedPlayerInstance);
     SubscribeToSpawnedPlayerEvents();
-    SetSpawnedPlayer2DGameplayEnabled(true);
+    ApplyInitialGameplayState();
     SetSpawnedPlayerVisible(true);
+  }
+
+  private void ApplyInitialGameplayState()
+  {
+    // 生成・配置直後の物理状態を、現在の視点モード設定に合わせる。
+    var switcher = FindFirstObjectByType<SpaceViewModeSwitcher>();
+    if (switcher != null)
+    {
+      if (switcher.IsRealTimeMode)
+      {
+        SetSpawnedPlayer2DGameplayEnabled(true);
+      }
+      else
+      {
+        SetSpawnedPlayer2DGameplayEnabled(switcher.CurrentMode == SpaceViewMode.Wall2D);
+      }
+    }
+    else
+    {
+      SetSpawnedPlayer2DGameplayEnabled(true);
+    }
   }
 
   private void SpawnNewPlayerAtRespawnPoint()
@@ -499,7 +513,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   {
     if (_spawnedPlayerInstance != null)
     {
-      SetSpawnedPlayer2DGameplayEnabled(true);
+      ApplyInitialGameplayState();
       SetSpawnedPlayerVisible(true);
       ScheduleOverlapRecovery();
       return;

@@ -20,9 +20,11 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
   [Header("Startup")]
   [SerializeField] private SpaceViewMode initialMode = SpaceViewMode.World3D;
   [SerializeField] private bool switchAudioListeners = true;
+  [SerializeField] private bool isRealTimeMode = true;
 
   public event Action<SpaceViewMode> ModeChanged;
   public SpaceViewMode CurrentMode { get; private set; } = SpaceViewMode.World3D;
+  public bool IsRealTimeMode => isRealTimeMode;
   public int ResetOrder => -100;
 
   private void Reset()
@@ -84,9 +86,36 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
     ApplyCameraState(world3DCamera, isWorld3D);
     ApplyCameraState(wall2DCamera, !isWorld3D);
 
+    // 視点切り替えに合わせてプレイヤーの有効/無効を更新
+    UpdatePlayerMovementState();
+
     if (modeChanged)
     {
       ModeChanged?.Invoke(CurrentMode);
+    }
+  }
+
+  /// <summary>
+  /// プレイヤーが操作中であれば、現在のカメラモードと isRealTimeMode 設定に基づいて
+  /// 物理挙動のオンオフを再適用する。
+  /// </summary>
+  public void UpdatePlayerMovementState()
+  {
+    var respawner = FindFirstObjectByType<Wall2DPlayerRespawner>();
+    if (respawner == null)
+    {
+      return;
+    }
+
+    if (isRealTimeMode)
+    {
+      // リアルタイムモードなら、どちらの視点でも動き続けられるようにする。
+      respawner.SetPlayerGameplayEnabled(true);
+    }
+    else
+    {
+      // 切り替えモードなら、Wall2D (2D世界) の間だけ物理を有効にする。
+      respawner.SetPlayerGameplayEnabled(CurrentMode == SpaceViewMode.Wall2D);
     }
   }
 
