@@ -592,4 +592,9 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     _rigidbody2D.collisionDetectionMode = collisionDetectionMode;
     _rigidbody2D.interpolation = interpolationMode;
   }
+
+  public void MoveStop(){
+    moveSpeed = 0;
+    //_rigidbody2D.linearVelocity = Vector2.zero;
+  }
 }

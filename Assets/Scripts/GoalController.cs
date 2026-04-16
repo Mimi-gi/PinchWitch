@@ -19,7 +19,9 @@ public class GoalController : MonoBehaviour
         if(collision.CompareTag("Player")){
             Debug.Log("Goal!");
 
-            // UIManagerが見つかっていれば、直接描画処理を呼び出す！
+            Wall2DPlayerController playerController = collision.GetComponent<Wall2DPlayerController>();
+            playerController.MoveStop();
+            // UIManagerが見つかっていれば、ゲームクリアUIを表示する
             if (uiManager != null)
             {
                 uiManager.GameClear();
