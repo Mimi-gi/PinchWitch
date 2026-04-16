@@ -1551,7 +1551,7 @@ Canvas:
   m_AdditionalShaderChannelsFlag: 0
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0
-  m_SortingOrder: 100
+  m_SortingOrder: 1
   m_TargetDisplay: 0
 --- !u!1 &1416315074
 GameObject:
@@ -1587,10 +1587,10 @@ MonoBehaviour:
   _tutorialSceneName: Tutorial
   _loadingSceneName: Loading
   _stageScenePrefix: Stage_
-  _fadeCanvasGroup: {fileID: 53782068}
-  _fadeDuration: 0.3
   _isDebug: 1
   _debugStartStage: 1
+  _fadeCanvasGroup: {fileID: 53782068}
+  _fadeDuration: 0.3
 --- !u!4 &1416315076
 Transform:
   m_ObjectHideFlags: 0

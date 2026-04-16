@@ -6,7 +6,6 @@
 //              DontDestroyOnLoadで全シーンをまたいで生存する。
 //              シーン名はenumで管理し、必ずLoading経由で遷移する。
 //=============================================================
-
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -29,14 +28,12 @@ public class GameSceneManager : MonoBehaviour
   //=========================================================
   // シングルトン
   //=========================================================
-
   private static GameSceneManager _instance;
   public static GameSceneManager Instance => _instance;
 
   //=========================================================
-  // シーン名設定（Inspectorで変更可能、デフォルト値あり）
+  // シーン名設定
   //=========================================================
-
   [Header("シーン名設定")]
   [SerializeField] private string _titleSceneName = "Title";
   [SerializeField] private string _selectSceneName = "StageSelect";
@@ -49,7 +46,6 @@ public class GameSceneManager : MonoBehaviour
   //=========================================================
   // ステージ情報
   //=========================================================
-
   /// <summary>ステージ総数。ステージを追加したら変更すること。</summary>
   public static int TotalStageCount = 3;
 
@@ -62,26 +58,26 @@ public class GameSceneManager : MonoBehaviour
   //=========================================================
   // デバッグ設定
   //=========================================================
-
-  [Header("画面フェード")]
-  [SerializeField] private CanvasGroup _fadeCanvasGroup; // ← 追加
-  [SerializeField] private float _fadeDuration = 0.3f;   // ← 追加
-
   [Header("デバッグ設定")]
   [SerializeField] private bool _isDebug = false;
   [SerializeField] private int _debugStartStage = 1;
 
   //=========================================================
+  // フェード設定
+  //=========================================================
+  [Header("画面フェード")]
+  [SerializeField] private CanvasGroup _fadeCanvasGroup;
+  [SerializeField] private float _fadeDuration = 0.3f;
+
+  //=========================================================
   // 内部変数
   //=========================================================
-
   /// <summary>Loadingシーン経由で読み込む遷移先シーン名。</summary>
   private static string _pendingSceneName;
 
   //=========================================================
   // Unity イベント
   //=========================================================
-
   private void Awake()
   {
     if (_instance == null)
@@ -95,8 +91,6 @@ public class GameSceneManager : MonoBehaviour
         _fadeCanvasGroup.alpha = 0f;
       }
 
-
-      // 起動時にPlayerPrefsからクリア済みステージ数を読み込む
       ClearStageCount = PlayerPrefs.GetInt("ClearStageCount", 0);
 
       if (_isDebug)
@@ -113,7 +107,6 @@ public class GameSceneManager : MonoBehaviour
   //=========================================================
   // Public API（シーン遷移）
   //=========================================================
-
   /// <summary>タイトルシーンへ遷移する。</summary>
   public static void GoTitle()
   {
@@ -134,7 +127,6 @@ public class GameSceneManager : MonoBehaviour
 
   /// <summary>
   /// 指定したステージ番号のシーンへ遷移する（1始まり）。
-  /// シーン名は _stageScenePrefix + stageNum で決まる（例: Stage_1）。
   /// </summary>
   public static void GoStage(int stageNum)
   {
@@ -151,14 +143,11 @@ public class GameSceneManager : MonoBehaviour
 
   /// <summary>
   /// 次のステージへ遷移する。
-  /// クリア済みステージ数をPlayerPrefsに保存してからステージを進める。
   /// 最終ステージクリア時はステージセレクトへ戻る。
   /// </summary>
   public static void GoNextStage()
   {
     ClearStageCount = Mathf.Max(ClearStageCount, CurrentStageNum);
-
-    // クリア済みステージ数をPlayerPrefsに保存する
     PlayerPrefs.SetInt("ClearStageCount", ClearStageCount);
     PlayerPrefs.Save();
 
@@ -168,7 +157,7 @@ public class GameSceneManager : MonoBehaviour
     }
     else
     {
-      GoStageSelect(); // 全ステージクリア時はセレクトへ
+      GoStageSelect();
     }
   }
 
@@ -179,28 +168,64 @@ public class GameSceneManager : MonoBehaviour
   }
 
   //=========================================================
-  // Loading経由の遷移
+  // フェード
   //=========================================================
 
-  /// <summary>
-  /// 遷移先シーン名を記憶してからLoadingシーンへ飛ぶ。
-  /// 全シーン遷移はこのメソッドを経由する。
-  /// </summary>
+  /// <summary>フェードを即座に透明にする。Loadingシーン開始時に呼ぶ。</summary>
+  public void ClearFade()
+  {
+    if (_fadeCanvasGroup != null)
+    {
+      _fadeCanvasGroup.alpha = 0f;
+    }
+  }
+
+  /// <summary>フェードを即座に黒くする。次シーン遷移直前に呼ぶ。</summary>
+  public void FadeOut()
+  {
+    if (_fadeCanvasGroup != null)
+    {
+      _fadeCanvasGroup.alpha = 1f;
+    }
+  }
+
+  /// <summary>フェードイン（黒→透明）。呼び出し元でyield returnして使う。</summary>
+  public IEnumerator FadeIn()
+  {
+    Debug.Log("[GameSceneManager] FadeIn呼ばれた");
+    if (_fadeCanvasGroup == null)
+    {
+      Debug.LogWarning("[GameSceneManager] _fadeCanvasGroup が null！");
+      yield break;
+    }
+
+    _fadeCanvasGroup.alpha = 1f;
+    Debug.Log("[GameSceneManager] alpha = 1 にセット");
+    float elapsed = 0f;
+    while (elapsed < _fadeDuration)
+    {
+      elapsed += Time.deltaTime;
+      _fadeCanvasGroup.alpha = Mathf.Clamp01(1f - elapsed / _fadeDuration);
+      yield return null;
+    }
+    _fadeCanvasGroup.alpha = 0f;
+    Debug.Log("[GameSceneManager] FadeIn完了 alpha = 0");
+  }
+
+  //=========================================================
+  // Loading経由の遷移
+  //=========================================================
   private static void LoadViaLoading(string targetScene)
   {
-
-    Debug.Log($"[GameSceneManager] LoadViaLoading 呼ばれた: {targetScene}");
     _pendingSceneName = targetScene;
-    _instance.StartCoroutine(_instance.FadeAndLoad()); // ← 変更
+    _instance.StartCoroutine(_instance.FadeAndLoad());
   }
 
   private IEnumerator FadeAndLoad()
   {
-    Debug.Log("[GameSceneManager] FadeAndLoad 開始");
-
+    // フェードアウト
     if (_fadeCanvasGroup != null)
     {
-      Debug.Log("[GameSceneManager] フェード開始");
       _fadeCanvasGroup.alpha = 0f;
       float elapsed = 0f;
       while (elapsed < _fadeDuration)
@@ -209,33 +234,37 @@ public class GameSceneManager : MonoBehaviour
         _fadeCanvasGroup.alpha = Mathf.Clamp01(elapsed / _fadeDuration);
         yield return null;
       }
-      Debug.Log("[GameSceneManager] フェード完了");
-    }
-    else
-    {
-      Debug.LogWarning("[GameSceneManager] _fadeCanvasGroup が null！");
     }
 
-    Debug.Log($"[GameSceneManager] LoadScene 呼ぶ: {_instance._loadingSceneName}");
     SceneManager.LoadScene(_instance._loadingSceneName);
+  }
+
+
+  /// <summary>
+  /// シーン切り替え後にFadeInを実行する。
+  /// LoadingSceneControllerが破棄された後も動き続ける。
+  /// </summary>
+  public void StartFadeInAfterLoad()
+  {
+    StartCoroutine(FadeInAfterLoad());
+  }
+
+  private IEnumerator FadeInAfterLoad()
+  {
+    // シーン切り替わりを待つ
+    yield return null;
+    yield return null; // 念のため2フレーム待つ
+    Debug.Log("[GameSceneManager] シーン切り替え後FadeIn開始");
+    yield return StartCoroutine(FadeIn());
+    Debug.Log("[GameSceneManager] シーン切り替え後FadeIn完了");
   }
 
   /// <summary>
   /// Loadingシーンから呼ぶ。
-  /// 記憶しておいた遷移先シーンの非同期ロードを開始し、
-  /// AsyncOperationを返す。進捗管理は呼び出し側（LoadingSceneController）で行う。
+  /// 記憶しておいた遷移先シーンの非同期ロードを開始する。
   /// </summary>
   public static AsyncOperation StartPendingLoad()
   {
     return SceneManager.LoadSceneAsync(_pendingSceneName);
-  }
-
-  /// <summary>フェードパネルを即座に透明にする。</summary>
-  public void ClearFade()
-  {
-    if (_fadeCanvasGroup != null)
-    {
-      _fadeCanvasGroup.alpha = 0f;
-    }
   }
 }

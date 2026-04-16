@@ -36,12 +36,8 @@ public class LoadingSceneController : MonoBehaviour
   //=========================================================
   private void Awake()
   {
-    // ★ FindObjectOfType でシーン全体から探す（兄弟階層対応）
     _progressBar = GetComponentInChildren<Slider>();
     _curtain = FindObjectOfType<LoadingCurtainDirector>();
-
-    // デバッグログで取得確認
-    Debug.Log($"[Loading] _curtain: {(_curtain != null ? "取得OK" : "null！")}");
   }
 
   private void Start()
@@ -54,43 +50,52 @@ public class LoadingSceneController : MonoBehaviour
   //=========================================================
   private IEnumerator LoadRoutine()
   {
-    // フェードを即座に透明に戻す
-    GameSceneManager.Instance?.ClearFade();
-    Debug.Log("[Loading] ClearFade 呼び出し");
+    // ① Loadingシーン開幕：FadeAndLoadで黒くなったまま来るので透明に戻す
+    yield return StartCoroutine(GameSceneManager.Instance.FadeIn());
 
-    // 開幕カーテン演出
+    // ② カーテンが画面外から中央へゆっくり閉じる
     if (_curtain != null)
     {
-      Debug.Log("[Loading] PlayOpen 開始");
-      yield return StartCoroutine(_curtain.PlayOpen());
-      Debug.Log("[Loading] PlayOpen 完了");
-    }
-    else
-    {
-      Debug.LogWarning("[Loading] _curtain が null のため演出スキップ");
+      yield return StartCoroutine(_curtain.CurtainClose());
     }
 
+    // ③ バックグラウンドで次シーンの非同期ロード開始
     float elapsed = 0f;
     AsyncOperation op = GameSceneManager.StartPendingLoad();
-    op.allowSceneActivation = false;
-    Debug.Log("[Loading] 非同期ロード開始");
+    op.allowSceneActivation = false; // ロード完了しても即座に切り替えない
 
+    // ④ ロード完了 かつ 最低表示時間を超えるまでループ
     while (!op.isDone)
     {
       elapsed += Time.deltaTime;
+
+      // 進捗バーを更新（AsyncOperationの最大値は0.9）
       float progress = Mathf.Clamp01(op.progress / 0.9f);
       if (_progressBar != null) _progressBar.value = progress;
 
+      // ⑤ ロード完了 かつ 最低表示時間を超えたら遷移処理へ
       if (op.progress >= 0.9f && elapsed >= MinDisplayTime)
       {
+        // ⑥ カーテンが中央から画面外へぱっと開く（先に見せる）
         if (_curtain != null)
         {
-          Debug.Log("[Loading] PlayClose 開始");
-          yield return StartCoroutine(_curtain.PlayClose());
-          Debug.Log("[Loading] PlayClose 完了");
+          yield return StartCoroutine(_curtain.CurtainOpen());
         }
+
+        // ⑦ カーテンが開いた後にフェードアウト（素の状態を隠す）
+        GameSceneManager.Instance?.FadeOut();
+        yield return new WaitForSeconds(0.3f);
+
+        // ⑧ 次シーンへ切り替え許可
         op.allowSceneActivation = true;
+
+        // ⑨ シーン切り替え後のFadeInをGameSceneManager側に任せる
+        GameSceneManager.Instance.StartFadeInAfterLoad();
+
+        // ⑩ 処理終了
+        yield break;
       }
+
       yield return null;
     }
   }
