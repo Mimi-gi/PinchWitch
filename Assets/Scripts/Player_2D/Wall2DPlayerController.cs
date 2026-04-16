@@ -595,6 +595,6 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
   public void MoveStop(){
     moveSpeed = 0;
-    //_rigidbody2D.linearVelocity = Vector2.zero;
+    //  _rigidbody2D.linearVelocity = Vector2.zero;
   }
 }
