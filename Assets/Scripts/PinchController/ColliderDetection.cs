@@ -44,10 +44,17 @@ public sealed class ColliderDetection : MonoBehaviour
   }
 
   /// <summary>
-  /// 対象コライダーが検知レイヤーに含まれるかを判定する。
+  /// 対象コライダーが検知レイヤーに含まれるか、または特定のオブジェクトであるかを判定する。
   /// </summary>
   private bool IsInDetectionMask(Collider other)
   {
-    return (_detectionMask.value & (1 << other.gameObject.layer)) != 0;
+    // レイヤーマスクに含まれているかチェック
+    if ((_detectionMask.value & (1 << other.gameObject.layer)) != 0)
+    {
+      return true;
+    }
+
+    // オブジェクト名が "Plane" の場合も検知対象とする
+    return other.gameObject.name == "Plane";
   }
 }
