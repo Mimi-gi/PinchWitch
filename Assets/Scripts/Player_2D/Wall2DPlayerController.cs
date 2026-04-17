@@ -66,6 +66,18 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
   public event Action MovementStalled;
 
+  /// <summary>現在、面に接地しているかどうか。</summary>
+  public bool IsAttachedToSurface => _isAttachedToSurface;
+
+  /// <summary>moveSpeed が正の値であり、実際に移動しようとしているかどうか。</summary>
+  public bool IsMoving => moveSpeed > Mathf.Epsilon;
+
+  /// <summary>現在の接地面の法線ベクトル。非接地時は Vector2.up。</summary>
+  public Vector2 CurrentSurfaceNormal => _currentSurfaceNormal;
+
+  /// <summary>現在設定されている移動速度。</summary>
+  public float CurrentMoveSpeed => moveSpeed;
+
   private readonly RaycastHit2D[] _surfaceHits = new RaycastHit2D[16];
 
   private Rigidbody2D _rigidbody2D;
