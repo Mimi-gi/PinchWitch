@@ -126,13 +126,41 @@ public sealed class GrabInteractor
   // 手元の XZ 位置に最も近い掴める Rigidbody を見つけて grab を開始する。
   public void TryBeginGrab(Vector3 handTarget)
   {
+    if (_grabbedBody != null)
+    {
+      return;
+    }
+
     if (!TryGetNearestGrabbableBody(handTarget, out var nearestBody))
     {
       return;
     }
 
-    _grabbedBody = nearestBody;
-    _grabOffset = _grabbedBody.position - handTarget;
+    BeginGrab(nearestBody, handTarget);
+  }
+
+  // 指定した Rigidbody を指定位置基準で grab する。
+  public bool TryBeginGrab(Rigidbody targetBody, Vector3 grabTarget)
+  {
+    if (targetBody == null || _grabbedBody != null)
+    {
+      return false;
+    }
+
+    if ((_config.grabbableLayerMask.value & (1 << targetBody.gameObject.layer)) == 0)
+    {
+      return false;
+    }
+
+    BeginGrab(targetBody, grabTarget);
+    return true;
+  }
+
+  // 指定した Rigidbody の grab 開始処理を実行する。
+  private void BeginGrab(Rigidbody targetBody, Vector3 grabTarget)
+  {
+    _grabbedBody = targetBody;
+    _grabOffset = _grabbedBody.position - grabTarget;
     _grabOffset.y = 0f;
     _grabbedOriginalIsKinematic = _grabbedBody.isKinematic;
     _grabbedOriginalUseGravity = _grabbedBody.useGravity;
@@ -167,7 +195,7 @@ public sealed class GrabInteractor
   }
 
   // grab 中オブジェクトの目標位置を更新する。
-  public void UpdateGrabbedObject(Vector3 handTarget)
+  public void UpdateGrabbedObject(Vector3 handTarget, bool clampY = true)
   {
     if (_grabbedBody == null)
     {
@@ -175,7 +203,8 @@ public sealed class GrabInteractor
     }
 
     var tx = Mathf.Clamp(handTarget.x + _grabOffset.x, _config.xRange.x, _config.xRange.y);
-    var ty = Mathf.Clamp(handTarget.y + _grabOffset.y, _config.yRange.x, _config.yRange.y);
+    var rawY = handTarget.y + _grabOffset.y;
+    var ty = clampY ? Mathf.Clamp(rawY, _config.yRange.x, _config.yRange.y) : rawY;
     var tz = Mathf.Clamp(handTarget.z + _grabOffset.z, _config.zRange.x, _config.zRange.y);
     _desiredGrabPosition = new Vector3(tx, ty, tz);
     _hasDesiredGrabPosition = true;

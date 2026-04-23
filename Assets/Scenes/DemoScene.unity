@@ -943,6 +943,10 @@ MonoBehaviour:
   restoreUseGravityOnRelease: 0
   horizontalSensitivity: 2
   depthSensitivity: 1
+  enableMouseInput: 1
+  mouseCamera: {fileID: 0}
+  mouseLiftHeight: 5
+  mouseRaycastDistance: 100
   xSwipeRotationDegrees: 90
   ySwipeRotationDegrees: 90
   horizontalSwipeTriggerDistance: 0.18

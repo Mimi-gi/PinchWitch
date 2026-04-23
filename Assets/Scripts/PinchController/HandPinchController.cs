@@ -60,6 +60,16 @@ public class HandPinchController : MonoBehaviour
   // 手の前後移動をゲーム内 depth へ反映する感度。
   [SerializeField] private float depthSensitivity = 0.65f;
 
+  [Header("Mouse Input")]
+  // マウスによる grab 操作を有効にするかどうか。
+  [SerializeField] private bool enableMouseInput = true;
+  // マウス判定に使うカメラ。未指定なら worldCamera または Camera.main を使う。
+  [SerializeField] private Camera mouseCamera;
+  // マウスで掴んだときにオブジェクトを持ち上げる高さ。
+  [SerializeField] private float mouseLiftHeight = 2f;
+  // マウス Raycast の最大距離。
+  [SerializeField] private float mouseRaycastDistance = 100f;
+
   [Header("Rotation")]
   // 縦スワイプで発生させる X 軸回転量。
   [SerializeField] private float xSwipeRotationDegrees = 90f;
@@ -100,6 +110,10 @@ public class HandPinchController : MonoBehaviour
   private HandInteractionProcessor _handInteractionProcessor;
   // 前回適用済みの左右役割入れ替え設定。
   private bool _lastAppliedSwapLeftRightRoles;
+  // マウス Raycast の結果を受ける使い回しバッファ。
+  private readonly RaycastHit[] _mouseRaycastHits = new RaycastHit[32];
+  // 現在マウス操作で grab 中かどうか。
+  private bool _isMouseDragging;
 
   // Inspector 上の初期参照とデフォルト設定を補完する。
   private void Reset()
@@ -141,6 +155,7 @@ public class HandPinchController : MonoBehaviour
   private void OnDisable()
   {
     _mediaPipeReceiver?.Stop(this);
+    ResetMouseInteractionState();
     _handInteractionProcessor?.ResetInteractionState();
   }
 
@@ -148,6 +163,7 @@ public class HandPinchController : MonoBehaviour
   private void OnDestroy()
   {
     _mediaPipeReceiver?.Stop(this);
+    ResetMouseInteractionState();
     _handInteractionProcessor?.ResetInteractionState();
     _handCursorController?.Dispose();
     UnsubscribeFromGrabInteractor();
@@ -166,6 +182,12 @@ public class HandPinchController : MonoBehaviour
   {
     var handRoles = CreateHandRoleAssignment();
     _trackedHandStateStore?.Update(_mediaPipeReceiver);
+    if (ProcessMouseInteraction())
+    {
+      _rotationGestureDetector?.Reset();
+      return;
+    }
+
     UpdateMovementInteraction(handRoles);
     UpdateRotationInteraction(handRoles);
   }
@@ -356,6 +378,8 @@ public class HandPinchController : MonoBehaviour
     rearmStillnessDistance = Mathf.Clamp(rearmStillnessDistance, 0.001f, 0.08f);
     rearmStillnessDurationSeconds = Mathf.Clamp(rearmStillnessDurationSeconds, 0.02f, 1f);
     rotationDegreesPerSecond = Mathf.Clamp(rotationDegreesPerSecond, 1f, 720f);
+    mouseLiftHeight = Mathf.Max(0f, mouseLiftHeight);
+    mouseRaycastDistance = Mathf.Max(0.01f, mouseRaycastDistance);
   }
 
   // 現在の設定から左右の役割割り当てを生成する。
@@ -403,6 +427,251 @@ public class HandPinchController : MonoBehaviour
     _lastAppliedSwapLeftRightRoles = swapLeftRightRoles;
     _trackedHandStateStore?.ResetAll();
     _handInteractionProcessor?.ResetInteractionState();
+  }
+
+  // マウスによる grab 開始・追従・解放を処理する。
+  private bool ProcessMouseInteraction()
+  {
+    if (!enableMouseInput)
+    {
+      if (_isMouseDragging)
+      {
+        EndMouseGrab();
+      }
+
+      return false;
+    }
+
+    if (_grabInteractor == null)
+    {
+      _isMouseDragging = false;
+      return false;
+    }
+
+    if (_isMouseDragging)
+    {
+      if (Input.GetMouseButtonUp(0) || !Input.GetMouseButton(0))
+      {
+        EndMouseGrab();
+        return true;
+      }
+
+      UpdateMouseGrab();
+      return true;
+    }
+
+    if (TryGetMouseGrabbableBody(out var hoverBody, out _))
+    {
+      _outlineController?.ShowHover(hoverBody);
+      if (Input.GetMouseButtonDown(0))
+      {
+        TryBeginMouseGrab(hoverBody);
+      }
+
+      return true;
+    }
+
+    if (Input.GetMouseButtonDown(0))
+    {
+      _outlineController?.ClearCurrentOutline();
+    }
+
+    return false;
+  }
+
+  // マウスカーソル直下の掴める Rigidbody を選択して grab を開始する。
+  private void TryBeginMouseGrab(Rigidbody targetBody)
+  {
+    if (_grabInteractor.HasGrabbedBody || targetBody == null)
+    {
+      return;
+    }
+
+    if (!TryGetMouseGrabTarget(out var grabTarget))
+    {
+      grabTarget = new Vector3(targetBody.position.x, ResolveMouseLiftHeight(), targetBody.position.z);
+    }
+
+    if (!_grabInteractor.TryBeginGrab(targetBody, grabTarget))
+    {
+      return;
+    }
+
+    _grabInteractor.UpdateGrabbedObject(grabTarget, false);
+    _isMouseDragging = true;
+    UpdateMouseGrab();
+  }
+
+  // マウス位置から掴み中オブジェクトの目標位置を更新する。
+  private void UpdateMouseGrab()
+  {
+    if (!_grabInteractor.HasGrabbedBody)
+    {
+      _isMouseDragging = false;
+      return;
+    }
+
+    if (TryGetMouseGrabTarget(out var grabTarget))
+    {
+      _grabInteractor.UpdateGrabbedObject(grabTarget, false);
+    }
+
+    UpdateMouseGrabbedOutline();
+  }
+
+  // マウス grab を終了して物理挙動へ戻す。
+  private void EndMouseGrab()
+  {
+    _isMouseDragging = false;
+    _grabInteractor?.ReleaseGrabbedObject();
+    _outlineController?.ClearCurrentOutline();
+  }
+
+  // マウス操作の一時状態を破棄する。
+  private void ResetMouseInteractionState()
+  {
+    _isMouseDragging = false;
+  }
+
+  // マウスカーソル直下にある掴める Rigidbody を取得する。
+  private bool TryGetMouseGrabbableBody(out Rigidbody targetBody, out RaycastHit targetHit)
+  {
+    targetBody = null;
+    targetHit = default;
+    if (!TryGetMouseRay(out var ray))
+    {
+      return false;
+    }
+
+    var hitCount = Physics.RaycastNonAlloc(
+      ray,
+      _mouseRaycastHits,
+      mouseRaycastDistance,
+      ~0,
+      QueryTriggerInteraction.Ignore);
+    var nearestDistance = float.MaxValue;
+
+    for (var i = 0; i < hitCount; i++)
+    {
+      var hit = _mouseRaycastHits[i];
+      var body = ResolveGrabbableBody(hit.collider);
+      if (body == null || hit.distance >= nearestDistance)
+      {
+        continue;
+      }
+
+      nearestDistance = hit.distance;
+      targetBody = body;
+      targetHit = hit;
+    }
+
+    return targetBody != null;
+  }
+
+  // 現在のマウス位置を、床面基準の XZ と固定高さ Y の grab 目標へ変換する。
+  private bool TryGetMouseGrabTarget(out Vector3 grabTarget)
+  {
+    grabTarget = Vector3.zero;
+    if (!TryGetMouseRay(out var ray))
+    {
+      return false;
+    }
+
+    var dragPlane = new Plane(Vector3.up, new Vector3(0f, cursorPlaneY, 0f));
+    if (!dragPlane.Raycast(ray, out var distance) || distance < 0f)
+    {
+      return false;
+    }
+
+    var planePoint = ray.GetPoint(distance);
+    grabTarget = new Vector3(planePoint.x, ResolveMouseLiftHeight(), planePoint.z);
+    return true;
+  }
+
+  // マウス位置から Ray を作る。
+  private bool TryGetMouseRay(out Ray ray)
+  {
+    ray = default;
+    var inputCamera = ResolveMouseCamera();
+    if (inputCamera == null)
+    {
+      return false;
+    }
+
+    ray = inputCamera.ScreenPointToRay(Input.mousePosition);
+    return true;
+  }
+
+  // マウス入力に使うカメラを解決する。
+  private Camera ResolveMouseCamera()
+  {
+    if (mouseCamera != null && mouseCamera.enabled)
+    {
+      return mouseCamera;
+    }
+
+    if (worldCamera != null && worldCamera.enabled)
+    {
+      return worldCamera;
+    }
+
+    var mainCamera = Camera.main;
+    if (mainCamera != null && mainCamera.enabled)
+    {
+      return mainCamera;
+    }
+
+    var cameras = Camera.allCameras;
+    for (var i = 0; i < cameras.Length; i++)
+    {
+      if (cameras[i] != null && cameras[i].enabled)
+      {
+        return cameras[i];
+      }
+    }
+
+    return null;
+  }
+
+  // Collider から掴める Rigidbody を解決する。
+  private Rigidbody ResolveGrabbableBody(Collider targetCollider)
+  {
+    if (targetCollider == null)
+    {
+      return null;
+    }
+
+    var body = targetCollider.attachedRigidbody;
+    if (body == null)
+    {
+      return null;
+    }
+
+    return (grabbableLayerMask.value & (1 << body.gameObject.layer)) != 0 ? body : null;
+  }
+
+  // マウス操作中のアウトラインを更新する。
+  private void UpdateMouseGrabbedOutline()
+  {
+    if (_outlineController == null || !_grabInteractor.HasGrabbedBody)
+    {
+      return;
+    }
+
+    if (_grabInteractor.IsGrabbedObjectOverlapping)
+    {
+      _outlineController.ShowError(_grabInteractor.GrabbedBody);
+    }
+    else
+    {
+      _outlineController.ShowGrabbed(_grabInteractor.GrabbedBody);
+    }
+  }
+
+  // マウスで持ち上げる高さを返す。
+  private float ResolveMouseLiftHeight()
+  {
+    return Mathf.Max(0f, mouseLiftHeight);
   }
 
   // Vector2 の最小値と最大値の順序が逆なら入れ替える。
