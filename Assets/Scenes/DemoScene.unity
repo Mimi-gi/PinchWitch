@@ -740,6 +740,7 @@ GameObject:
   - component: {fileID: 275874972}
   - component: {fileID: 275874971}
   - component: {fileID: 275874976}
+  - component: {fileID: 275874977}
   m_Layer: 0
   m_Name: Solution
   m_TagString: Untagged
@@ -943,10 +944,6 @@ MonoBehaviour:
   restoreUseGravityOnRelease: 0
   horizontalSensitivity: 2
   depthSensitivity: 1
-  enableMouseInput: 1
-  mouseCamera: {fileID: 0}
-  mouseLiftHeight: 5
-  mouseRaycastDistance: 100
   xSwipeRotationDegrees: 90
   ySwipeRotationDegrees: 90
   horizontalSwipeTriggerDistance: 0.18
@@ -971,6 +968,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sceneName: DemoScene
   reloadKey: 114
+--- !u!114 &275874977
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 275874966}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 73c449877bc54512a65c6d528661f322, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MouseGrabInputController
+  handPinchController: {fileID: 275874975}
+  enableMouseInput: 1
+  mouseCamera: {fileID: 0}
+  mouseLiftHeight: 4
+  mouseRaycastDistance: 100
 --- !u!1001 &296605791
 PrefabInstance:
   m_ObjectHideFlags: 0
