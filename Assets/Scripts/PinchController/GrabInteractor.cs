@@ -195,17 +195,29 @@ public sealed class GrabInteractor
   }
 
   // grab 中オブジェクトの目標位置を更新する。
-  public void UpdateGrabbedObject(Vector3 handTarget, bool clampY = true)
+  public void UpdateGrabbedObject(Vector3 handTarget)
+  {
+    UpdateGrabbedObjectInternal(handTarget, true);
+  }
+
+  // grab 中オブジェクトの目標位置を、Y 制限なしで更新する。
+  public void UpdateGrabbedObjectUnclampedY(Vector3 grabTarget)
+  {
+    UpdateGrabbedObjectInternal(grabTarget, false);
+  }
+
+  // grab 中オブジェクトの目標位置更新を実行する。
+  private void UpdateGrabbedObjectInternal(Vector3 grabTarget, bool clampY)
   {
     if (_grabbedBody == null)
     {
       return;
     }
 
-    var tx = Mathf.Clamp(handTarget.x + _grabOffset.x, _config.xRange.x, _config.xRange.y);
-    var rawY = handTarget.y + _grabOffset.y;
+    var tx = Mathf.Clamp(grabTarget.x + _grabOffset.x, _config.xRange.x, _config.xRange.y);
+    var rawY = grabTarget.y + _grabOffset.y;
     var ty = clampY ? Mathf.Clamp(rawY, _config.yRange.x, _config.yRange.y) : rawY;
-    var tz = Mathf.Clamp(handTarget.z + _grabOffset.z, _config.zRange.x, _config.zRange.y);
+    var tz = Mathf.Clamp(grabTarget.z + _grabOffset.z, _config.zRange.x, _config.zRange.y);
     _desiredGrabPosition = new Vector3(tx, ty, tz);
     _hasDesiredGrabPosition = true;
   }
