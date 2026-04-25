@@ -17,8 +17,6 @@ public sealed class MouseGrabInputController : MonoBehaviour
   [SerializeField] private float mouseLiftHeight = 2f;
   // マウス Raycast の最大距離。
   [SerializeField] private float mouseRaycastDistance = 100f;
-  // ホイール 1 ステップあたりの回転量に掛ける倍率。
-  [SerializeField] private float mouseWheelRotationScale = 1f;
 
   private MouseGrabController _mouseGrabController;
   private GrabInputContext _grabInputContext;
@@ -119,7 +117,6 @@ public sealed class MouseGrabInputController : MonoBehaviour
       dragPlaneY = context.DragPlaneY,
       xRotationDegrees = context.XRotationDegrees,
       yRotationDegrees = context.YRotationDegrees,
-      wheelRotationScale = mouseWheelRotationScale,
     };
   }
 
@@ -136,6 +133,5 @@ public sealed class MouseGrabInputController : MonoBehaviour
   {
     mouseLiftHeight = Mathf.Max(0f, mouseLiftHeight);
     mouseRaycastDistance = Mathf.Max(0.01f, mouseRaycastDistance);
-    mouseWheelRotationScale = Mathf.Max(0f, mouseWheelRotationScale);
   }
 }
