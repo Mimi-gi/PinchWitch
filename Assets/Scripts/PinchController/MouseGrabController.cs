@@ -2,6 +2,12 @@ using UnityEngine;
 
 public sealed class MouseGrabController
 {
+  private enum RotationAxisMode
+  {
+    YAxis,
+    XAxis,
+  }
+
   public struct Config
   {
     // マウスによる grab 操作を有効にするかどうか。
@@ -18,6 +24,12 @@ public sealed class MouseGrabController
     public float raycastDistance;
     // マウス追従位置を求める基準平面の Y 座標。
     public float dragPlaneY;
+    // X 軸回転 1 回ぶんの角度。
+    public float xRotationDegrees;
+    // Y 軸回転 1 回ぶんの角度。
+    public float yRotationDegrees;
+    // ホイール入力に掛ける回転倍率。
+    public float wheelRotationScale;
   }
 
   // マウス Raycast の結果を受ける使い回しバッファ。
@@ -33,6 +45,8 @@ public sealed class MouseGrabController
   private Config _config;
   // 現在マウス操作で grab 中かどうか。
   private bool _isDragging;
+  // 現在選択中の回転軸。
+  private RotationAxisMode _rotationAxisMode = RotationAxisMode.YAxis;
 
   public MouseGrabController(GrabInteractor grabInteractor, OutlineController outlineController, GrabInputCoordinator inputCoordinator, Config config)
   {
@@ -71,6 +85,7 @@ public sealed class MouseGrabController
     {
       _isDragging = false;
       _inputCoordinator?.Release(GrabInputSource.Pointer);
+      _rotationAxisMode = RotationAxisMode.YAxis;
       return false;
     }
 
@@ -86,6 +101,8 @@ public sealed class MouseGrabController
 
     if (_isDragging)
     {
+      ProcessRotationInput();
+
       if (Input.GetMouseButtonUp(0) || !Input.GetMouseButton(0))
       {
         EndGrab();
@@ -126,6 +143,7 @@ public sealed class MouseGrabController
 
     _outlineController?.ClearCurrentOutline();
     _inputCoordinator?.Release(GrabInputSource.Pointer);
+    _rotationAxisMode = RotationAxisMode.YAxis;
   }
 
   // マウスカーソル直下の掴める Rigidbody を選択して grab を開始する。
@@ -154,6 +172,7 @@ public sealed class MouseGrabController
 
     _grabInteractor.UpdateGrabbedObjectUnclampedY(grabTarget);
     _isDragging = true;
+    _rotationAxisMode = RotationAxisMode.YAxis;
     UpdateGrab();
   }
 
@@ -163,6 +182,9 @@ public sealed class MouseGrabController
     if (!_grabInteractor.HasGrabbedBody)
     {
       _isDragging = false;
+      _outlineController?.ClearCurrentOutline();
+      _inputCoordinator?.Release(GrabInputSource.Pointer);
+      _rotationAxisMode = RotationAxisMode.YAxis;
       return;
     }
 
@@ -181,6 +203,58 @@ public sealed class MouseGrabController
     _grabInteractor?.ReleaseGrabbedObject();
     _outlineController?.ClearCurrentOutline();
     _inputCoordinator?.Release(GrabInputSource.Pointer);
+    _rotationAxisMode = RotationAxisMode.YAxis;
+  }
+
+  // ホイール回転と右クリックでの回転軸切り替えを処理する。
+  private void ProcessRotationInput()
+  {
+    if (_grabInteractor == null || !_grabInteractor.HasGrabbedBody)
+    {
+      return;
+    }
+
+    if (Input.GetMouseButtonDown(1))
+    {
+      ToggleRotationAxis();
+    }
+
+    var scrollDelta = Mathf.Clamp(Input.mouseScrollDelta.y, -1f, 1f);
+    if (Mathf.Abs(scrollDelta) <= Mathf.Epsilon)
+    {
+      return;
+    }
+
+    var wheelScale = Mathf.Max(0f, _config.wheelRotationScale);
+    if (wheelScale <= 0f)
+    {
+      return;
+    }
+
+    ResolveWheelRotation(scrollDelta * wheelScale, out var worldAxis, out var angleDegrees);
+    _grabInteractor.RotateGrabbedObject(worldAxis, angleDegrees);
+  }
+
+  // 現在の回転軸設定に基づいてホイール回転量を解決する。
+  private void ResolveWheelRotation(float scrollAmount, out Vector3 worldAxis, out float angleDegrees)
+  {
+    if (_rotationAxisMode == RotationAxisMode.XAxis)
+    {
+      worldAxis = Vector3.right;
+      angleDegrees = -scrollAmount * Mathf.Max(0f, _config.xRotationDegrees);
+      return;
+    }
+
+    worldAxis = Vector3.up;
+    angleDegrees = -scrollAmount * Mathf.Max(0f, _config.yRotationDegrees);
+  }
+
+  // 回転軸を Y 軸と X 軸で切り替える。
+  private void ToggleRotationAxis()
+  {
+    _rotationAxisMode = _rotationAxisMode == RotationAxisMode.YAxis
+      ? RotationAxisMode.XAxis
+      : RotationAxisMode.YAxis;
   }
 
   // マウスカーソル直下にある掴める Rigidbody を取得する。

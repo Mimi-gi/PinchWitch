@@ -289,7 +289,9 @@ public class HandPinchController : MonoBehaviour
       _grabInputCoordinator,
       worldCamera,
       grabbableLayerMask,
-      cursorPlaneY);
+      cursorPlaneY,
+      xSwipeRotationDegrees,
+      ySwipeRotationDegrees);
     return true;
   }
 

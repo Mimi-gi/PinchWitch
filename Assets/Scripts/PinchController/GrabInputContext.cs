@@ -14,6 +14,8 @@ public readonly struct GrabInputContext
   public readonly Camera FallbackWorldCamera;
   public readonly LayerMask GrabbableLayerMask;
   public readonly float DragPlaneY;
+  public readonly float XRotationDegrees;
+  public readonly float YRotationDegrees;
 
   public GrabInputContext(
     GrabInteractor grabInteractor,
@@ -21,7 +23,9 @@ public readonly struct GrabInputContext
     GrabInputCoordinator inputCoordinator,
     Camera fallbackWorldCamera,
     LayerMask grabbableLayerMask,
-    float dragPlaneY)
+    float dragPlaneY,
+    float xRotationDegrees,
+    float yRotationDegrees)
   {
     GrabInteractor = grabInteractor;
     OutlineController = outlineController;
@@ -29,6 +33,8 @@ public readonly struct GrabInputContext
     FallbackWorldCamera = fallbackWorldCamera;
     GrabbableLayerMask = grabbableLayerMask;
     DragPlaneY = dragPlaneY;
+    XRotationDegrees = xRotationDegrees;
+    YRotationDegrees = yRotationDegrees;
   }
 }
 
