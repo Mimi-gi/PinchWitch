@@ -126,13 +126,41 @@ public sealed class GrabInteractor
   // 手元の XZ 位置に最も近い掴める Rigidbody を見つけて grab を開始する。
   public void TryBeginGrab(Vector3 handTarget)
   {
+    if (_grabbedBody != null)
+    {
+      return;
+    }
+
     if (!TryGetNearestGrabbableBody(handTarget, out var nearestBody))
     {
       return;
     }
 
-    _grabbedBody = nearestBody;
-    _grabOffset = _grabbedBody.position - handTarget;
+    BeginGrab(nearestBody, handTarget);
+  }
+
+  // 指定した Rigidbody を指定位置基準で grab する。
+  public bool TryBeginGrab(Rigidbody targetBody, Vector3 grabTarget)
+  {
+    if (targetBody == null || _grabbedBody != null)
+    {
+      return false;
+    }
+
+    if ((_config.grabbableLayerMask.value & (1 << targetBody.gameObject.layer)) == 0)
+    {
+      return false;
+    }
+
+    BeginGrab(targetBody, grabTarget);
+    return true;
+  }
+
+  // 指定した Rigidbody の grab 開始処理を実行する。
+  private void BeginGrab(Rigidbody targetBody, Vector3 grabTarget)
+  {
+    _grabbedBody = targetBody;
+    _grabOffset = _grabbedBody.position - grabTarget;
     _grabOffset.y = 0f;
     _grabbedOriginalIsKinematic = _grabbedBody.isKinematic;
     _grabbedOriginalUseGravity = _grabbedBody.useGravity;
@@ -169,14 +197,27 @@ public sealed class GrabInteractor
   // grab 中オブジェクトの目標位置を更新する。
   public void UpdateGrabbedObject(Vector3 handTarget)
   {
+    UpdateGrabbedObjectInternal(handTarget, true);
+  }
+
+  // grab 中オブジェクトの目標位置を、Y 制限なしで更新する。
+  public void UpdateGrabbedObjectUnclampedY(Vector3 grabTarget)
+  {
+    UpdateGrabbedObjectInternal(grabTarget, false);
+  }
+
+  // grab 中オブジェクトの目標位置更新を実行する。
+  private void UpdateGrabbedObjectInternal(Vector3 grabTarget, bool clampY)
+  {
     if (_grabbedBody == null)
     {
       return;
     }
 
-    var tx = Mathf.Clamp(handTarget.x + _grabOffset.x, _config.xRange.x, _config.xRange.y);
-    var ty = Mathf.Clamp(handTarget.y + _grabOffset.y, _config.yRange.x, _config.yRange.y);
-    var tz = Mathf.Clamp(handTarget.z + _grabOffset.z, _config.zRange.x, _config.zRange.y);
+    var tx = Mathf.Clamp(grabTarget.x + _grabOffset.x, _config.xRange.x, _config.xRange.y);
+    var rawY = grabTarget.y + _grabOffset.y;
+    var ty = clampY ? Mathf.Clamp(rawY, _config.yRange.x, _config.yRange.y) : rawY;
+    var tz = Mathf.Clamp(grabTarget.z + _grabOffset.z, _config.zRange.x, _config.zRange.y);
     _desiredGrabPosition = new Vector3(tx, ty, tz);
     _hasDesiredGrabPosition = true;
   }

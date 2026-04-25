@@ -98,6 +98,8 @@ public class HandPinchController : MonoBehaviour
   private OutlineController _outlineController;
   // 実際の移動・回転操作をまとめる制御クラス。
   private HandInteractionProcessor _handInteractionProcessor;
+  // 複数入力が同時に grab を操作しないようにする共有制御。
+  private GrabInputCoordinator _grabInputCoordinator;
   // 前回適用済みの左右役割入れ替え設定。
   private bool _lastAppliedSwapLeftRightRoles;
 
@@ -142,6 +144,7 @@ public class HandPinchController : MonoBehaviour
   {
     _mediaPipeReceiver?.Stop(this);
     _handInteractionProcessor?.ResetInteractionState();
+    _grabInputCoordinator?.Release(GrabInputSource.Hand);
   }
 
   // 受信停止後に操作状態と生成リソースを破棄する。
@@ -149,6 +152,7 @@ public class HandPinchController : MonoBehaviour
   {
     _mediaPipeReceiver?.Stop(this);
     _handInteractionProcessor?.ResetInteractionState();
+    _grabInputCoordinator?.Release(GrabInputSource.Hand);
     _handCursorController?.Dispose();
     UnsubscribeFromGrabInteractor();
   }
@@ -166,7 +170,14 @@ public class HandPinchController : MonoBehaviour
   {
     var handRoles = CreateHandRoleAssignment();
     _trackedHandStateStore?.Update(_mediaPipeReceiver);
+    if (_grabInputCoordinator != null && _grabInputCoordinator.IsBlocked(GrabInputSource.Hand))
+    {
+      _rotationGestureDetector?.Reset();
+      return;
+    }
+
     UpdateMovementInteraction(handRoles);
+    UpdateHandInputClaim();
     UpdateRotationInteraction(handRoles);
   }
 
@@ -211,6 +222,7 @@ public class HandPinchController : MonoBehaviour
     _grabInteractor = new GrabInteractor(BuildGrabConfig());
     _rotationGestureDetector = new RotationGestureDetector(BuildRotationConfig());
     _outlineController = new OutlineController();
+    _grabInputCoordinator = new GrabInputCoordinator();
     _handInteractionProcessor = new HandInteractionProcessor(_handCursorController, _grabInteractor, _rotationGestureDetector, _outlineController, BuildInteractionConfig());
     SubscribeToGrabInteractor();
   }
@@ -260,6 +272,25 @@ public class HandPinchController : MonoBehaviour
   private void HandleGrabReleased(Rigidbody releasedBody)
   {
     GrabReleased?.Invoke(releasedBody);
+  }
+
+  // 他入力コンポーネントへ grab 操作に必要な共有依存を渡す。
+  public bool TryGetGrabInputContext(out GrabInputContext context)
+  {
+    context = default;
+    if (_grabInteractor == null || _outlineController == null || _grabInputCoordinator == null)
+    {
+      return false;
+    }
+
+    context = new GrabInputContext(
+      _grabInteractor,
+      _outlineController,
+      _grabInputCoordinator,
+      worldCamera,
+      grabbableLayerMask,
+      cursorPlaneY);
+    return true;
   }
 
   // Cursor 制御に渡す設定を構築する。
@@ -392,6 +423,24 @@ public class HandPinchController : MonoBehaviour
       handRoles);
   }
 
+  // hand 入力が grab 中なら共有制御を hand 側に保持する。
+  private void UpdateHandInputClaim()
+  {
+    if (_grabInputCoordinator == null)
+    {
+      return;
+    }
+
+    if (_grabInteractor != null && _grabInteractor.HasGrabbedBody)
+    {
+      _grabInputCoordinator.TryClaim(GrabInputSource.Hand);
+    }
+    else
+    {
+      _grabInputCoordinator.Release(GrabInputSource.Hand);
+    }
+  }
+
   // 左右役割の切り替えが変わったときに操作状態をリセットする。
   private void HandleRoleSwapChange()
   {
@@ -403,6 +452,7 @@ public class HandPinchController : MonoBehaviour
     _lastAppliedSwapLeftRightRoles = swapLeftRightRoles;
     _trackedHandStateStore?.ResetAll();
     _handInteractionProcessor?.ResetInteractionState();
+    _grabInputCoordinator?.Release(GrabInputSource.Hand);
   }
 
   // Vector2 の最小値と最大値の順序が逆なら入れ替える。
