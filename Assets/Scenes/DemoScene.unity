@@ -498,6 +498,9 @@ MonoBehaviour:
   initialMode: 0
   switchAudioListeners: 1
   isRealTimeMode: 1
+  requireGoodGestureToStartRealTime: 1
+  handPinchController: {fileID: 275874975}
+  goodGestureHoldSeconds: 1
 --- !u!4 &222675969
 Transform:
   m_ObjectHideFlags: 0

@@ -22,10 +22,22 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
   [SerializeField] private bool switchAudioListeners = true;
   [SerializeField] private bool isRealTimeMode = true;
 
+  [Header("Realtime Start Gesture")]
+  [SerializeField] private bool requireGoodGestureToStartRealTime = true;
+  [SerializeField] private HandPinchController handPinchController;
+  [SerializeField] private float goodGestureHoldSeconds = 2f;
+
   public event Action<SpaceViewMode> ModeChanged;
   public SpaceViewMode CurrentMode { get; private set; } = SpaceViewMode.World3D;
   public bool IsRealTimeMode => isRealTimeMode;
+  public bool IsRealTimeGameplayStarted => !IsRealTimeStartGestureRequired() || _realTimeGameplayStarted;
+  public bool ShouldEnablePlayerGameplay => isRealTimeMode
+    ? IsRealTimeGameplayStarted
+    : CurrentMode == SpaceViewMode.Wall2D;
   public int ResetOrder => -100;
+
+  private bool _realTimeGameplayStarted;
+  private float _goodGestureHeldSeconds;
 
   private void Reset()
   {
@@ -35,6 +47,7 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
   private void Awake()
   {
     AutoAssignMissingReferences();
+    ResetRealTimeStartGate();
     SetMode(initialMode);
   }
 
@@ -53,12 +66,17 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
 
   private void Update()
   {
-    if (!Application.isPlaying || !Input.GetKeyDown(toggleKey))
+    if (!Application.isPlaying)
     {
       return;
     }
 
-    ToggleView();
+    UpdateRealTimeStartGesture();
+
+    if (Input.GetKeyDown(toggleKey))
+    {
+      ToggleView();
+    }
   }
 
   public void ToggleView()
@@ -107,16 +125,7 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
       return;
     }
 
-    if (isRealTimeMode)
-    {
-      // リアルタイムモードなら、どちらの視点でも動き続けられるようにする。
-      respawner.SetPlayerGameplayEnabled(true);
-    }
-    else
-    {
-      // 切り替えモードなら、Wall2D (2D世界) の間だけ物理を有効にする。
-      respawner.SetPlayerGameplayEnabled(CurrentMode == SpaceViewMode.Wall2D);
-    }
+    respawner.SetPlayerGameplayEnabled(ShouldEnablePlayerGameplay);
   }
 
   /// <summary>
@@ -124,6 +133,7 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
   /// </summary>
   public void ResetRuntimeState()
   {
+    ResetRealTimeStartGate();
     SetMode(initialMode);
   }
 
@@ -145,6 +155,11 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
           break;
         }
       }
+    }
+
+    if (handPinchController == null)
+    {
+      handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
     }
   }
 
@@ -186,5 +201,49 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
     {
       wall2DCamera = null;
     }
+
+    goodGestureHoldSeconds = Mathf.Max(0f, goodGestureHoldSeconds);
+  }
+
+  private bool IsRealTimeStartGestureRequired()
+  {
+    return isRealTimeMode && requireGoodGestureToStartRealTime;
+  }
+
+  private void ResetRealTimeStartGate()
+  {
+    _realTimeGameplayStarted = !IsRealTimeStartGestureRequired();
+    _goodGestureHeldSeconds = 0f;
+  }
+
+  private void UpdateRealTimeStartGesture()
+  {
+    if (IsRealTimeGameplayStarted || !IsRealTimeStartGestureRequired())
+    {
+      return;
+    }
+
+    if (handPinchController == null)
+    {
+      handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
+    }
+
+    if (handPinchController != null && handPinchController.IsLeftGoodGestureDetected())
+    {
+      _goodGestureHeldSeconds += Time.unscaledDeltaTime;
+    }
+    else
+    {
+      _goodGestureHeldSeconds = 0f;
+    }
+
+    if (_goodGestureHeldSeconds < goodGestureHoldSeconds)
+    {
+      return;
+    }
+
+    _realTimeGameplayStarted = true;
+    _goodGestureHeldSeconds = 0f;
+    UpdatePlayerMovementState();
   }
 }

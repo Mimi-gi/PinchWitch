@@ -100,6 +100,8 @@ public class HandPinchController : MonoBehaviour
   private OutlineController _outlineController;
   // 実際の移動・回転操作をまとめる制御クラス。
   private HandInteractionProcessor _handInteractionProcessor;
+  // MediaPipe ランドマークからグッドジェスチャーを判定する制御クラス。
+  private GoodGestureDetector _goodGestureDetector;
   // 複数入力が同時に grab を操作しないようにする共有制御。
   private GrabInputCoordinator _grabInputCoordinator;
   // 前回適用済みの左右役割入れ替え設定。
@@ -222,6 +224,7 @@ public class HandPinchController : MonoBehaviour
     _grabInteractor = new GrabInteractor(BuildGrabConfig());
     _rotationGestureDetector = new RotationGestureDetector(BuildRotationConfig());
     _outlineController = new OutlineController();
+    _goodGestureDetector = new GoodGestureDetector();
     _grabInputCoordinator = new GrabInputCoordinator();
     _handInteractionProcessor = new HandInteractionProcessor(_handCursorController, _grabInteractor, _rotationGestureDetector, _outlineController, BuildInteractionConfig());
     SubscribeToGrabInteractor();
@@ -293,6 +296,13 @@ public class HandPinchController : MonoBehaviour
       xSwipeRotationDegrees,
       ySwipeRotationDegrees);
     return true;
+  }
+
+  public bool IsLeftGoodGestureDetected()
+  {
+    return isActiveAndEnabled
+           && _goodGestureDetector != null
+           && _goodGestureDetector.IsDetected(_mediaPipeReceiver, MediaPipeReceiver.TrackedHandType.Left);
   }
 
   // Cursor 制御に渡す設定を構築する。
