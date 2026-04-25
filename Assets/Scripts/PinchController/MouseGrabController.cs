@@ -378,7 +378,7 @@ public sealed class MouseGrabController
       return null;
     }
 
-    return (_config.grabbableLayerMask.value & (1 << body.gameObject.layer)) != 0 ? body : null;
+    return _grabInteractor != null && _grabInteractor.CanGrabBody(body) ? body : null;
   }
 
   // マウス操作中のアウトラインを更新する。

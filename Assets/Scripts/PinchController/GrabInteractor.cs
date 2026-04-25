@@ -100,6 +100,22 @@ public sealed class GrabInteractor
     _config = config;
   }
 
+  // 指定した Rigidbody が現在 grab / hover 対象として扱えるかどうかを返す。
+  public bool CanGrabBody(Rigidbody targetBody)
+  {
+    if (targetBody == null)
+    {
+      return false;
+    }
+
+    if ((_config.grabbableLayerMask.value & (1 << targetBody.gameObject.layer)) == 0)
+    {
+      return false;
+    }
+
+    return !IsInVerticalDrop(targetBody);
+  }
+
   // 指定した手元の XZ 位置に最も近い、掴める Rigidbody を検索して取得する。
   public bool TryGetNearestGrabbableBody(Vector3 handTarget, out Rigidbody nearestBody)
   {
@@ -120,15 +136,7 @@ public sealed class GrabInteractor
       }
 
       var body = collider.attachedRigidbody;
-      if (body == null)
-      {
-        continue;
-      }
-      if ((_config.grabbableLayerMask.value & (1 << body.gameObject.layer)) == 0)
-      {
-        continue;
-      }
-      if (IsInVerticalDrop(body))
+      if (!CanGrabBody(body))
       {
         continue;
       }
@@ -168,16 +176,7 @@ public sealed class GrabInteractor
   // 指定した Rigidbody を指定位置基準で grab する。
   public bool TryBeginGrab(Rigidbody targetBody, Vector3 grabTarget)
   {
-    if (targetBody == null || _grabbedBody != null)
-    {
-      return false;
-    }
-
-    if ((_config.grabbableLayerMask.value & (1 << targetBody.gameObject.layer)) == 0)
-    {
-      return false;
-    }
-    if (IsInVerticalDrop(targetBody))
+    if (_grabbedBody != null || !CanGrabBody(targetBody))
     {
       return false;
     }
@@ -336,6 +335,16 @@ public sealed class GrabInteractor
     _grabbedBody = null;
     _hasDesiredGrabPosition = false;
     GrabReleased?.Invoke(releasedBody);
+  }
+
+  // lifecycle 停止時など、FixedTick が継続しない状況で落下中状態を即座に完了させる。
+  public void ForceFinishVerticalDrops()
+  {
+    for (var i = _verticalDropStates.Count - 1; i >= 0; i--)
+    {
+      FinishVerticalDrop(_verticalDropStates[i]);
+      _verticalDropStates.RemoveAt(i);
+    }
   }
 
   // 真下に落とす途中の Rigidbody を更新する。

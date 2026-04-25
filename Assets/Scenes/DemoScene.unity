@@ -937,6 +937,7 @@ MonoBehaviour:
   reach: 2.3
   grabReacquireCooldownSeconds: 0.12
   grabReopenConfirmSeconds: 0.08
+  pinchReleaseGraceSeconds: 0.12
   xRange: {x: -6, y: 6}
   yRange: {x: 0, y: 4.5}
   zRange: {x: -4.5, y: 2}
@@ -985,7 +986,6 @@ MonoBehaviour:
   mouseCamera: {fileID: 0}
   mouseLiftHeight: 4
   mouseRaycastDistance: 100
-  mouseWheelRotationScale: 1
 --- !u!1001 &296605791
 PrefabInstance:
   m_ObjectHideFlags: 0

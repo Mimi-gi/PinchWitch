@@ -283,10 +283,12 @@ public sealed class HandCursorController
     return Mathf.Clamp01(0.5f + ((clampedValue - 0.5f) * sensitivity));
   }
 
-  // 前後全域で均一に反応させるため、depth は線形のまま使う。
-  private static float ApplyDepthSensitivityFromFront(float normalizedDepth, float _depthSensitivity)
+  // 前後移動の中心を保ったまま、Inspector の depth 感度で反応量を調整する。
+  private static float ApplyDepthSensitivityFromFront(float normalizedDepth, float depthSensitivity)
   {
-    return Mathf.Clamp01(normalizedDepth);
+    var clampedDepth = Mathf.Clamp01(normalizedDepth);
+    var safeSensitivity = Mathf.Max(0f, depthSensitivity);
+    return Mathf.Clamp01(0.5f + ((clampedDepth - 0.5f) * safeSensitivity));
   }
 
   // `HandState.depth` は見た目の手前/奥で表現されるため、

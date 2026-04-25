@@ -145,16 +145,14 @@ public class HandPinchController : MonoBehaviour
   private void OnDisable()
   {
     _mediaPipeReceiver?.Stop(this);
-    _handInteractionProcessor?.ResetInteractionState();
-    _grabInputCoordinator?.Release(GrabInputSource.Hand);
+    ResetInteractionStateForControllerShutdown();
   }
 
   // 受信停止後に操作状態と生成リソースを破棄する。
   private void OnDestroy()
   {
     _mediaPipeReceiver?.Stop(this);
-    _handInteractionProcessor?.ResetInteractionState();
-    _grabInputCoordinator?.Release(GrabInputSource.Hand);
+    ResetInteractionStateForControllerShutdown();
     _handCursorController?.Dispose();
     UnsubscribeFromGrabInteractor();
   }
@@ -280,7 +278,7 @@ public class HandPinchController : MonoBehaviour
   public bool TryGetGrabInputContext(out GrabInputContext context)
   {
     context = default;
-    if (_grabInteractor == null || _outlineController == null || _grabInputCoordinator == null)
+    if (!isActiveAndEnabled || _grabInteractor == null || _outlineController == null || _grabInputCoordinator == null)
     {
       return false;
     }
@@ -458,6 +456,14 @@ public class HandPinchController : MonoBehaviour
     _lastAppliedSwapLeftRightRoles = swapLeftRightRoles;
     _trackedHandStateStore?.ResetAll();
     _handInteractionProcessor?.ResetInteractionState();
+    _grabInputCoordinator?.Release(GrabInputSource.Hand);
+  }
+
+  // FixedUpdate が止まる前に、一時的な grab / drop 状態を復元可能な状態へ畳む。
+  private void ResetInteractionStateForControllerShutdown()
+  {
+    _handInteractionProcessor?.ResetInteractionState();
+    _grabInteractor?.ForceFinishVerticalDrops();
     _grabInputCoordinator?.Release(GrabInputSource.Hand);
   }
 
