@@ -128,6 +128,10 @@ public sealed class GrabInteractor
       {
         continue;
       }
+      if (IsInVerticalDrop(body))
+      {
+        continue;
+      }
 
       var closestPoint = collider.ClosestPoint(handTarget);
       var horizontalDistanceX = closestPoint.x - handTarget.x;
@@ -170,6 +174,10 @@ public sealed class GrabInteractor
     }
 
     if ((_config.grabbableLayerMask.value & (1 << targetBody.gameObject.layer)) == 0)
+    {
+      return false;
+    }
+    if (IsInVerticalDrop(targetBody))
     {
       return false;
     }
@@ -401,6 +409,25 @@ public sealed class GrabInteractor
       _verticalDropStates.RemoveAt(i);
       return;
     }
+  }
+
+  // 真下落下フェーズ中の Rigidbody かどうかを返す。
+  private bool IsInVerticalDrop(Rigidbody targetBody)
+  {
+    if (targetBody == null)
+    {
+      return false;
+    }
+
+    for (var i = 0; i < _verticalDropStates.Count; i++)
+    {
+      if (_verticalDropStates[i].body == targetBody)
+      {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   // 真下落下中は X/Z を固定し、横方向の速度を打ち消す。
