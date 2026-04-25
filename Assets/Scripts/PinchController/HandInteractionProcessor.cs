@@ -8,6 +8,8 @@ public sealed class HandInteractionProcessor
     public float grabReacquireCooldownSeconds;
     // 再掴みを許可する前に、指を開いたまま確認する時間。
     public float grabReopenConfirmSeconds;
+    // pinch が一瞬切れても掴みを維持する猶予時間。
+    public float pinchReleaseGraceSeconds;
   }
 
   // 手カーソルの表示と手ターゲット計算を担当する依存。
@@ -31,6 +33,12 @@ public sealed class HandInteractionProcessor
   private float _grabReopenStartedAt = float.PositiveInfinity;
   // 回転完了後に release する保留状態かどうか。
   private bool _releasePendingAfterRotation;
+  // pinch が途切れたと判断した時刻。
+  private float _pinchLostStartedAt = float.PositiveInfinity;
+  // 最後に安定していた手ターゲットを保持しているかどうか。
+  private bool _hasLastStableHandTarget;
+  // 誤検知中に維持する最後の安定ターゲット。
+  private Vector3 _lastStableHandTarget;
 
   // 操作実行に使う各責務クラスを受け取って初期化する。
   public HandInteractionProcessor(HandCursorController handCursorController, GrabInteractor grabInteractor, RotationGestureDetector rotationGestureDetector, OutlineController outlineController, Config config)
@@ -66,8 +74,7 @@ public sealed class HandInteractionProcessor
     if (!movementHandState.detected
         || !_handCursorController.TryUpdateCursor(movementHandState, out var handTarget))
     {
-      HandleUnavailableMovementInteraction();
-      return false;
+      return HandleUnavailableMovementInteraction();
     }
 
     // depth キャリブレーション完了までは grab 判定に使う pinch を無効化する。
@@ -75,34 +82,21 @@ public sealed class HandInteractionProcessor
     UpdateGrabRearmState(interactionPinch);
     UpdateDeferredRelease(interactionPinch);
     var pinchStarted = interactionPinch && !_prevPinch;
-    var pinchEnded = !interactionPinch && _prevPinch;
     var canBeginGrab = !_requiresGrabRearm && Time.unscaledTime >= _nextGrabAllowedTime;
     _prevPinch = interactionPinch;
 
     if (pinchStarted && canBeginGrab && !_grabInteractor.HasGrabbedBody)
     {
       _grabInteractor.TryBeginGrab(handTarget);
-    }
-
-    if (_grabInteractor.HasGrabbedBody && interactionPinch)
-    {
-      _grabInteractor.UpdateGrabbedObject(handTarget);
-    }
-
-    if (pinchEnded)
-    {
-      _rotationGestureDetector?.Reset();
       if (_grabInteractor.HasGrabbedBody)
       {
-        if (_grabInteractor.IsGrabbedObjectRotating)
-        {
-          _releasePendingAfterRotation = true;
-        }
-        else
-        {
-          ReleaseGrabbedBody();
-        }
+        RememberStableHandTarget(handTarget);
       }
+    }
+
+    if (_grabInteractor.HasGrabbedBody)
+    {
+      ProcessGrabbedMovementInteraction(interactionPinch, handTarget);
     }
 
     UpdateOutlineFeedback(handTarget);
@@ -149,10 +143,11 @@ public sealed class HandInteractionProcessor
     _requiresGrabRearm = false;
     _grabReopenStartedAt = float.PositiveInfinity;
     _releasePendingAfterRotation = false;
+    ResetPinchReleaseTracking();
   }
 
   // hand が一時的に取れなくても、回転完了待ちの release は維持する。
-  private void HandleUnavailableMovementInteraction()
+  private bool HandleUnavailableMovementInteraction()
   {
     _handCursorController?.HideCursor();
     _rotationGestureDetector?.Reset();
@@ -162,10 +157,24 @@ public sealed class HandInteractionProcessor
     {
       UpdateDeferredRelease(false);
       UpdateGrabbedOutlineFeedback();
-      return;
+      return _grabInteractor != null && _grabInteractor.HasGrabbedBody;
+    }
+
+    if (_grabInteractor != null && _grabInteractor.HasGrabbedBody)
+    {
+      if (TryKeepGrabDuringTransientPinchLoss())
+      {
+        UpdateGrabbedOutlineFeedback();
+        return true;
+      }
+
+      StartReleaseFromCurrentGrab();
+      UpdateGrabbedOutlineFeedback();
+      return _grabInteractor.HasGrabbedBody;
     }
 
     ResetInteractionState();
+    return false;
   }
 
   // 回転完了待ちの release を更新する。
@@ -179,12 +188,14 @@ public sealed class HandInteractionProcessor
     if (interactionPinch)
     {
       _releasePendingAfterRotation = false;
+      ClearPinchLostTimer();
       return;
     }
 
     if (_grabInteractor == null || !_grabInteractor.HasGrabbedBody)
     {
       _releasePendingAfterRotation = false;
+      ResetPinchReleaseTracking();
       return;
     }
 
@@ -202,11 +213,13 @@ public sealed class HandInteractionProcessor
     if (_grabInteractor == null)
     {
       _releasePendingAfterRotation = false;
+      ResetPinchReleaseTracking();
       return;
     }
 
     var hadGrabbedBody = _grabInteractor.HasGrabbedBody;
     _releasePendingAfterRotation = false;
+    ResetPinchReleaseTracking();
     _grabInteractor.ReleaseGrabbedObject();
     _rotationGestureDetector?.Reset();
     if (!hadGrabbedBody)
@@ -217,6 +230,100 @@ public sealed class HandInteractionProcessor
     _nextGrabAllowedTime = Time.unscaledTime + _config.grabReacquireCooldownSeconds;
     _requiresGrabRearm = true;
     _grabReopenStartedAt = Time.unscaledTime;
+  }
+
+  // grab 中は短時間の誤検知で release せず、最後の安定位置を維持する。
+  private void ProcessGrabbedMovementInteraction(bool interactionPinch, Vector3 handTarget)
+  {
+    if (_grabInteractor == null || !_grabInteractor.HasGrabbedBody)
+    {
+      return;
+    }
+
+    if (_releasePendingAfterRotation)
+    {
+      return;
+    }
+
+    if (interactionPinch)
+    {
+      RememberStableHandTarget(handTarget);
+      _grabInteractor.UpdateGrabbedObject(handTarget);
+      return;
+    }
+
+    _rotationGestureDetector?.Reset();
+    if (TryKeepGrabDuringTransientPinchLoss())
+    {
+      return;
+    }
+
+    StartReleaseFromCurrentGrab();
+  }
+
+  // 現在の grab を release するか、回転完了待ち release へ切り替える。
+  private void StartReleaseFromCurrentGrab()
+  {
+    if (_grabInteractor == null || !_grabInteractor.HasGrabbedBody)
+    {
+      ResetPinchReleaseTracking();
+      return;
+    }
+
+    if (_grabInteractor.IsGrabbedObjectRotating)
+    {
+      _releasePendingAfterRotation = true;
+      return;
+    }
+
+    ReleaseGrabbedBody();
+  }
+
+  // 短時間の pinch 瞬断中は最後の安定ターゲットで grab を維持する。
+  private bool TryKeepGrabDuringTransientPinchLoss()
+  {
+    if (_grabInteractor == null
+        || !_grabInteractor.HasGrabbedBody
+        || !_hasLastStableHandTarget
+        || _config.pinchReleaseGraceSeconds <= 0f)
+    {
+      return false;
+    }
+
+    if (float.IsPositiveInfinity(_pinchLostStartedAt))
+    {
+      _pinchLostStartedAt = Time.unscaledTime;
+    }
+
+    if (Time.unscaledTime - _pinchLostStartedAt > _config.pinchReleaseGraceSeconds)
+    {
+      return false;
+    }
+
+    _grabInteractor.UpdateGrabbedObject(_lastStableHandTarget);
+    return true;
+  }
+
+  // 安定して pinch 中だったターゲットを記録し、誤検知用タイマーを戻す。
+  private void RememberStableHandTarget(Vector3 handTarget)
+  {
+    _lastStableHandTarget = handTarget;
+    _hasLastStableHandTarget = true;
+    ClearPinchLostTimer();
+  }
+
+  // pinch 瞬断の経過時間だけをリセットする。
+  private void ClearPinchLostTimer()
+  {
+    _pinchLostStartedAt = float.PositiveInfinity;
+  }
+
+  // pinch 瞬断対策の保持状態をまとめて破棄する。
+  private void ResetPinchReleaseTracking()
+  {
+    _pinchLostStartedAt = float.PositiveInfinity;
+    _hasLastStableHandTarget = false;
+    _lastStableHandTarget = Vector3.zero;
   }
 
   // 再掴み前に「指をしっかり開いた」ことを確認する状態を更新する。

@@ -40,6 +40,8 @@ public class HandPinchController : MonoBehaviour
   [SerializeField] private float grabReacquireCooldownSeconds = 0.12f;
   // 再掴み前に、指を開いたまま確認する時間。
   [SerializeField] private float grabReopenConfirmSeconds = 0.08f;
+  // pinch が一瞬切れても掴みを維持する猶予時間。
+  [SerializeField] private float pinchReleaseGraceSeconds = 0.12f;
   // 掴み対象やカーソルが動ける X 範囲。
   [SerializeField] private Vector2 xRange = new Vector2(-4.5f, 4.5f);
   // 掴み対象やカーソルが動ける Y 範囲。
@@ -353,6 +355,7 @@ public class HandPinchController : MonoBehaviour
     {
       grabReacquireCooldownSeconds = grabReacquireCooldownSeconds,
       grabReopenConfirmSeconds = grabReopenConfirmSeconds,
+      pinchReleaseGraceSeconds = pinchReleaseGraceSeconds,
     };
   }
 
@@ -377,6 +380,7 @@ public class HandPinchController : MonoBehaviour
     reach = Mathf.Max(0f, reach);
     grabReacquireCooldownSeconds = Mathf.Clamp(grabReacquireCooldownSeconds, 0f, 0.5f);
     grabReopenConfirmSeconds = Mathf.Clamp(grabReopenConfirmSeconds, 0f, 0.5f);
+    pinchReleaseGraceSeconds = Mathf.Clamp(pinchReleaseGraceSeconds, 0f, 0.5f);
     handLostTimeoutSeconds = Mathf.Max(0.01f, handLostTimeoutSeconds);
     horizontalSensitivity = Mathf.Clamp(horizontalSensitivity, 0.1f, 2f);
     depthSensitivity = Mathf.Clamp(depthSensitivity, 0.1f, 4f);
