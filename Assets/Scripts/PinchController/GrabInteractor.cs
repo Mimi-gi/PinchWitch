@@ -1,8 +1,25 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 public sealed class GrabInteractor
 {
+  private sealed class VerticalDropState
+  {
+    public Rigidbody body;
+    public Vector3 lockedPosition;
+    public RigidbodyConstraints originalConstraints;
+    public bool originalIsKinematic;
+    public bool originalUseGravity;
+    public RigidbodyInterpolation originalInterpolation;
+    public float lastY;
+    public float stillnessTimer;
+  }
+
+  private const float VerticalDropStillnessVelocityThreshold = 0.05f;
+  private const float VerticalDropStillnessPositionThreshold = 0.001f;
+  private const float VerticalDropStillnessDuration = 0.08f;
+
   public struct Config
   {
     // 掴める対象を検索するレイヤーマスク。
@@ -25,6 +42,8 @@ public sealed class GrabInteractor
 
   // OverlapCapsuleNonAlloc の結果を受ける使い回しバッファ。
   private readonly Collider[] _overlapColliders = new Collider[64];
+  // 真下に落とす途中の Rigidbody を保持するリスト。
+  private readonly List<VerticalDropState> _verticalDropStates = new List<VerticalDropState>(4);
 
   // 掴み挙動全体の設定。
   private Config _config;
@@ -72,10 +91,29 @@ public sealed class GrabInteractor
   // 現在掴んでいるオブジェクトが、他のコライダーと重なっている（置けない状態）かどうか。
   public bool IsGrabbedObjectOverlapping => _colliderDetection != null && _colliderDetection.IsOverlapping;
 
+  // grab 中オブジェクトが回転目標へ追従中かどうか。
+  public bool IsGrabbedObjectRotating => _grabbedBody != null && Quaternion.Angle(_grabbedBody.rotation, _targetRotation) > 0.01f;
+
   // grab と回転に使う設定を更新する。
   public void ApplyConfiguration(Config config)
   {
     _config = config;
+  }
+
+  // 指定した Rigidbody が現在 grab / hover 対象として扱えるかどうかを返す。
+  public bool CanGrabBody(Rigidbody targetBody)
+  {
+    if (targetBody == null)
+    {
+      return false;
+    }
+
+    if ((_config.grabbableLayerMask.value & (1 << targetBody.gameObject.layer)) == 0)
+    {
+      return false;
+    }
+
+    return !IsInVerticalDrop(targetBody);
   }
 
   // 指定した手元の XZ 位置に最も近い、掴める Rigidbody を検索して取得する。
@@ -98,11 +136,7 @@ public sealed class GrabInteractor
       }
 
       var body = collider.attachedRigidbody;
-      if (body == null)
-      {
-        continue;
-      }
-      if ((_config.grabbableLayerMask.value & (1 << body.gameObject.layer)) == 0)
+      if (!CanGrabBody(body))
       {
         continue;
       }
@@ -142,12 +176,7 @@ public sealed class GrabInteractor
   // 指定した Rigidbody を指定位置基準で grab する。
   public bool TryBeginGrab(Rigidbody targetBody, Vector3 grabTarget)
   {
-    if (targetBody == null || _grabbedBody != null)
-    {
-      return false;
-    }
-
-    if ((_config.grabbableLayerMask.value & (1 << targetBody.gameObject.layer)) == 0)
+    if (_grabbedBody != null || !CanGrabBody(targetBody))
     {
       return false;
     }
@@ -159,6 +188,7 @@ public sealed class GrabInteractor
   // 指定した Rigidbody の grab 開始処理を実行する。
   private void BeginGrab(Rigidbody targetBody, Vector3 grabTarget)
   {
+    CancelVerticalDrop(targetBody);
     _grabbedBody = targetBody;
     _grabOffset = _grabbedBody.position - grabTarget;
     _grabOffset.y = 0f;
@@ -225,15 +255,15 @@ public sealed class GrabInteractor
   // FixedUpdate で掴み中オブジェクトの位置と回転を物理更新する。
   public void FixedTick(float fixedDeltaTime)
   {
-    if (_grabbedBody == null || !_hasDesiredGrabPosition)
+    if (_grabbedBody != null && _hasDesiredGrabPosition)
     {
-      return;
+      _grabbedBody.MovePosition(_desiredGrabPosition);
+      _grabbedBody.MoveRotation(ResolveNextRotation(fixedDeltaTime));
+      _grabbedBody.linearVelocity = Vector3.zero;
+      _grabbedBody.angularVelocity = Vector3.zero;
     }
 
-    _grabbedBody.MovePosition(_desiredGrabPosition);
-    _grabbedBody.MoveRotation(ResolveNextRotation(fixedDeltaTime));
-    _grabbedBody.linearVelocity = Vector3.zero;
-    _grabbedBody.angularVelocity = Vector3.zero;
+    UpdateVerticalDropStates(fixedDeltaTime);
   }
 
   // grab 中オブジェクトの目標回転を積み増す。
@@ -270,29 +300,14 @@ public sealed class GrabInteractor
       _colliderDetection = null;
     }
 
+    var lockedDropPosition = ResolveLockedDropPosition(_grabbedBody.position);
     _grabbedBody.linearVelocity = Vector3.zero;
     _grabbedBody.angularVelocity = Vector3.zero;
-    _grabbedBody.constraints = _grabbedOriginalConstraints;
-
-    if (_config.restoreIsKinematicOnRelease)
-    {
-      _grabbedBody.isKinematic = _grabbedOriginalIsKinematic;
-    }
-    else
-    {
-      _grabbedBody.isKinematic = false;
-    }
-
-    if (_config.restoreUseGravityOnRelease)
-    {
-      _grabbedBody.useGravity = _grabbedOriginalUseGravity;
-    }
-    else
-    {
-      _grabbedBody.useGravity = true;
-    }
-
-    _grabbedBody.interpolation = _grabbedOriginalInterpolation;
+    _grabbedBody.position = lockedDropPosition;
+    _grabbedBody.constraints = ResolveVerticalDropConstraints(_grabbedOriginalConstraints);
+    _grabbedBody.isKinematic = false;
+    _grabbedBody.useGravity = true;
+    _grabbedBody.interpolation = RigidbodyInterpolation.Interpolate;
 
     // 掴み前の isTrigger 設定を復元する。
     if (_grabbedColliders != null)
@@ -309,9 +324,218 @@ public sealed class GrabInteractor
       _grabbedOriginalIsTrigger = null;
     }
 
+    StartVerticalDrop(
+      releasedBody,
+      lockedDropPosition,
+      _grabbedOriginalConstraints,
+      _grabbedOriginalIsKinematic,
+      _grabbedOriginalUseGravity,
+      _grabbedOriginalInterpolation);
+
     _grabbedBody = null;
     _hasDesiredGrabPosition = false;
     GrabReleased?.Invoke(releasedBody);
+  }
+
+  // lifecycle 停止時など、FixedTick が継続しない状況で落下中状態を即座に完了させる。
+  public void ForceFinishVerticalDrops()
+  {
+    for (var i = _verticalDropStates.Count - 1; i >= 0; i--)
+    {
+      FinishVerticalDrop(_verticalDropStates[i]);
+      _verticalDropStates.RemoveAt(i);
+    }
+  }
+
+  // 真下に落とす途中の Rigidbody を更新する。
+  private void UpdateVerticalDropStates(float fixedDeltaTime)
+  {
+    for (var i = _verticalDropStates.Count - 1; i >= 0; i--)
+    {
+      var dropState = _verticalDropStates[i];
+      if (dropState.body == null)
+      {
+        _verticalDropStates.RemoveAt(i);
+        continue;
+      }
+
+      ConstrainVerticalDrop(dropState);
+      if (!ShouldFinishVerticalDrop(dropState, fixedDeltaTime))
+      {
+        continue;
+      }
+
+      FinishVerticalDrop(dropState);
+      _verticalDropStates.RemoveAt(i);
+    }
+  }
+
+  // 解放された Rigidbody の真下落下フェーズを開始する。
+  private void StartVerticalDrop(
+    Rigidbody releasedBody,
+    Vector3 lockedDropPosition,
+    RigidbodyConstraints originalConstraints,
+    bool originalIsKinematic,
+    bool originalUseGravity,
+    RigidbodyInterpolation originalInterpolation)
+  {
+    if (releasedBody == null)
+    {
+      return;
+    }
+
+    CancelVerticalDrop(releasedBody);
+    _verticalDropStates.Add(new VerticalDropState
+    {
+      body = releasedBody,
+      lockedPosition = lockedDropPosition,
+      originalConstraints = originalConstraints,
+      originalIsKinematic = originalIsKinematic,
+      originalUseGravity = originalUseGravity,
+      originalInterpolation = originalInterpolation,
+      lastY = releasedBody.position.y,
+      stillnessTimer = 0f,
+    });
+  }
+
+  // 真下落下フェーズ中の Rigidbody を再 grab する前に通常状態へ戻す。
+  private void CancelVerticalDrop(Rigidbody targetBody)
+  {
+    if (targetBody == null)
+    {
+      return;
+    }
+
+    for (var i = _verticalDropStates.Count - 1; i >= 0; i--)
+    {
+      var dropState = _verticalDropStates[i];
+      if (dropState.body != targetBody)
+      {
+        continue;
+      }
+
+      FinishVerticalDrop(dropState);
+      _verticalDropStates.RemoveAt(i);
+      return;
+    }
+  }
+
+  // 真下落下フェーズ中の Rigidbody かどうかを返す。
+  private bool IsInVerticalDrop(Rigidbody targetBody)
+  {
+    if (targetBody == null)
+    {
+      return false;
+    }
+
+    for (var i = 0; i < _verticalDropStates.Count; i++)
+    {
+      if (_verticalDropStates[i].body == targetBody)
+      {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // 真下落下中は X/Z を固定し、横方向の速度を打ち消す。
+  private void ConstrainVerticalDrop(VerticalDropState dropState)
+  {
+    if (dropState.body == null)
+    {
+      return;
+    }
+
+    var velocity = dropState.body.linearVelocity;
+    if (!Mathf.Approximately(velocity.x, 0f) || !Mathf.Approximately(velocity.z, 0f))
+    {
+      velocity.x = 0f;
+      velocity.z = 0f;
+      dropState.body.linearVelocity = velocity;
+    }
+  }
+
+  // 着地して静止したと判断できたら真下落下フェーズを終了する。
+  private bool ShouldFinishVerticalDrop(VerticalDropState dropState, float fixedDeltaTime)
+  {
+    if (dropState.body == null)
+    {
+      return true;
+    }
+
+    if (dropState.body.IsSleeping())
+    {
+      return true;
+    }
+
+    var currentY = dropState.body.position.y;
+    var verticalDelta = Mathf.Abs(currentY - dropState.lastY);
+    var verticalVelocity = Mathf.Abs(dropState.body.linearVelocity.y);
+    if (verticalDelta <= VerticalDropStillnessPositionThreshold
+        && verticalVelocity <= VerticalDropStillnessVelocityThreshold)
+    {
+      dropState.stillnessTimer += fixedDeltaTime;
+    }
+    else
+    {
+      dropState.stillnessTimer = 0f;
+    }
+
+    dropState.lastY = currentY;
+    return dropState.stillnessTimer >= VerticalDropStillnessDuration;
+  }
+
+  // 真下落下フェーズを終え、元の物理設定へ戻す。
+  private void FinishVerticalDrop(VerticalDropState dropState)
+  {
+    if (dropState.body == null)
+    {
+      return;
+    }
+
+    var settledPosition = ResolveLockedDropPosition(dropState.body.position);
+    dropState.body.position = settledPosition;
+    dropState.body.linearVelocity = Vector3.zero;
+    dropState.body.angularVelocity = Vector3.zero;
+    dropState.body.constraints = dropState.originalConstraints;
+
+    if (_config.restoreIsKinematicOnRelease)
+    {
+      dropState.body.isKinematic = dropState.originalIsKinematic;
+    }
+    else
+    {
+      dropState.body.isKinematic = false;
+    }
+
+    if (_config.restoreUseGravityOnRelease)
+    {
+      dropState.body.useGravity = dropState.originalUseGravity;
+    }
+    else
+    {
+      dropState.body.useGravity = true;
+    }
+
+    dropState.body.interpolation = dropState.originalInterpolation;
+  }
+
+  // release 後に落とし始める位置を X/Z 範囲へ収める。
+  private Vector3 ResolveLockedDropPosition(Vector3 currentPosition)
+  {
+    return new Vector3(
+      Mathf.Clamp(currentPosition.x, _config.xRange.x, _config.xRange.y),
+      currentPosition.y,
+      Mathf.Clamp(currentPosition.z, _config.zRange.x, _config.zRange.y));
+  }
+
+  // 真下落下中だけ X/Z を固定する拘束設定を作る。
+  private static RigidbodyConstraints ResolveVerticalDropConstraints(RigidbodyConstraints originalConstraints)
+  {
+    return (originalConstraints & ~RigidbodyConstraints.FreezePositionY)
+           | RigidbodyConstraints.FreezePositionX
+           | RigidbodyConstraints.FreezePositionZ;
   }
 
   // 現在の回転から次フレームで到達させる回転を計算する。

@@ -40,6 +40,8 @@ public class HandPinchController : MonoBehaviour
   [SerializeField] private float grabReacquireCooldownSeconds = 0.12f;
   // 再掴み前に、指を開いたまま確認する時間。
   [SerializeField] private float grabReopenConfirmSeconds = 0.08f;
+  // pinch が一瞬切れても掴みを維持する猶予時間。
+  [SerializeField] private float pinchReleaseGraceSeconds = 0.12f;
   // 掴み対象やカーソルが動ける X 範囲。
   [SerializeField] private Vector2 xRange = new Vector2(-4.5f, 4.5f);
   // 掴み対象やカーソルが動ける Y 範囲。
@@ -143,16 +145,14 @@ public class HandPinchController : MonoBehaviour
   private void OnDisable()
   {
     _mediaPipeReceiver?.Stop(this);
-    _handInteractionProcessor?.ResetInteractionState();
-    _grabInputCoordinator?.Release(GrabInputSource.Hand);
+    ResetInteractionStateForControllerShutdown();
   }
 
   // 受信停止後に操作状態と生成リソースを破棄する。
   private void OnDestroy()
   {
     _mediaPipeReceiver?.Stop(this);
-    _handInteractionProcessor?.ResetInteractionState();
-    _grabInputCoordinator?.Release(GrabInputSource.Hand);
+    ResetInteractionStateForControllerShutdown();
     _handCursorController?.Dispose();
     UnsubscribeFromGrabInteractor();
   }
@@ -278,7 +278,7 @@ public class HandPinchController : MonoBehaviour
   public bool TryGetGrabInputContext(out GrabInputContext context)
   {
     context = default;
-    if (_grabInteractor == null || _outlineController == null || _grabInputCoordinator == null)
+    if (!isActiveAndEnabled || _grabInteractor == null || _outlineController == null || _grabInputCoordinator == null)
     {
       return false;
     }
@@ -289,7 +289,9 @@ public class HandPinchController : MonoBehaviour
       _grabInputCoordinator,
       worldCamera,
       grabbableLayerMask,
-      cursorPlaneY);
+      cursorPlaneY,
+      xSwipeRotationDegrees,
+      ySwipeRotationDegrees);
     return true;
   }
 
@@ -351,6 +353,7 @@ public class HandPinchController : MonoBehaviour
     {
       grabReacquireCooldownSeconds = grabReacquireCooldownSeconds,
       grabReopenConfirmSeconds = grabReopenConfirmSeconds,
+      pinchReleaseGraceSeconds = pinchReleaseGraceSeconds,
     };
   }
 
@@ -375,6 +378,7 @@ public class HandPinchController : MonoBehaviour
     reach = Mathf.Max(0f, reach);
     grabReacquireCooldownSeconds = Mathf.Clamp(grabReacquireCooldownSeconds, 0f, 0.5f);
     grabReopenConfirmSeconds = Mathf.Clamp(grabReopenConfirmSeconds, 0f, 0.5f);
+    pinchReleaseGraceSeconds = Mathf.Clamp(pinchReleaseGraceSeconds, 0f, 0.5f);
     handLostTimeoutSeconds = Mathf.Max(0.01f, handLostTimeoutSeconds);
     horizontalSensitivity = Mathf.Clamp(horizontalSensitivity, 0.1f, 2f);
     depthSensitivity = Mathf.Clamp(depthSensitivity, 0.1f, 4f);
@@ -452,6 +456,14 @@ public class HandPinchController : MonoBehaviour
     _lastAppliedSwapLeftRightRoles = swapLeftRightRoles;
     _trackedHandStateStore?.ResetAll();
     _handInteractionProcessor?.ResetInteractionState();
+    _grabInputCoordinator?.Release(GrabInputSource.Hand);
+  }
+
+  // FixedUpdate が止まる前に、一時的な grab / drop 状態を復元可能な状態へ畳む。
+  private void ResetInteractionStateForControllerShutdown()
+  {
+    _handInteractionProcessor?.ResetInteractionState();
+    _grabInteractor?.ForceFinishVerticalDrops();
     _grabInputCoordinator?.Release(GrabInputSource.Hand);
   }
 

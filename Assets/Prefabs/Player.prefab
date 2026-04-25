@@ -189,8 +189,8 @@ MonoBehaviour:
   reverseDirectionAtBottomWallBoundary: 0
   autoFindWallBounds: 1
   wallBoundsSource: {fileID: 0}
-  wallBoundsMin: {x: -10, y: -10}
-  wallBoundsMax: {x: 10, y: 10}
+  wallBoundsMin: {x: -12.36, y: -12.3609295}
+  wallBoundsMax: {x: 12.36, y: 10.347729}
   rotationDegreesPerSecond: 360
   rotationSnapThreshold: 2
   chooseTraversalDirectionFromFacingOnLanding: 1

@@ -115,6 +115,8 @@ public sealed class MouseGrabInputController : MonoBehaviour
       liftHeight = mouseLiftHeight,
       raycastDistance = mouseRaycastDistance,
       dragPlaneY = context.DragPlaneY,
+      xRotationDegrees = context.XRotationDegrees,
+      yRotationDegrees = context.YRotationDegrees,
     };
   }
 

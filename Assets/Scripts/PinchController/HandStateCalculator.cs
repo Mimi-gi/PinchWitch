@@ -40,7 +40,7 @@ public sealed class HandStateCalculator
   // 手前基準サイズの下限値。
   private const float MinimumFrontPalmScale = 0.0001f;
   // 再認識時に手前基準を集める時間。
-  private const float FrontCaptureDelaySeconds = 2f;
+  private const float FrontCaptureDelaySeconds = 0.5f;
 
   // 手前基準サイズが確定済みかどうか。
   private bool _hasFrontPalmScale;
