@@ -113,6 +113,11 @@ public sealed class GrabInteractor
       return false;
     }
 
+    if (HasActiveVerticalDrop())
+    {
+      return false;
+    }
+
     return !IsInVerticalDrop(targetBody);
   }
 
@@ -170,7 +175,7 @@ public sealed class GrabInteractor
       return;
     }
 
-    BeginGrab(nearestBody, handTarget);
+    BeginGrab(nearestBody, handTarget, keepHorizontalOffset: false);
   }
 
   // 指定した Rigidbody を指定位置基準で grab する。
@@ -181,16 +186,16 @@ public sealed class GrabInteractor
       return false;
     }
 
-    BeginGrab(targetBody, grabTarget);
+    BeginGrab(targetBody, grabTarget, keepHorizontalOffset: true);
     return true;
   }
 
   // 指定した Rigidbody の grab 開始処理を実行する。
-  private void BeginGrab(Rigidbody targetBody, Vector3 grabTarget)
+  private void BeginGrab(Rigidbody targetBody, Vector3 grabTarget, bool keepHorizontalOffset)
   {
     CancelVerticalDrop(targetBody);
     _grabbedBody = targetBody;
-    _grabOffset = _grabbedBody.position - grabTarget;
+    _grabOffset = keepHorizontalOffset ? _grabbedBody.position - grabTarget : Vector3.zero;
     _grabOffset.y = 0f;
     _grabbedOriginalIsKinematic = _grabbedBody.isKinematic;
     _grabbedOriginalUseGravity = _grabbedBody.useGravity;
@@ -431,6 +436,20 @@ public sealed class GrabInteractor
     for (var i = 0; i < _verticalDropStates.Count; i++)
     {
       if (_verticalDropStates[i].body == targetBody)
+      {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // いずれかの Rigidbody が release 後の落下フェーズ中なら、全対象の grab を止める。
+  private bool HasActiveVerticalDrop()
+  {
+    for (var i = 0; i < _verticalDropStates.Count; i++)
+    {
+      if (_verticalDropStates[i].body != null)
       {
         return true;
       }
