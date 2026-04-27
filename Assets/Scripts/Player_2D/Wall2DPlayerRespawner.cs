@@ -107,7 +107,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
       if (_spawnedPlayerInstance != null)
       {
         RepositionExistingPlayer(PlayerPlacementTarget.InitialScenePlacement);
-        SetSpawnedPlayer2DGameplayEnabled(true);
+        ApplyInitialGameplayState();
         SetSpawnedPlayerVisible(true);
         ScheduleOverlapRecovery();
         return;
@@ -186,14 +186,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     var switcher = FindFirstObjectByType<SpaceViewModeSwitcher>();
     if (switcher != null)
     {
-      if (switcher.IsRealTimeMode)
-      {
-        SetSpawnedPlayer2DGameplayEnabled(true);
-      }
-      else
-      {
-        SetSpawnedPlayer2DGameplayEnabled(switcher.CurrentMode == SpaceViewMode.Wall2D);
-      }
+      SetSpawnedPlayer2DGameplayEnabled(switcher.ShouldEnablePlayerGameplay);
     }
     else
     {
@@ -420,7 +413,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     }
 
     RepositionExistingPlayer(PlayerPlacementTarget.InitialScenePlacement);
-    SetSpawnedPlayer2DGameplayEnabled(true);
+    ApplyInitialGameplayState();
     SetSpawnedPlayerVisible(true);
 
     if (IsSpawnedPlayerOverlappingSolid())
