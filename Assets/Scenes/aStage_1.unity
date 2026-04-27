@@ -794,7 +794,7 @@ MonoBehaviour:
   cursorPlaneY: 0
   grabbableLayerMask:
     serializedVersion: 2
-    m_Bits: 8
+    m_Bits: 4104
   reach: 2.3
   grabReacquireCooldownSeconds: 0.12
   grabReopenConfirmSeconds: 0.08
