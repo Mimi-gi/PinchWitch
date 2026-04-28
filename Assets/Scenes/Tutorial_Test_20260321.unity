@@ -619,7 +619,7 @@ MonoBehaviour:
   cursorPlaneY: 0
   grabbableLayerMask:
     serializedVersion: 2
-    m_Bits: 8
+    m_Bits: 4104
   reach: 2.3
   xRange: {x: -4.5, y: 4.5}
   yRange: {x: 0, y: 4.5}

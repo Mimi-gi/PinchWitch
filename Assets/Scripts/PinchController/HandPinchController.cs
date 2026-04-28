@@ -6,6 +6,9 @@ using UnityEngine.Serialization;
 [DisallowMultipleComponent]
 public class HandPinchController : MonoBehaviour
 {
+  private const string GrabbableLayerName = "Grabbable";
+  private const string GlassLayerName = "Glass";
+
   public event Action<Rigidbody> GrabStarted;
   public event Action<Rigidbody> GrabReleased;
 
@@ -33,7 +36,7 @@ public class HandPinchController : MonoBehaviour
 
   [Header("Grabbing")]
   // 掴めるオブジェクトを探す対象レイヤー。
-  [SerializeField] private LayerMask grabbableLayerMask = 1 << 3;
+  [SerializeField] private LayerMask grabbableLayerMask;
   // 手元から掴み判定を行う半径。
   [SerializeField] private float reach = 2.3f;
   // 掴みを離した直後に再掴みを禁止する時間。
@@ -114,11 +117,7 @@ public class HandPinchController : MonoBehaviour
     worldCamera = Camera.main;
     if (grabbableLayerMask.value == 0)
     {
-      var grabbableLayer = LayerMask.NameToLayer("Grabbable");
-      if (grabbableLayer >= 0)
-      {
-        grabbableLayerMask = 1 << grabbableLayer;
-      }
+      grabbableLayerMask = LayerMask.GetMask(GrabbableLayerName, GlassLayerName);
     }
 
     NormalizeSerializedValues();
@@ -130,6 +129,11 @@ public class HandPinchController : MonoBehaviour
   private void Awake()
   {
     EnsureReferences();
+    if (grabbableLayerMask.value == 0)
+    {
+      grabbableLayerMask = LayerMask.GetMask(GrabbableLayerName, GlassLayerName);
+    }
+
     NormalizeSerializedValues();
     ApplyHandTrackingConfiguration();
     _lastAppliedSwapLeftRightRoles = swapLeftRightRoles;
@@ -487,4 +491,5 @@ public class HandPinchController : MonoBehaviour
       range.y = temp;
     }
   }
+
 }
