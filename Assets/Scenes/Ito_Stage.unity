@@ -299,7 +299,6 @@ GameObject:
   m_Component:
   - component: {fileID: 161821463}
   - component: {fileID: 161821462}
-  - component: {fileID: 161821461}
   - component: {fileID: 161821460}
   m_Layer: 0
   m_Name: 3DCamera_2DFloor
@@ -352,14 +351,6 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
---- !u!81 &161821461
-AudioListener:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 161821459}
-  m_Enabled: 1
 --- !u!20 &161821462
 Camera:
   m_ObjectHideFlags: 0
@@ -2285,7 +2276,6 @@ GameObject:
   m_Component:
   - component: {fileID: 607851400}
   - component: {fileID: 607851397}
-  - component: {fileID: 607851399}
   - component: {fileID: 607851398}
   m_Layer: 0
   m_Name: 3DCamera_UI
@@ -2389,14 +2379,6 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
---- !u!81 &607851399
-AudioListener:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 607851396}
-  m_Enabled: 1
 --- !u!4 &607851400
 Transform:
   m_ObjectHideFlags: 0
@@ -2701,7 +2683,6 @@ GameObject:
   m_Component:
   - component: {fileID: 697927934}
   - component: {fileID: 697927933}
-  - component: {fileID: 697927932}
   - component: {fileID: 697927931}
   m_Layer: 0
   m_Name: 3DCamera_3DWorld
@@ -2754,14 +2735,6 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
---- !u!81 &697927932
-AudioListener:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 697927930}
-  m_Enabled: 1
 --- !u!20 &697927933
 Camera:
   m_ObjectHideFlags: 0

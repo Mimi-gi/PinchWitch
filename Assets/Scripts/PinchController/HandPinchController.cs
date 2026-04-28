@@ -8,7 +8,6 @@ public class HandPinchController : MonoBehaviour
 {
   private const string GrabbableLayerName = "Grabbable";
   private const string GlassLayerName = "Glass";
-  private const int DefaultGrabbableLayerMaskBits = (1 << 3) | (1 << 12);
 
   public event Action<Rigidbody> GrabStarted;
   public event Action<Rigidbody> GrabReleased;
@@ -37,7 +36,7 @@ public class HandPinchController : MonoBehaviour
 
   [Header("Grabbing")]
   // 掴めるオブジェクトを探す対象レイヤー。
-  [SerializeField] private LayerMask grabbableLayerMask = DefaultGrabbableLayerMaskBits;
+  [SerializeField] private LayerMask grabbableLayerMask;
   // 手元から掴み判定を行う半径。
   [SerializeField] private float reach = 2.3f;
   // 掴みを離した直後に再掴みを禁止する時間。
@@ -118,7 +117,7 @@ public class HandPinchController : MonoBehaviour
     worldCamera = Camera.main;
     if (grabbableLayerMask.value == 0)
     {
-      grabbableLayerMask = CreateDefaultGrabbableLayerMask();
+      grabbableLayerMask = LayerMask.GetMask(GrabbableLayerName, GlassLayerName);
     }
 
     NormalizeSerializedValues();
@@ -130,6 +129,11 @@ public class HandPinchController : MonoBehaviour
   private void Awake()
   {
     EnsureReferences();
+    if (grabbableLayerMask.value == 0)
+    {
+      grabbableLayerMask = LayerMask.GetMask(GrabbableLayerName, GlassLayerName);
+    }
+
     NormalizeSerializedValues();
     ApplyHandTrackingConfiguration();
     _lastAppliedSwapLeftRightRoles = swapLeftRightRoles;
@@ -488,23 +492,4 @@ public class HandPinchController : MonoBehaviour
     }
   }
 
-  // プロジェクト定義済みの掴み対象レイヤーをまとめた初期マスクを作る。
-  private static LayerMask CreateDefaultGrabbableLayerMask()
-  {
-    var mask = 0;
-    AddLayerToMask(ref mask, GrabbableLayerName);
-    AddLayerToMask(ref mask, GlassLayerName);
-
-    return mask != 0 ? mask : DefaultGrabbableLayerMaskBits;
-  }
-
-  // 指定レイヤーが存在する場合だけマスクへ追加する。
-  private static void AddLayerToMask(ref int mask, string layerName)
-  {
-    var layer = LayerMask.NameToLayer(layerName);
-    if (layer >= 0)
-    {
-      mask |= 1 << layer;
-    }
-  }
 }
