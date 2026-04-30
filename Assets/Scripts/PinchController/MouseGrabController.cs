@@ -43,6 +43,8 @@ public sealed class MouseGrabController
   private Config _config;
   // 現在マウス操作で grab 中かどうか。
   private bool _isDragging;
+  // 回転完了後に release する保留状態かどうか。
+  private bool _releasePendingAfterRotation;
   // 現在選択中の回転軸。
   private RotationAxisMode _rotationAxisMode = RotationAxisMode.Y;
 
@@ -82,6 +84,7 @@ public sealed class MouseGrabController
     if (_grabInteractor == null)
     {
       _isDragging = false;
+      _releasePendingAfterRotation = false;
       _inputCoordinator?.Release(GrabInputSource.Pointer);
       _rotationAxisMode = RotationAxisMode.Y;
       return false;
@@ -99,11 +102,23 @@ public sealed class MouseGrabController
 
     if (_isDragging)
     {
+      UpdateDeferredRelease();
+      if (!_isDragging)
+      {
+        return true;
+      }
+
+      if (_releasePendingAfterRotation)
+      {
+        UpdateGrabbedOutline();
+        return true;
+      }
+
       ProcessRotationInput();
 
       if (Input.GetMouseButtonDown(0))
       {
-        EndGrab();
+        StartReleaseFromCurrentGrab();
         return true;
       }
 
@@ -141,6 +156,7 @@ public sealed class MouseGrabController
 
     _outlineController?.ClearCurrentOutline();
     _inputCoordinator?.Release(GrabInputSource.Pointer);
+    _releasePendingAfterRotation = false;
     _rotationAxisMode = RotationAxisMode.Y;
   }
 
@@ -170,6 +186,7 @@ public sealed class MouseGrabController
 
     _grabInteractor.UpdateGrabbedObjectUnclampedY(grabTarget);
     _isDragging = true;
+    _releasePendingAfterRotation = false;
     _rotationAxisMode = RotationAxisMode.Y;
     UpdateGrab();
   }
@@ -180,6 +197,7 @@ public sealed class MouseGrabController
     if (!_grabInteractor.HasGrabbedBody)
     {
       _isDragging = false;
+      _releasePendingAfterRotation = false;
       _outlineController?.ClearCurrentOutline();
       _inputCoordinator?.Release(GrabInputSource.Pointer);
       _rotationAxisMode = RotationAxisMode.Y;
@@ -198,10 +216,55 @@ public sealed class MouseGrabController
   private void EndGrab()
   {
     _isDragging = false;
+    _releasePendingAfterRotation = false;
     _grabInteractor?.ReleaseGrabbedObject();
     _outlineController?.ClearCurrentOutline();
     _inputCoordinator?.Release(GrabInputSource.Pointer);
     _rotationAxisMode = RotationAxisMode.Y;
+  }
+
+  // 現在の grab を release するか、回転完了待ち release へ切り替える。
+  private void StartReleaseFromCurrentGrab()
+  {
+    if (_grabInteractor == null || !_grabInteractor.HasGrabbedBody)
+    {
+      EndGrab();
+      return;
+    }
+
+    if (_grabInteractor.IsGrabbedObjectRotating)
+    {
+      _releasePendingAfterRotation = true;
+      return;
+    }
+
+    EndGrab();
+  }
+
+  // 回転完了待ちの release を更新する。
+  private void UpdateDeferredRelease()
+  {
+    if (!_releasePendingAfterRotation)
+    {
+      return;
+    }
+
+    if (_grabInteractor == null || !_grabInteractor.HasGrabbedBody)
+    {
+      _isDragging = false;
+      _releasePendingAfterRotation = false;
+      _outlineController?.ClearCurrentOutline();
+      _inputCoordinator?.Release(GrabInputSource.Pointer);
+      _rotationAxisMode = RotationAxisMode.Y;
+      return;
+    }
+
+    if (_grabInteractor.IsGrabbedObjectRotating)
+    {
+      return;
+    }
+
+    EndGrab();
   }
 
   // 右クリックでの回転実行とホイールクリックでの軸切り替えを処理する。
