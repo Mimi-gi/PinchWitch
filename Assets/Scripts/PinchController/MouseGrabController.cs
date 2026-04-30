@@ -2,12 +2,10 @@ using UnityEngine;
 
 public sealed class MouseGrabController
 {
-  private enum RotationDirectionMode
+  private enum RotationAxisMode
   {
-    PositiveY,
-    NegativeY,
-    PositiveX,
-    NegativeX,
+    Y,
+    X,
   }
 
   public struct Config
@@ -45,8 +43,10 @@ public sealed class MouseGrabController
   private Config _config;
   // 現在マウス操作で grab 中かどうか。
   private bool _isDragging;
-  // 現在選択中の回転方向。
-  private RotationDirectionMode _rotationDirectionMode = RotationDirectionMode.PositiveY;
+  // 回転完了後に release する保留状態かどうか。
+  private bool _releasePendingAfterRotation;
+  // 現在選択中の回転軸。
+  private RotationAxisMode _rotationAxisMode = RotationAxisMode.Y;
 
   public MouseGrabController(GrabInteractor grabInteractor, OutlineController outlineController, GrabInputCoordinator inputCoordinator, Config config)
   {
@@ -75,7 +75,7 @@ public sealed class MouseGrabController
     {
       if (_isDragging)
       {
-        EndGrab();
+        CancelGrabImmediately();
       }
 
       return false;
@@ -83,9 +83,7 @@ public sealed class MouseGrabController
 
     if (_grabInteractor == null)
     {
-      _isDragging = false;
-      _inputCoordinator?.Release(GrabInputSource.Pointer);
-      _rotationDirectionMode = RotationDirectionMode.PositiveY;
+      ResetPointerState();
       return false;
     }
 
@@ -93,7 +91,7 @@ public sealed class MouseGrabController
     {
       if (_isDragging)
       {
-        EndGrab();
+        CancelGrabImmediately();
       }
 
       return false;
@@ -101,11 +99,23 @@ public sealed class MouseGrabController
 
     if (_isDragging)
     {
+      UpdateDeferredRelease();
+      if (!_isDragging)
+      {
+        return true;
+      }
+
+      if (_releasePendingAfterRotation)
+      {
+        UpdateGrabbedOutline();
+        return true;
+      }
+
       ProcessRotationInput();
 
       if (Input.GetMouseButtonDown(0))
       {
-        EndGrab();
+        RequestReleaseAfterRotation();
         return true;
       }
 
@@ -137,13 +147,11 @@ public sealed class MouseGrabController
   {
     if (_isDragging)
     {
-      EndGrab();
+      CancelGrabImmediately();
       return;
     }
 
-    _outlineController?.ClearCurrentOutline();
-    _inputCoordinator?.Release(GrabInputSource.Pointer);
-    _rotationDirectionMode = RotationDirectionMode.PositiveY;
+    ResetPointerState();
   }
 
   // マウスカーソル直下の掴める Rigidbody を選択して grab を開始する。
@@ -171,8 +179,7 @@ public sealed class MouseGrabController
     }
 
     _grabInteractor.UpdateGrabbedObjectUnclampedY(grabTarget);
-    _isDragging = true;
-    _rotationDirectionMode = RotationDirectionMode.PositiveY;
+    BeginPointerGrabState();
     UpdateGrab();
   }
 
@@ -181,10 +188,7 @@ public sealed class MouseGrabController
   {
     if (!_grabInteractor.HasGrabbedBody)
     {
-      _isDragging = false;
-      _outlineController?.ClearCurrentOutline();
-      _inputCoordinator?.Release(GrabInputSource.Pointer);
-      _rotationDirectionMode = RotationDirectionMode.PositiveY;
+      ResetPointerState();
       return;
     }
 
@@ -196,17 +200,84 @@ public sealed class MouseGrabController
     UpdateGrabbedOutline();
   }
 
-  // マウス grab を終了して物理挙動へ戻す。
-  private void EndGrab()
+  // マウス操作の内部状態を grab 開始状態へ切り替える。
+  private void BeginPointerGrabState()
   {
-    _isDragging = false;
-    _grabInteractor?.ReleaseGrabbedObject();
-    _outlineController?.ClearCurrentOutline();
-    _inputCoordinator?.Release(GrabInputSource.Pointer);
-    _rotationDirectionMode = RotationDirectionMode.PositiveY;
+    _releasePendingAfterRotation = false;
+    _rotationAxisMode = RotationAxisMode.Y;
+    _isDragging = true;
   }
 
-  // 右クリックでの回転実行とホイールクリックでの方向切り替えを処理する。
+  // マウス操作の一時状態を初期化する。
+  private void ResetPointerState()
+  {
+    _isDragging = false;
+    _releasePendingAfterRotation = false;
+    _outlineController?.ClearCurrentOutline();
+    _inputCoordinator?.Release(GrabInputSource.Pointer);
+    _rotationAxisMode = RotationAxisMode.Y;
+  }
+
+  // 入力無効化や Reset などの中断時は、回転完了を待たずに grab を即座に終了する。
+  private void CancelGrabImmediately()
+  {
+    ReleaseGrabbedObjectAndResetPointerState();
+  }
+
+  // 通常の release 要求は、回転中なら完了まで保留する。
+  private void RequestReleaseAfterRotation()
+  {
+    if (_grabInteractor == null || !_grabInteractor.HasGrabbedBody)
+    {
+      ResetPointerState();
+      return;
+    }
+
+    if (_grabInteractor.IsGrabbedObjectRotating)
+    {
+      _releasePendingAfterRotation = true;
+      return;
+    }
+
+    CompleteRequestedRelease();
+  }
+
+  // 回転完了待ちの release を更新する。
+  private void UpdateDeferredRelease()
+  {
+    if (!_releasePendingAfterRotation)
+    {
+      return;
+    }
+
+    if (_grabInteractor == null || !_grabInteractor.HasGrabbedBody)
+    {
+      ResetPointerState();
+      return;
+    }
+
+    if (_grabInteractor.IsGrabbedObjectRotating)
+    {
+      return;
+    }
+
+    CompleteRequestedRelease();
+  }
+
+  // 保留していた通常 release を完了する。
+  private void CompleteRequestedRelease()
+  {
+    ReleaseGrabbedObjectAndResetPointerState();
+  }
+
+  // grab 中オブジェクトを物理挙動へ戻し、マウス操作状態を初期化する。
+  private void ReleaseGrabbedObjectAndResetPointerState()
+  {
+    _grabInteractor?.ReleaseGrabbedObject();
+    ResetPointerState();
+  }
+
+  // 右クリックでの回転実行とホイールクリックでの軸切り替えを処理する。
   private void ProcessRotationInput()
   {
     if (_grabInteractor == null || !_grabInteractor.HasGrabbedBody)
@@ -216,7 +287,7 @@ public sealed class MouseGrabController
 
     if (Input.GetMouseButtonDown(2))
     {
-      AdvanceRotationDirection();
+      ToggleRotationAxis();
     }
 
     if (!Input.GetMouseButtonDown(1) || _grabInteractor.IsGrabbedObjectRotating)
@@ -228,22 +299,14 @@ public sealed class MouseGrabController
     _grabInteractor.RotateGrabbedObject(worldAxis, angleDegrees);
   }
 
-  // 現在の回転方向設定に基づいて 1 回ぶんの回転量を解決する。
+  // 現在の回転軸設定に基づいて 1 回ぶんの回転量を解決する。
   private void ResolveRotationStep(out Vector3 worldAxis, out float angleDegrees)
   {
-    switch (_rotationDirectionMode)
+    switch (_rotationAxisMode)
     {
-      case RotationDirectionMode.NegativeY:
-        worldAxis = Vector3.up;
-        angleDegrees = -Mathf.Max(0f, _config.yRotationDegrees);
-        return;
-      case RotationDirectionMode.PositiveX:
+      case RotationAxisMode.X:
         worldAxis = Vector3.right;
         angleDegrees = Mathf.Max(0f, _config.xRotationDegrees);
-        return;
-      case RotationDirectionMode.NegativeX:
-        worldAxis = Vector3.right;
-        angleDegrees = -Mathf.Max(0f, _config.xRotationDegrees);
         return;
       default:
         worldAxis = Vector3.up;
@@ -252,15 +315,13 @@ public sealed class MouseGrabController
     }
   }
 
-  // ホイールクリックごとに回転方向を 4 パターンで巡回させる。
-  private void AdvanceRotationDirection()
+  // ホイールクリックごとに回転軸を X/Y で切り替える。
+  private void ToggleRotationAxis()
   {
-    _rotationDirectionMode = _rotationDirectionMode switch
+    _rotationAxisMode = _rotationAxisMode switch
     {
-      RotationDirectionMode.PositiveY => RotationDirectionMode.NegativeY,
-      RotationDirectionMode.NegativeY => RotationDirectionMode.PositiveX,
-      RotationDirectionMode.PositiveX => RotationDirectionMode.NegativeX,
-      _ => RotationDirectionMode.PositiveY,
+      RotationAxisMode.Y => RotationAxisMode.X,
+      _ => RotationAxisMode.Y,
     };
   }
 
