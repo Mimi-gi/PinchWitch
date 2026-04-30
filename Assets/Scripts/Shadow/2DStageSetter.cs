@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+[DefaultExecutionOrder(-1000)]
 public class PlaneStageSetter : MonoBehaviour
 {
     [SerializeField] private ShadowColliderBuilder[] builders;
@@ -16,10 +17,11 @@ public class PlaneStageSetter : MonoBehaviour
         AutoAssignMissingReferences();
     }
 
-    // 起動時にも参照を揃えておく。
+    // 起動時にも参照を揃え、最初に現在位置の影コライダーを作る。
     private void Awake()
     {
         AutoAssignMissingReferences();
+        BuildInitialShadowOutputsAtCurrentPosition(forceRebuild: true);
     }
 
     // モード切替の購読はやめ、常時有効の設定だけを維持する。
@@ -28,11 +30,10 @@ public class PlaneStageSetter : MonoBehaviour
         AutoAssignMissingReferences();
     }
 
-    // 起動直後に一度だけ影出力を構築する。
+    // Awake 時点で参照が揃わなかった場合のため、起動直後にも必要分だけ確認する。
     private void Start()
     {
-        BuildShadowOutputsIfNeeded(forceRebuild: false, ignoreBuildBuildersOnStart: false);
-        ApplyShadowState();
+        BuildInitialShadowOutputsAtCurrentPosition(forceRebuild: false);
     }
 
     // エディタ上で変更したときも、実行中なら即反映する。
@@ -75,10 +76,18 @@ public class PlaneStageSetter : MonoBehaviour
         }
     }
 
-    [ContextMenu("Build Shadow Outputs If Needed")]
+    [ContextMenu("Build Shadow Outputs At Current Position")]
     public void BuildInitialShadowOutputs()
     {
-        BuildShadowOutputsIfNeeded(forceRebuild: false, ignoreBuildBuildersOnStart: false);
+        BuildInitialShadowOutputsAtCurrentPosition(forceRebuild: true);
+    }
+
+    private void BuildInitialShadowOutputsAtCurrentPosition(bool forceRebuild)
+    {
+        // 起動時点の配置を正として、古い生成済みコライダーを使わず再構築する。
+        IsShadow = true;
+        BuildShadowOutputsIfNeeded(forceRebuild, ignoreBuildBuildersOnStart: false);
+        ApplyShadowState();
     }
 
     private void BuildShadowOutputsIfNeeded(bool forceRebuild, bool ignoreBuildBuildersOnStart)
