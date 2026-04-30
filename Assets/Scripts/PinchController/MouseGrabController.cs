@@ -2,12 +2,10 @@ using UnityEngine;
 
 public sealed class MouseGrabController
 {
-  private enum RotationDirectionMode
+  private enum RotationAxisMode
   {
-    PositiveY,
-    NegativeY,
-    PositiveX,
-    NegativeX,
+    Y,
+    X,
   }
 
   public struct Config
@@ -45,8 +43,8 @@ public sealed class MouseGrabController
   private Config _config;
   // 現在マウス操作で grab 中かどうか。
   private bool _isDragging;
-  // 現在選択中の回転方向。
-  private RotationDirectionMode _rotationDirectionMode = RotationDirectionMode.PositiveY;
+  // 現在選択中の回転軸。
+  private RotationAxisMode _rotationAxisMode = RotationAxisMode.Y;
 
   public MouseGrabController(GrabInteractor grabInteractor, OutlineController outlineController, GrabInputCoordinator inputCoordinator, Config config)
   {
@@ -85,7 +83,7 @@ public sealed class MouseGrabController
     {
       _isDragging = false;
       _inputCoordinator?.Release(GrabInputSource.Pointer);
-      _rotationDirectionMode = RotationDirectionMode.PositiveY;
+      _rotationAxisMode = RotationAxisMode.Y;
       return false;
     }
 
@@ -143,7 +141,7 @@ public sealed class MouseGrabController
 
     _outlineController?.ClearCurrentOutline();
     _inputCoordinator?.Release(GrabInputSource.Pointer);
-    _rotationDirectionMode = RotationDirectionMode.PositiveY;
+    _rotationAxisMode = RotationAxisMode.Y;
   }
 
   // マウスカーソル直下の掴める Rigidbody を選択して grab を開始する。
@@ -172,7 +170,7 @@ public sealed class MouseGrabController
 
     _grabInteractor.UpdateGrabbedObjectUnclampedY(grabTarget);
     _isDragging = true;
-    _rotationDirectionMode = RotationDirectionMode.PositiveY;
+    _rotationAxisMode = RotationAxisMode.Y;
     UpdateGrab();
   }
 
@@ -184,7 +182,7 @@ public sealed class MouseGrabController
       _isDragging = false;
       _outlineController?.ClearCurrentOutline();
       _inputCoordinator?.Release(GrabInputSource.Pointer);
-      _rotationDirectionMode = RotationDirectionMode.PositiveY;
+      _rotationAxisMode = RotationAxisMode.Y;
       return;
     }
 
@@ -203,10 +201,10 @@ public sealed class MouseGrabController
     _grabInteractor?.ReleaseGrabbedObject();
     _outlineController?.ClearCurrentOutline();
     _inputCoordinator?.Release(GrabInputSource.Pointer);
-    _rotationDirectionMode = RotationDirectionMode.PositiveY;
+    _rotationAxisMode = RotationAxisMode.Y;
   }
 
-  // 右クリックでの回転実行とホイールクリックでの方向切り替えを処理する。
+  // 右クリックでの回転実行とホイールクリックでの軸切り替えを処理する。
   private void ProcessRotationInput()
   {
     if (_grabInteractor == null || !_grabInteractor.HasGrabbedBody)
@@ -216,7 +214,7 @@ public sealed class MouseGrabController
 
     if (Input.GetMouseButtonDown(2))
     {
-      AdvanceRotationDirection();
+      ToggleRotationAxis();
     }
 
     if (!Input.GetMouseButtonDown(1) || _grabInteractor.IsGrabbedObjectRotating)
@@ -228,22 +226,14 @@ public sealed class MouseGrabController
     _grabInteractor.RotateGrabbedObject(worldAxis, angleDegrees);
   }
 
-  // 現在の回転方向設定に基づいて 1 回ぶんの回転量を解決する。
+  // 現在の回転軸設定に基づいて 1 回ぶんの回転量を解決する。
   private void ResolveRotationStep(out Vector3 worldAxis, out float angleDegrees)
   {
-    switch (_rotationDirectionMode)
+    switch (_rotationAxisMode)
     {
-      case RotationDirectionMode.NegativeY:
-        worldAxis = Vector3.up;
-        angleDegrees = -Mathf.Max(0f, _config.yRotationDegrees);
-        return;
-      case RotationDirectionMode.PositiveX:
+      case RotationAxisMode.X:
         worldAxis = Vector3.right;
         angleDegrees = Mathf.Max(0f, _config.xRotationDegrees);
-        return;
-      case RotationDirectionMode.NegativeX:
-        worldAxis = Vector3.right;
-        angleDegrees = -Mathf.Max(0f, _config.xRotationDegrees);
         return;
       default:
         worldAxis = Vector3.up;
@@ -252,15 +242,13 @@ public sealed class MouseGrabController
     }
   }
 
-  // ホイールクリックごとに回転方向を 4 パターンで巡回させる。
-  private void AdvanceRotationDirection()
+  // ホイールクリックごとに回転軸を X/Y で切り替える。
+  private void ToggleRotationAxis()
   {
-    _rotationDirectionMode = _rotationDirectionMode switch
+    _rotationAxisMode = _rotationAxisMode switch
     {
-      RotationDirectionMode.PositiveY => RotationDirectionMode.NegativeY,
-      RotationDirectionMode.NegativeY => RotationDirectionMode.PositiveX,
-      RotationDirectionMode.PositiveX => RotationDirectionMode.NegativeX,
-      _ => RotationDirectionMode.PositiveY,
+      RotationAxisMode.Y => RotationAxisMode.X,
+      _ => RotationAxisMode.Y,
     };
   }
 
