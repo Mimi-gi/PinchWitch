@@ -75,7 +75,7 @@ public sealed class MouseGrabController
     {
       if (_isDragging)
       {
-        EndGrab();
+        CancelGrabImmediately();
       }
 
       return false;
@@ -83,10 +83,7 @@ public sealed class MouseGrabController
 
     if (_grabInteractor == null)
     {
-      _isDragging = false;
-      _releasePendingAfterRotation = false;
-      _inputCoordinator?.Release(GrabInputSource.Pointer);
-      _rotationAxisMode = RotationAxisMode.Y;
+      ResetPointerState();
       return false;
     }
 
@@ -94,7 +91,7 @@ public sealed class MouseGrabController
     {
       if (_isDragging)
       {
-        EndGrab();
+        CancelGrabImmediately();
       }
 
       return false;
@@ -118,7 +115,7 @@ public sealed class MouseGrabController
 
       if (Input.GetMouseButtonDown(0))
       {
-        StartReleaseFromCurrentGrab();
+        RequestReleaseAfterRotation();
         return true;
       }
 
@@ -150,14 +147,11 @@ public sealed class MouseGrabController
   {
     if (_isDragging)
     {
-      EndGrab();
+      CancelGrabImmediately();
       return;
     }
 
-    _outlineController?.ClearCurrentOutline();
-    _inputCoordinator?.Release(GrabInputSource.Pointer);
-    _releasePendingAfterRotation = false;
-    _rotationAxisMode = RotationAxisMode.Y;
+    ResetPointerState();
   }
 
   // マウスカーソル直下の掴める Rigidbody を選択して grab を開始する。
@@ -185,9 +179,7 @@ public sealed class MouseGrabController
     }
 
     _grabInteractor.UpdateGrabbedObjectUnclampedY(grabTarget);
-    _isDragging = true;
-    _releasePendingAfterRotation = false;
-    _rotationAxisMode = RotationAxisMode.Y;
+    BeginPointerGrabState();
     UpdateGrab();
   }
 
@@ -196,11 +188,7 @@ public sealed class MouseGrabController
   {
     if (!_grabInteractor.HasGrabbedBody)
     {
-      _isDragging = false;
-      _releasePendingAfterRotation = false;
-      _outlineController?.ClearCurrentOutline();
-      _inputCoordinator?.Release(GrabInputSource.Pointer);
-      _rotationAxisMode = RotationAxisMode.Y;
+      ResetPointerState();
       return;
     }
 
@@ -212,23 +200,36 @@ public sealed class MouseGrabController
     UpdateGrabbedOutline();
   }
 
-  // マウス grab を終了して物理挙動へ戻す。
-  private void EndGrab()
+  // マウス操作の内部状態を grab 開始状態へ切り替える。
+  private void BeginPointerGrabState()
+  {
+    _releasePendingAfterRotation = false;
+    _rotationAxisMode = RotationAxisMode.Y;
+    _isDragging = true;
+  }
+
+  // マウス操作の一時状態を初期化する。
+  private void ResetPointerState()
   {
     _isDragging = false;
     _releasePendingAfterRotation = false;
-    _grabInteractor?.ReleaseGrabbedObject();
     _outlineController?.ClearCurrentOutline();
     _inputCoordinator?.Release(GrabInputSource.Pointer);
     _rotationAxisMode = RotationAxisMode.Y;
   }
 
-  // 現在の grab を release するか、回転完了待ち release へ切り替える。
-  private void StartReleaseFromCurrentGrab()
+  // 入力無効化や Reset などの中断時は、回転完了を待たずに grab を即座に終了する。
+  private void CancelGrabImmediately()
+  {
+    ReleaseGrabbedObjectAndResetPointerState();
+  }
+
+  // 通常の release 要求は、回転中なら完了まで保留する。
+  private void RequestReleaseAfterRotation()
   {
     if (_grabInteractor == null || !_grabInteractor.HasGrabbedBody)
     {
-      EndGrab();
+      ResetPointerState();
       return;
     }
 
@@ -238,7 +239,7 @@ public sealed class MouseGrabController
       return;
     }
 
-    EndGrab();
+    CompleteRequestedRelease();
   }
 
   // 回転完了待ちの release を更新する。
@@ -251,11 +252,7 @@ public sealed class MouseGrabController
 
     if (_grabInteractor == null || !_grabInteractor.HasGrabbedBody)
     {
-      _isDragging = false;
-      _releasePendingAfterRotation = false;
-      _outlineController?.ClearCurrentOutline();
-      _inputCoordinator?.Release(GrabInputSource.Pointer);
-      _rotationAxisMode = RotationAxisMode.Y;
+      ResetPointerState();
       return;
     }
 
@@ -264,7 +261,20 @@ public sealed class MouseGrabController
       return;
     }
 
-    EndGrab();
+    CompleteRequestedRelease();
+  }
+
+  // 保留していた通常 release を完了する。
+  private void CompleteRequestedRelease()
+  {
+    ReleaseGrabbedObjectAndResetPointerState();
+  }
+
+  // grab 中オブジェクトを物理挙動へ戻し、マウス操作状態を初期化する。
+  private void ReleaseGrabbedObjectAndResetPointerState()
+  {
+    _grabInteractor?.ReleaseGrabbedObject();
+    ResetPointerState();
   }
 
   // 右クリックでの回転実行とホイールクリックでの軸切り替えを処理する。
