@@ -32,6 +32,12 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   [SerializeField, Range(0f, 1f)] private float minimumFloorNormalY = 0.35f;
   [SerializeField] private float fallGravityScale = 1f;
 
+  [Header("World Bounds")]
+  [SerializeField] private bool autoFindWorldBounds = true;
+  [SerializeField] private Transform worldBoundsSource;
+  [SerializeField] private Vector2 worldBoundsMin = new Vector2(-10f, -10f);
+  [SerializeField] private Vector2 worldBoundsMax = new Vector2(10f, 10f);
+
   [Header("Physics")]
   [SerializeField] private CollisionDetectionMode2D collisionDetectionMode = CollisionDetectionMode2D.Continuous;
   [SerializeField] private RigidbodyInterpolation2D interpolationMode = RigidbodyInterpolation2D.Interpolate;
@@ -62,6 +68,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
   private readonly RaycastHit2D[] _wallHits = new RaycastHit2D[16];
   private readonly RaycastHit2D[] _floorHits = new RaycastHit2D[16];
+  private readonly RaycastHit2D[] _climbTopHits = new RaycastHit2D[16];
   private readonly Collider2D[] _overlapHits = new Collider2D[8];
 
   private Rigidbody2D _rigidbody2D;
@@ -70,6 +77,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   private bool _hasLastObservedPosition;
   private float _movementStallDuration;
   private float _moveDirectionX = 1f;
+  private bool _hasWorldBounds;
 
   // よじ登り中は通常移動を止め、開始地点から目標地点へ補間移動する。
   private bool _isClimbing;
@@ -80,12 +88,16 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
   private void Reset()
   {
+    AutoAssignWorldBoundsSource();
+    RefreshWorldBoundsCache();
     ClampSerializedValues();
   }
 
   private void Awake()
   {
     CacheRequiredComponents();
+    AutoAssignWorldBoundsSource();
+    RefreshWorldBoundsCache();
     ClampSerializedValues();
     ApplyPhysicsConfiguration();
     CacheObservedPosition();
@@ -93,6 +105,8 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
   private void OnEnable()
   {
+    AutoAssignWorldBoundsSource();
+    RefreshWorldBoundsCache();
     ResetRuntimeState();
     ResetMovementDirection();
     ApplyImmediateMovementState();
@@ -108,6 +122,8 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     }
 
     CacheRequiredComponents();
+    AutoAssignWorldBoundsSource();
+    RefreshWorldBoundsCache();
     ApplyPhysicsConfiguration();
     ApplyImmediateMovementState();
   }
@@ -131,6 +147,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
     if (TryProcessClimb())
     {
+      HandleWorldBoundsIfNeeded();
       CacheObservedPosition();
       return;
     }
@@ -142,6 +159,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     }
 
     ApplyMovement(hasFloorBelow);
+    HandleWorldBoundsIfNeeded();
     CacheObservedPosition();
   }
 
@@ -173,6 +191,46 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
     UpdateClimbMovement();
     return true;
+  }
+
+  private void HandleWorldBoundsIfNeeded()
+  {
+    if (!_hasWorldBounds || _collider2D == null || _rigidbody2D == null)
+    {
+      return;
+    }
+
+    var colliderBounds = _collider2D.bounds;
+    var offset = Vector2.zero;
+    var shouldReverse = false;
+
+    // 下端はここでは処理しない。落下し切ったときのリスポーンは Respawner 側に任せる。
+    if (colliderBounds.min.x < worldBoundsMin.x)
+    {
+      offset.x = worldBoundsMin.x - colliderBounds.min.x;
+      shouldReverse = true;
+    }
+    else if (colliderBounds.max.x > worldBoundsMax.x)
+    {
+      offset.x = worldBoundsMax.x - colliderBounds.max.x;
+      shouldReverse = true;
+    }
+
+    if (colliderBounds.max.y > worldBoundsMax.y)
+    {
+      offset.y = worldBoundsMax.y - colliderBounds.max.y;
+      shouldReverse = true;
+    }
+
+    if (!shouldReverse)
+    {
+      return;
+    }
+
+    _rigidbody2D.position += offset;
+    _rigidbody2D.linearVelocity = Vector2.zero;
+    ResetClimbState();
+    ReverseDirection();
   }
 
   private void UpdateMovementStallState()
@@ -287,8 +345,60 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   private float GetRequiredClimbHeight(RaycastHit2D wallHit)
   {
     var playerBounds = _collider2D.bounds;
-    var wallTopY = wallHit.collider.bounds.max.y;
+    var wallTopY = TryGetLocalClimbTopY(wallHit, out var localTopY)
+      ? localTopY
+      : wallHit.collider.bounds.max.y;
     return wallTopY - playerBounds.min.y;
+  }
+
+  private bool TryGetLocalClimbTopY(RaycastHit2D wallHit, out float topY)
+  {
+    topY = 0f;
+
+    if (_collider2D == null)
+    {
+      return false;
+    }
+
+    var playerBounds = _collider2D.bounds;
+    var probeInset = Mathf.Max(climbClearance, 0.01f);
+    var probeDirectionX = Mathf.Sign(_moveDirectionX);
+    var probeOrigin = new Vector2(
+      wallHit.point.x + (probeDirectionX * probeInset),
+      playerBounds.max.y + playerBounds.size.y + climbClearance);
+    var probeDistance = (probeOrigin.y - playerBounds.min.y) + climbClearance;
+
+    // 目の前の位置だけを上から下に見て、局所的な天面の高さを拾う。
+    var hitCount = Physics2D.Raycast(
+      probeOrigin,
+      DownDirection,
+      CreateObstacleContactFilter(),
+      _climbTopHits,
+      probeDistance);
+
+    for (var i = 0; i < hitCount; i++)
+    {
+      var hit = _climbTopHits[i];
+      if (hit.collider == null)
+      {
+        continue;
+      }
+
+      if (hit.collider != wallHit.collider)
+      {
+        continue;
+      }
+
+      if (hit.normal.y < minimumFloorNormalY)
+      {
+        continue;
+      }
+
+      topY = hit.point.y;
+      return true;
+    }
+
+    return false;
   }
 
   private bool CanClimbWall(float requiredClimbHeight)
@@ -515,6 +625,73 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     return Wall2DContactCastUtility.CreateContactFilter(obstacleLayers);
   }
 
+  private void AutoAssignWorldBoundsSource()
+  {
+    if (!autoFindWorldBounds || worldBoundsSource != null)
+    {
+      return;
+    }
+
+    // 既存シーンでは 2D 世界の枠オブジェクトが "Wall" という名前で置かれている前提で補完する。
+    var wallObject = GameObject.Find("Wall");
+    if (wallObject != null)
+    {
+      worldBoundsSource = wallObject.transform;
+    }
+  }
+
+  private void RefreshWorldBoundsCache()
+  {
+    _hasWorldBounds = TryResolveWorldBounds(out var min, out var max);
+    if (!_hasWorldBounds)
+    {
+      return;
+    }
+
+    worldBoundsMin = min;
+    worldBoundsMax = max;
+  }
+
+  private bool TryResolveWorldBounds(out Vector2 min, out Vector2 max)
+  {
+    min = default;
+    max = default;
+
+    if (worldBoundsSource == null)
+    {
+      return false;
+    }
+
+    var collider2D = worldBoundsSource.GetComponent<Collider2D>();
+    if (collider2D != null)
+    {
+      var bounds = collider2D.bounds;
+      min = bounds.min;
+      max = bounds.max;
+      return true;
+    }
+
+    var collider3D = worldBoundsSource.GetComponent<Collider>();
+    if (collider3D != null)
+    {
+      var bounds = collider3D.bounds;
+      min = bounds.min;
+      max = bounds.max;
+      return true;
+    }
+
+    var rendererComponent = worldBoundsSource.GetComponent<Renderer>();
+    if (rendererComponent != null)
+    {
+      var bounds = rendererComponent.bounds;
+      min = bounds.min;
+      max = bounds.max;
+      return true;
+    }
+
+    return false;
+  }
+
   private void CacheObservedPosition()
   {
     if (_rigidbody2D == null)
@@ -556,6 +733,15 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     floorProbeDistance = Mathf.Max(0.01f, floorProbeDistance);
     minimumFloorNormalY = Mathf.Clamp01(minimumFloorNormalY);
     fallGravityScale = Mathf.Max(0f, fallGravityScale);
+    if (worldBoundsMin.x > worldBoundsMax.x)
+    {
+      (worldBoundsMin.x, worldBoundsMax.x) = (worldBoundsMax.x, worldBoundsMin.x);
+    }
+
+    if (worldBoundsMin.y > worldBoundsMax.y)
+    {
+      (worldBoundsMin.y, worldBoundsMax.y) = (worldBoundsMax.y, worldBoundsMin.y);
+    }
     movementStallRespawnDelay = Mathf.Max(0.1f, movementStallRespawnDelay);
     movementStallPositionEpsilon = Mathf.Max(0.0001f, movementStallPositionEpsilon);
   }
