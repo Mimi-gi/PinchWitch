@@ -323,6 +323,13 @@ public sealed class Wall2DPlayerController : MonoBehaviour
         continue;
       }
 
+      // 上向きの法線を十分に持つ面は「床・斜面」とみなし、
+      // 壁登りや反転の対象から外す。
+      if (hit.normal.y >= minimumFloorNormalY)
+      {
+        continue;
+      }
+
       // 真横の壁だけを拾いたいので、法線が進行方向と十分向き合っているものだけ採用する。
       if (Vector2.Dot(hit.normal, -moveDirection) < minimumWallNormalAlignment)
       {
