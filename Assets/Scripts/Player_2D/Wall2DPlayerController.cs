@@ -2,59 +2,35 @@ using System;
 using UnityEngine;
 
 /// <summary>
-/// 近くの面に沿って 2D プレイヤーを自動移動させる。
-/// 床・壁・天井のすべてを移動対象として扱い、詰まり検知も内包する。
+/// 2D プレイヤーの自動移動を制御する。
+/// 基本は左右どちらかへ進み続け、前方の低い壁はよじ登り、
+/// 高い壁は反転し、足元に床がなければ落下する。
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(Collider2D))]
 public sealed class Wall2DPlayerController : MonoBehaviour
 {
-  private enum AutoTraversalDirection
-  {
-    Clockwise,
-    CounterClockwise,
-  }
+  private static readonly Vector2 UpDirection = Vector2.up;
+  private static readonly Vector2 DownDirection = Vector2.down;
 
-  private static readonly Vector2[] SurfaceSearchDirections =
-  {
-    Vector2.down,
-    Vector2.right,
-    Vector2.up,
-    Vector2.left,
-    new Vector2(1f, 1f).normalized,
-    new Vector2(1f, -1f).normalized,
-    new Vector2(-1f, 1f).normalized,
-    new Vector2(-1f, -1f).normalized,
-  };
-
-  [Header("Auto Movement")]
+  [Header("Movement")]
   [SerializeField] private float moveSpeed = 6f;
-  [SerializeField] private AutoTraversalDirection traversalDirection = AutoTraversalDirection.Clockwise;
-  [SerializeField] private float surfaceStickVelocity = 5f;
+  [SerializeField] private bool useGravityWhileMoving = false;
+  [SerializeField] private float gravityScaleWhileMoving = 0f;
 
-  [Header("Surface Detection")]
-  [SerializeField] private LayerMask groundLayers = ~0;
-  [SerializeField] private float groundCheckDistance = 0.08f;
-  [SerializeField] private float forwardProbeDistance = 0.18f;
-  [SerializeField] private float surfaceSearchDistance = 0.2f;
+  [Header("Wall Interaction")]
+  [SerializeField] private LayerMask obstacleLayers = ~0;
+  [SerializeField] private float forwardProbeDistance = 0.12f;
+  [SerializeField] private float minimumWallNormalAlignment = 0.65f;
+  [SerializeField] private float climbClearance = 0.02f;
+  [SerializeField] private float overlapCheckInset = 0.02f;
+  [SerializeField] private float climbSpeed = 3f;
 
-  [Header("Detached Movement")]
-  [SerializeField] private float detachedGravityScale = 2f;
-  [SerializeField] private bool preserveMomentumWhenDetached = true;
-
-  [Header("Wall Bounds")]
-  [SerializeField] private bool reverseDirectionAtWallBounds = true;
-  [SerializeField] private bool reverseDirectionAtBottomWallBoundary = false;
-  [SerializeField] private bool autoFindWallBounds = true;
-  [SerializeField] private Transform wallBoundsSource;
-  [SerializeField] private Vector2 wallBoundsMin = new Vector2(-10f, -10f);
-  [SerializeField] private Vector2 wallBoundsMax = new Vector2(10f, 10f);
-
-  [Header("Rotation")]
-  [SerializeField] private float rotationDegreesPerSecond = 360f;
-  [SerializeField] private float rotationSnapThreshold = 2f;
-  [SerializeField] private bool chooseTraversalDirectionFromFacingOnLanding = true;
+  [Header("Floor Detection")]
+  [SerializeField] private float floorProbeDistance = 0.08f;
+  [SerializeField, Range(0f, 1f)] private float minimumFloorNormalY = 0.35f;
+  [SerializeField] private float fallGravityScale = 1f;
 
   [Header("Physics")]
   [SerializeField] private CollisionDetectionMode2D collisionDetectionMode = CollisionDetectionMode2D.Continuous;
@@ -66,42 +42,50 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
   public event Action MovementStalled;
 
-  /// <summary>現在、面に接地しているかどうか。</summary>
-  public bool IsAttachedToSurface => _isAttachedToSurface;
+  /// <summary>
+  /// 既存アニメーションとの互換用。
+  /// 現在の仕様では「壁や床に沿う」概念を使っていないため、常に接地扱いを返す。
+  /// </summary>
+  public bool IsAttachedToSurface => true;
 
-  /// <summary>moveSpeed が正の値であり、実際に移動しようとしているかどうか。</summary>
+  /// <summary>現在、横移動する速度が設定されているか。</summary>
   public bool IsMoving => moveSpeed > Mathf.Epsilon;
 
-  /// <summary>現在の接地面の法線ベクトル。非接地時は Vector2.up。</summary>
-  public Vector2 CurrentSurfaceNormal => _currentSurfaceNormal;
+  /// <summary>
+  /// 既存アニメーションとの互換用。
+  /// 向き合わせは行っていないので、常に上向き法線を返す。
+  /// </summary>
+  public Vector2 CurrentSurfaceNormal => UpDirection;
 
-  /// <summary>現在設定されている移動速度。</summary>
+  /// <summary>アニメーションや外部参照向けの現在速度。</summary>
   public float CurrentMoveSpeed => moveSpeed;
 
-  private readonly RaycastHit2D[] _surfaceHits = new RaycastHit2D[16];
+  private readonly RaycastHit2D[] _wallHits = new RaycastHit2D[16];
+  private readonly RaycastHit2D[] _floorHits = new RaycastHit2D[16];
+  private readonly Collider2D[] _overlapHits = new Collider2D[8];
 
   private Rigidbody2D _rigidbody2D;
   private Collider2D _collider2D;
-  private Vector2 _currentSurfaceNormal = Vector2.up;
-  private bool _isAttachedToSurface;
-  private bool _hasCachedWallBounds;
   private Vector2 _lastObservedPosition;
   private bool _hasLastObservedPosition;
   private float _movementStallDuration;
+  private float _moveDirectionX = 1f;
+
+  // よじ登り中は通常移動を止め、開始地点から目標地点へ補間移動する。
+  private bool _isClimbing;
+  private Vector2 _climbStartPosition;
+  private Vector2 _climbTargetPosition;
+  private float _climbDuration;
+  private float _climbElapsed;
 
   private void Reset()
   {
-    AutoAssignWallBoundsSource();
-    RefreshWallBoundsCache();
     ClampSerializedValues();
   }
 
   private void Awake()
   {
-    _rigidbody2D = GetComponent<Rigidbody2D>();
-    _collider2D = GetComponent<Collider2D>();
-    AutoAssignWallBoundsSource();
-    RefreshWallBoundsCache();
+    CacheRequiredComponents();
     ClampSerializedValues();
     ApplyPhysicsConfiguration();
     CacheObservedPosition();
@@ -109,11 +93,9 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
   private void OnEnable()
   {
-    AutoAssignWallBoundsSource();
-    RefreshWallBoundsCache();
-    _isAttachedToSurface = TryAcquireAnyNearbySurface();
-    SnapRotationToSurface();
-    ResetStuckTracking();
+    ResetRuntimeState();
+    ResetMovementDirection();
+    ApplyImmediateMovementState();
   }
 
   private void OnValidate()
@@ -125,6 +107,46 @@ public sealed class Wall2DPlayerController : MonoBehaviour
       return;
     }
 
+    CacheRequiredComponents();
+    ApplyPhysicsConfiguration();
+    ApplyImmediateMovementState();
+  }
+
+  private void OnDisable()
+  {
+    ResetClimbState();
+
+    if (_rigidbody2D != null)
+    {
+      _rigidbody2D.linearVelocity = Vector2.zero;
+    }
+
+    _movementStallDuration = 0f;
+    _hasLastObservedPosition = false;
+  }
+
+  private void FixedUpdate()
+  {
+    UpdateMovementStallState();
+
+    if (TryProcessClimb())
+    {
+      CacheObservedPosition();
+      return;
+    }
+
+    var hasFloorBelow = HasFloorBelow();
+    if (hasFloorBelow)
+    {
+      HandleForwardObstacle();
+    }
+
+    ApplyMovement(hasFloorBelow);
+    CacheObservedPosition();
+  }
+
+  private void CacheRequiredComponents()
+  {
     if (_rigidbody2D == null)
     {
       _rigidbody2D = GetComponent<Rigidbody2D>();
@@ -134,36 +156,23 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     {
       _collider2D = GetComponent<Collider2D>();
     }
-
-    AutoAssignWallBoundsSource();
-    RefreshWallBoundsCache();
-    ApplyPhysicsConfiguration();
   }
 
-  private void OnDisable()
+  private void ResetRuntimeState()
   {
-    if (_rigidbody2D != null)
+    ResetClimbState();
+    ResetStuckTracking();
+  }
+
+  private bool TryProcessClimb()
+  {
+    if (!_isClimbing)
     {
-      _rigidbody2D.gravityScale = detachedGravityScale;
-      _rigidbody2D.linearVelocity = Vector2.zero;
+      return false;
     }
 
-    _isAttachedToSurface = false;
-    _currentSurfaceNormal = Vector2.up;
-    _movementStallDuration = 0f;
-    _hasLastObservedPosition = false;
-  }
-
-  private void FixedUpdate()
-  {
-    // 1 フレームごとに、接地状態の更新 → 移動停止の監視 → 実際の移動の順で処理する。
-    UpdateMovementStallState();
-    var wasAttachedToSurface = _isAttachedToSurface;
-    UpdateSurfaceState();
-    UpdateTraversalDirectionOnLandingIfNeeded(wasAttachedToSurface);
-    ApplyAutomaticMovement();
-    ReverseTraversalDirectionAtWallBoundsIfNeeded();
-    CacheObservedPosition();
+    UpdateClimbMovement();
+    return true;
   }
 
   private void UpdateMovementStallState()
@@ -174,27 +183,27 @@ public sealed class Wall2DPlayerController : MonoBehaviour
       return;
     }
 
-    if (!_hasLastObservedPosition)
+    // 停止中やよじ登り中は「詰まり」とはみなさない。
+    if (!IsMoving || _isClimbing)
     {
-      // 最初の 1 回は比較対象がないので、現在位置だけ覚える。
-      _lastObservedPosition = _rigidbody2D.position;
-      _hasLastObservedPosition = true;
+      ResetObservedPositionOnly();
+      _movementStallDuration = 0f;
       return;
     }
 
-    if (!_isAttachedToSurface)
+    if (!_hasLastObservedPosition)
     {
-      // 浮いている間は「詰まり」とみなさず、カウンタをリセットする。
-      _movementStallDuration = 0f;
-      _lastObservedPosition = _rigidbody2D.position;
+      ResetObservedPositionOnly();
       return;
     }
 
     var currentPosition = _rigidbody2D.position;
     var positionDelta = currentPosition - _lastObservedPosition;
-    if (positionDelta.sqrMagnitude <= movementStallPositionEpsilon * movementStallPositionEpsilon)
+    var isAlmostStationary = positionDelta.sqrMagnitude
+      <= movementStallPositionEpsilon * movementStallPositionEpsilon;
+
+    if (isAlmostStationary)
     {
-      // 一定時間ほとんど動いていないなら、壁やコライダーに引っかかっていると判断する。
       _movementStallDuration += Time.fixedDeltaTime;
       if (_movementStallDuration >= movementStallRespawnDelay)
       {
@@ -210,6 +219,302 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     _lastObservedPosition = currentPosition;
   }
 
+  private void HandleForwardObstacle()
+  {
+    if (_collider2D == null || _rigidbody2D == null || !IsMoving)
+    {
+      return;
+    }
+
+    if (!TryGetForwardWallHit(out var wallHit))
+    {
+      return;
+    }
+
+    var requiredClimbHeight = GetRequiredClimbHeight(wallHit);
+    if (CanClimbWall(requiredClimbHeight) && TryStartClimb(requiredClimbHeight))
+    {
+      ResetStuckTracking();
+      return;
+    }
+
+    ReverseDirection();
+  }
+
+  private bool TryGetForwardWallHit(out RaycastHit2D bestHit)
+  {
+    bestHit = default;
+
+    if (_collider2D == null)
+    {
+      return false;
+    }
+
+    var moveDirection = GetHorizontalMoveDirection();
+    var probeDistance = Mathf.Max(forwardProbeDistance, (moveSpeed * Time.fixedDeltaTime) + climbClearance);
+    var contactFilter = CreateObstacleContactFilter();
+    var hitCount = _collider2D.Cast(moveDirection, contactFilter, _wallHits, probeDistance);
+
+    var bestDistance = float.PositiveInfinity;
+    var found = false;
+    for (var i = 0; i < hitCount; i++)
+    {
+      var hit = _wallHits[i];
+      if (hit.collider == null)
+      {
+        continue;
+      }
+
+      // 真横の壁だけを拾いたいので、法線が進行方向と十分向き合っているものだけ採用する。
+      if (Vector2.Dot(hit.normal, -moveDirection) < minimumWallNormalAlignment)
+      {
+        continue;
+      }
+
+      if (hit.distance >= bestDistance)
+      {
+        continue;
+      }
+
+      bestDistance = hit.distance;
+      bestHit = hit;
+      found = true;
+    }
+
+    return found;
+  }
+
+  private float GetRequiredClimbHeight(RaycastHit2D wallHit)
+  {
+    var playerBounds = _collider2D.bounds;
+    var wallTopY = wallHit.collider.bounds.max.y;
+    return wallTopY - playerBounds.min.y;
+  }
+
+  private bool CanClimbWall(float requiredClimbHeight)
+  {
+    var playerHeight = _collider2D.bounds.size.y;
+    return requiredClimbHeight <= playerHeight;
+  }
+
+  private bool TryStartClimb(float climbHeight)
+  {
+    if (_rigidbody2D == null || _collider2D == null)
+    {
+      return false;
+    }
+
+    var climbOffsetY = Mathf.Max(0f, climbHeight) + climbClearance;
+    var targetPosition = _rigidbody2D.position + (UpDirection * climbOffsetY);
+    if (HasBlockingOverlapAt(targetPosition))
+    {
+      return false;
+    }
+
+    BeginClimb(targetPosition);
+    return true;
+  }
+
+  private bool HasBlockingOverlapAt(Vector2 targetPosition)
+  {
+    var currentBounds = _collider2D.bounds;
+    var positionOffset = targetPosition - _rigidbody2D.position;
+    var overlapCheckSize = new Vector2(
+      Mathf.Max(0.01f, currentBounds.size.x - (overlapCheckInset * 2f)),
+      Mathf.Max(0.01f, currentBounds.size.y - (overlapCheckInset * 2f)));
+    var overlapCheckCenter = (Vector2)currentBounds.center + positionOffset;
+
+    var contactFilter = CreateObstacleContactFilter();
+    var overlapCount = Physics2D.OverlapBox(
+      overlapCheckCenter,
+      overlapCheckSize,
+      0f,
+      contactFilter,
+      _overlapHits);
+
+    for (var i = 0; i < overlapCount; i++)
+    {
+      var overlap = _overlapHits[i];
+      if (overlap == null || overlap == _collider2D)
+      {
+        continue;
+      }
+
+      return true;
+    }
+
+    return false;
+  }
+
+  private void BeginClimb(Vector2 targetPosition)
+  {
+    if (_rigidbody2D == null)
+    {
+      return;
+    }
+
+    _isClimbing = true;
+    _climbStartPosition = _rigidbody2D.position;
+    _climbTargetPosition = targetPosition;
+    _climbElapsed = 0f;
+
+    var climbDistance = Vector2.Distance(_climbStartPosition, _climbTargetPosition);
+    _climbDuration = climbDistance <= Mathf.Epsilon
+      ? 0f
+      : Mathf.Max(Time.fixedDeltaTime, climbDistance / climbSpeed);
+
+    // 登っている最中に物理挙動が混ざるとガタつくので、速度と重力を一旦止める。
+    _rigidbody2D.gravityScale = 0f;
+    _rigidbody2D.linearVelocity = Vector2.zero;
+  }
+
+  private void UpdateClimbMovement()
+  {
+    if (_rigidbody2D == null)
+    {
+      ResetClimbState();
+      return;
+    }
+
+    if (_climbDuration <= Mathf.Epsilon)
+    {
+      _rigidbody2D.MovePosition(_climbTargetPosition);
+      CompleteClimb();
+      return;
+    }
+
+    _climbElapsed += Time.fixedDeltaTime;
+    var normalizedTime = Mathf.Clamp01(_climbElapsed / _climbDuration);
+    var easedTime = Mathf.SmoothStep(0f, 1f, normalizedTime);
+    var nextPosition = Vector2.Lerp(_climbStartPosition, _climbTargetPosition, easedTime);
+
+    _rigidbody2D.gravityScale = 0f;
+    _rigidbody2D.linearVelocity = Vector2.zero;
+    _rigidbody2D.MovePosition(nextPosition);
+
+    if (normalizedTime >= 1f)
+    {
+      CompleteClimb();
+    }
+  }
+
+  private void CompleteClimb()
+  {
+    if (_rigidbody2D != null)
+    {
+      _rigidbody2D.position = _climbTargetPosition;
+      Physics2D.SyncTransforms();
+    }
+
+    ResetClimbState();
+    ResetStuckTracking();
+  }
+
+  private void ResetClimbState()
+  {
+    _isClimbing = false;
+    _climbElapsed = 0f;
+    _climbDuration = 0f;
+    _climbStartPosition = Vector2.zero;
+    _climbTargetPosition = Vector2.zero;
+  }
+
+  private void ReverseDirection()
+  {
+    _moveDirectionX *= -1f;
+
+    if (_rigidbody2D != null)
+    {
+      var velocity = _rigidbody2D.linearVelocity;
+      velocity.x = moveSpeed * _moveDirectionX;
+      _rigidbody2D.linearVelocity = velocity;
+    }
+
+    ResetStuckTracking();
+  }
+
+  private bool HasFloorBelow()
+  {
+    if (_collider2D == null)
+    {
+      return false;
+    }
+
+    var contactFilter = CreateObstacleContactFilter();
+    var probeDistance = Mathf.Max(0.01f, floorProbeDistance);
+    var hitCount = _collider2D.Cast(DownDirection, contactFilter, _floorHits, probeDistance);
+
+    for (var i = 0; i < hitCount; i++)
+    {
+      var hit = _floorHits[i];
+      if (hit.collider == null)
+      {
+        continue;
+      }
+
+      // 緩い斜面は床として扱いたいので、法線の Y 成分で判定する。
+      if (hit.normal.y >= minimumFloorNormalY)
+      {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private void ApplyMovement(bool hasFloorBelow)
+  {
+    if (_rigidbody2D == null)
+    {
+      return;
+    }
+
+    _rigidbody2D.gravityScale = GetCurrentGravityScale(hasFloorBelow);
+
+    var velocity = _rigidbody2D.linearVelocity;
+    velocity.x = moveSpeed * _moveDirectionX;
+
+    // 地面上では縦速度を殺して水平移動を優先し、床がないときだけ自然落下させる。
+    if (hasFloorBelow && !useGravityWhileMoving)
+    {
+      velocity.y = 0f;
+    }
+
+    _rigidbody2D.linearVelocity = velocity;
+    _rigidbody2D.MoveRotation(0f);
+  }
+
+  private void ApplyImmediateMovementState()
+  {
+    if (_rigidbody2D == null)
+    {
+      return;
+    }
+
+    _rigidbody2D.gravityScale = GetCurrentGravityScale(HasFloorBelow());
+    _rigidbody2D.rotation = 0f;
+  }
+
+  private float GetCurrentGravityScale(bool hasFloorBelow)
+  {
+    if (!hasFloorBelow)
+    {
+      return fallGravityScale;
+    }
+
+    return useGravityWhileMoving ? gravityScaleWhileMoving : 0f;
+  }
+
+  private Vector2 GetHorizontalMoveDirection()
+  {
+    return new Vector2(Mathf.Sign(_moveDirectionX), 0f);
+  }
+
+  private ContactFilter2D CreateObstacleContactFilter()
+  {
+    return Wall2DContactCastUtility.CreateContactFilter(obstacleLayers);
+  }
+
   private void CacheObservedPosition()
   {
     if (_rigidbody2D == null)
@@ -221,11 +526,8 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     _hasLastObservedPosition = true;
   }
 
-  private void ResetStuckTracking()
+  private void ResetObservedPositionOnly()
   {
-    // 再有効化や初期化の直後に、古い判定を持ち越さないようにする。
-    _movementStallDuration = 0f;
-
     if (_rigidbody2D == null)
     {
       _hasLastObservedPosition = false;
@@ -236,362 +538,26 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     _hasLastObservedPosition = true;
   }
 
-  private void UpdateSurfaceState()
+  private void ResetStuckTracking()
   {
-    if (_collider2D == null)
-    {
-      _isAttachedToSurface = false;
-      return;
-    }
-
-    // いま接地している面の前方を先読みし、角を曲がれるなら曲がる。
-    if (_isAttachedToSurface)
-    {
-      TryTurnAlongForwardSurface();
-    }
-
-    if (TryFindSurfaceInDirection(-_currentSurfaceNormal, ResolveProbeDistance(groundCheckDistance), out var supportHit))
-    {
-      _currentSurfaceNormal = supportHit.normal.normalized;
-      _isAttachedToSurface = true;
-      return;
-    }
-
-    _isAttachedToSurface = TryAcquireAnyNearbySurface();
-  }
-
-  private void ApplyAutomaticMovement()
-  {
-    if (_rigidbody2D == null)
-    {
-      return;
-    }
-
-    if (_isAttachedToSurface)
-    {
-      // 接地中は、接線方向に進みつつ法線方向へ押し付けて面から離れにくくする。
-      var tangent = GetTraversalTangent(_currentSurfaceNormal);
-      var velocity = (tangent * moveSpeed) + ((-_currentSurfaceNormal) * surfaceStickVelocity);
-
-      _rigidbody2D.gravityScale = 0f;
-      _rigidbody2D.linearVelocity = velocity;
-
-      AlignToSurfaceNormal();
-
-      return;
-    }
-
-    _rigidbody2D.gravityScale = detachedGravityScale;
-
-    if (!preserveMomentumWhenDetached)
-    {
-      var velocity = _rigidbody2D.linearVelocity;
-      velocity.x = 0f;
-      _rigidbody2D.linearVelocity = velocity;
-    }
-  }
-
-  private void TryTurnAlongForwardSurface()
-  {
-    // 進行方向の少し先に別の面があれば、そこで向きを切り替える。
-    var forwardDirection = GetTraversalTangent(_currentSurfaceNormal);
-    if (!TryFindSurfaceInDirection(forwardDirection, ResolveProbeDistance(forwardProbeDistance), out var forwardHit))
-    {
-      return;
-    }
-
-    var forwardNormal = forwardHit.normal.normalized;
-    if (forwardNormal == Vector2.zero)
-    {
-      return;
-    }
-
-    // Ignore the same supporting surface and only turn when a different face is found.
-    if (Vector2.Dot(forwardNormal, _currentSurfaceNormal) > 0.98f)
-    {
-      return;
-    }
-
-    _currentSurfaceNormal = forwardNormal;
-    _isAttachedToSurface = true;
-  }
-
-  private bool TryAcquireAnyNearbySurface()
-  {
-    // 周囲 8 方向を探して、最も近い面を現在の接地面として採用する。
-    var bestDistance = float.PositiveInfinity;
-    RaycastHit2D bestHit = default;
-    var hasHit = false;
-    var probeDistance = ResolveProbeDistance(surfaceSearchDistance);
-
-    foreach (var direction in SurfaceSearchDirections)
-    {
-      if (!TryFindSurfaceInDirection(direction, probeDistance, out var hit))
-      {
-        continue;
-      }
-
-      if (hit.distance >= bestDistance)
-      {
-        continue;
-      }
-
-      bestDistance = hit.distance;
-      bestHit = hit;
-      hasHit = true;
-    }
-
-    if (!hasHit)
-    {
-      return false;
-    }
-
-    _currentSurfaceNormal = bestHit.normal.normalized;
-    return true;
-  }
-
-  private bool TryFindSurfaceInDirection(Vector2 direction, float castDistance, out RaycastHit2D bestHit)
-  {
-    bestHit = default;
-
-    if (_collider2D == null || direction.sqrMagnitude <= Mathf.Epsilon)
-    {
-      return false;
-    }
-
-    var contactFilter = Wall2DContactCastUtility.CreateContactFilter(groundLayers);
-    var hitCount = _collider2D.Cast(direction.normalized, contactFilter, _surfaceHits, castDistance);
-
-    var hasHit = false;
-    var bestDistance = float.PositiveInfinity;
-    for (var i = 0; i < hitCount; i++)
-    {
-      var hit = _surfaceHits[i];
-      if (hit.collider == null || hit.normal == Vector2.zero)
-      {
-        continue;
-      }
-
-      if (hit.distance >= bestDistance)
-      {
-        continue;
-      }
-
-      bestDistance = hit.distance;
-      bestHit = hit;
-      hasHit = true;
-    }
-
-    return hasHit;
-  }
-
-  private Vector2 GetTraversalTangent(Vector2 surfaceNormal)
-  {
-    var tangent = traversalDirection == AutoTraversalDirection.Clockwise
-      ? new Vector2(surfaceNormal.y, -surfaceNormal.x)
-      : new Vector2(-surfaceNormal.y, surfaceNormal.x);
-
-    return tangent.normalized;
-  }
-
-  private void AlignToSurfaceNormal()
-  {
-    if (_rigidbody2D == null)
-    {
-      return;
-    }
-
-    var targetAngle = GetSurfaceAlignmentAngle(_currentSurfaceNormal);
-    var nextAngle = Mathf.MoveTowardsAngle(
-      _rigidbody2D.rotation,
-      targetAngle,
-      rotationDegreesPerSecond * Time.fixedDeltaTime);
-
-    if (Mathf.Abs(Mathf.DeltaAngle(nextAngle, targetAngle)) <= rotationSnapThreshold)
-    {
-      nextAngle = targetAngle;
-    }
-
-    _rigidbody2D.MoveRotation(nextAngle);
-  }
-
-  private void SnapRotationToSurface()
-  {
-    if (_rigidbody2D == null)
-    {
-      return;
-    }
-
-    _rigidbody2D.SetRotation(GetSurfaceAlignmentAngle(_currentSurfaceNormal));
-  }
-
-  private static float GetSurfaceAlignmentAngle(Vector2 surfaceNormal)
-  {
-    return (Mathf.Atan2(surfaceNormal.y, surfaceNormal.x) * Mathf.Rad2Deg) - 90f;
-  }
-
-  private void UpdateTraversalDirectionOnLandingIfNeeded(bool wasAttachedToSurface)
-  {
-    if (!chooseTraversalDirectionFromFacingOnLanding || wasAttachedToSurface || !_isAttachedToSurface)
-    {
-      return;
-    }
-
-    var headDirection = (Vector2)transform.up;
-    if (headDirection.sqrMagnitude <= Mathf.Epsilon)
-    {
-      return;
-    }
-
-    headDirection.Normalize();
-
-    var shouldMoveRight = Mathf.Abs(headDirection.x) >= Mathf.Abs(headDirection.y)
-      ? headDirection.x >= 0f
-      : headDirection.y >= 0f;
-
-    traversalDirection = shouldMoveRight
-      ? AutoTraversalDirection.Clockwise
-      : AutoTraversalDirection.CounterClockwise;
-  }
-
-  private void ReverseTraversalDirectionAtWallBoundsIfNeeded()
-  {
-    if (!reverseDirectionAtWallBounds || !_hasCachedWallBounds || _rigidbody2D == null || _collider2D == null)
-    {
-      return;
-    }
-
-    var colliderBounds = _collider2D.bounds;
-    var offset = Vector2.zero;
-    var touchedBoundary = false;
-
-    if (colliderBounds.min.x < wallBoundsMin.x)
-    {
-      offset.x = wallBoundsMin.x - colliderBounds.min.x;
-      touchedBoundary = true;
-    }
-    else if (colliderBounds.max.x > wallBoundsMax.x)
-    {
-      offset.x = wallBoundsMax.x - colliderBounds.max.x;
-      touchedBoundary = true;
-    }
-
-    if (reverseDirectionAtBottomWallBoundary && colliderBounds.min.y < wallBoundsMin.y)
-    {
-      offset.y = wallBoundsMin.y - colliderBounds.min.y;
-      touchedBoundary = true;
-    }
-    else if (colliderBounds.max.y > wallBoundsMax.y)
-    {
-      offset.y = wallBoundsMax.y - colliderBounds.max.y;
-      touchedBoundary = true;
-    }
-
-    if (!touchedBoundary)
-    {
-      return;
-    }
-
-    _rigidbody2D.position += offset;
-    _rigidbody2D.linearVelocity = Vector2.zero;
-    traversalDirection = traversalDirection == AutoTraversalDirection.Clockwise
-      ? AutoTraversalDirection.CounterClockwise
-      : AutoTraversalDirection.Clockwise;
-  }
-
-  private void AutoAssignWallBoundsSource()
-  {
-    if (!autoFindWallBounds || wallBoundsSource != null)
-    {
-      return;
-    }
-
-    var wallObject = GameObject.Find("Wall");
-    if (wallObject != null)
-    {
-      wallBoundsSource = wallObject.transform;
-    }
-  }
-
-  private void RefreshWallBoundsCache()
-  {
-    _hasCachedWallBounds = TryResolveWallBounds(out var min, out var max);
-    if (!_hasCachedWallBounds)
-    {
-      return;
-    }
-
-    wallBoundsMin = min;
-    wallBoundsMax = max;
-  }
-
-  private bool TryResolveWallBounds(out Vector2 min, out Vector2 max)
-  {
-    min = default;
-    max = default;
-
-    if (wallBoundsSource == null)
-    {
-      return false;
-    }
-
-    // 2D コライダーがあればそれを優先し、なければ 3D コライダーや Renderer から外形を拾う。
-    var collider2D = wallBoundsSource.GetComponent<Collider2D>();
-    if (collider2D != null)
-    {
-      var bounds = collider2D.bounds;
-      min = bounds.min;
-      max = bounds.max;
-      return true;
-    }
-
-    var collider3D = wallBoundsSource.GetComponent<Collider>();
-    if (collider3D != null)
-    {
-      var bounds = collider3D.bounds;
-      min = bounds.min;
-      max = bounds.max;
-      return true;
-    }
-
-    var rendererComponent = wallBoundsSource.GetComponent<Renderer>();
-    if (rendererComponent != null)
-    {
-      var bounds = rendererComponent.bounds;
-      min = bounds.min;
-      max = bounds.max;
-      return true;
-    }
-
-    return false;
-  }
-
-  private float ResolveProbeDistance(float baseDistance)
-  {
-    return Mathf.Max(baseDistance, (moveSpeed * Time.fixedDeltaTime) + 0.02f);
+    _movementStallDuration = 0f;
+    ResetObservedPositionOnly();
   }
 
   private void ClampSerializedValues()
   {
-    moveSpeed = Mathf.Max(0.1f, moveSpeed);
-    surfaceStickVelocity = Mathf.Max(0.1f, surfaceStickVelocity);
-    groundCheckDistance = Mathf.Max(0.01f, groundCheckDistance);
+    moveSpeed = Mathf.Max(0f, moveSpeed);
+    gravityScaleWhileMoving = Mathf.Max(0f, gravityScaleWhileMoving);
     forwardProbeDistance = Mathf.Max(0.01f, forwardProbeDistance);
-    surfaceSearchDistance = Mathf.Max(groundCheckDistance, surfaceSearchDistance);
-    detachedGravityScale = Mathf.Max(0f, detachedGravityScale);
+    minimumWallNormalAlignment = Mathf.Clamp(minimumWallNormalAlignment, 0f, 1f);
+    climbClearance = Mathf.Max(0f, climbClearance);
+    overlapCheckInset = Mathf.Max(0f, overlapCheckInset);
+    climbSpeed = Mathf.Max(0.1f, climbSpeed);
+    floorProbeDistance = Mathf.Max(0.01f, floorProbeDistance);
+    minimumFloorNormalY = Mathf.Clamp01(minimumFloorNormalY);
+    fallGravityScale = Mathf.Max(0f, fallGravityScale);
     movementStallRespawnDelay = Mathf.Max(0.1f, movementStallRespawnDelay);
     movementStallPositionEpsilon = Mathf.Max(0.0001f, movementStallPositionEpsilon);
-    if (wallBoundsMin.x > wallBoundsMax.x)
-    {
-      (wallBoundsMin.x, wallBoundsMax.x) = (wallBoundsMax.x, wallBoundsMin.x);
-    }
-
-    if (wallBoundsMin.y > wallBoundsMax.y)
-    {
-      (wallBoundsMin.y, wallBoundsMax.y) = (wallBoundsMax.y, wallBoundsMin.y);
-    }
-    rotationDegreesPerSecond = Mathf.Max(1f, rotationDegreesPerSecond);
-    rotationSnapThreshold = Mathf.Clamp(rotationSnapThreshold, 0f, 45f);
   }
 
   private void ApplyPhysicsConfiguration()
@@ -603,10 +569,49 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
     _rigidbody2D.collisionDetectionMode = collisionDetectionMode;
     _rigidbody2D.interpolation = interpolationMode;
+    _rigidbody2D.freezeRotation = true;
   }
 
-  public void MoveStop(){
-    moveSpeed = 0;
-    //  _rigidbody2D.linearVelocity = Vector2.zero;
+  /// <summary>
+  /// ゴール演出などで移動を止めたいときに呼ぶ。
+  /// よじ登り中でも安全に停止できるよう、まず登り状態を解除する。
+  /// </summary>
+  public void MoveStop()
+  {
+    ResetClimbState();
+    moveSpeed = 0f;
+
+    if (_rigidbody2D == null)
+    {
+      return;
+    }
+
+    var velocity = _rigidbody2D.linearVelocity;
+    velocity.x = 0f;
+    if (!useGravityWhileMoving)
+    {
+      velocity.y = 0f;
+    }
+
+    _rigidbody2D.linearVelocity = velocity;
+  }
+
+  /// <summary>
+  /// リスポーン直後などに進行方向を初期値へ戻す。
+  /// 現在の仕様では「右向きスタート」を初期方向としている。
+  /// </summary>
+  public void ResetMovementDirection()
+  {
+    ResetClimbState();
+    _moveDirectionX = 1f;
+
+    if (_rigidbody2D == null)
+    {
+      return;
+    }
+
+    var velocity = _rigidbody2D.linearVelocity;
+    velocity.x = Mathf.Abs(moveSpeed);
+    _rigidbody2D.linearVelocity = velocity;
   }
 }

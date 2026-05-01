@@ -175,6 +175,12 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
       spawnedPlayerParent);
 
     CacheSpawnedPlayerComponents(_spawnedPlayerInstance);
+
+    if (_spawnedPlayerController != null)
+    {
+      _spawnedPlayerController.ResetMovementDirection();
+    }
+
     SubscribeToSpawnedPlayerEvents();
     ApplyInitialGameplayState();
     SetSpawnedPlayerVisible(true);
@@ -218,6 +224,11 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
       _spawnedPlayerRigidbody2D.rotation = targetRotation.eulerAngles.z;
       _spawnedPlayerRigidbody2D.linearVelocity = Vector2.zero;
       _spawnedPlayerRigidbody2D.angularVelocity = 0f;
+    }
+
+    if (_spawnedPlayerController != null)
+    {
+      _spawnedPlayerController.ResetMovementDirection();
     }
   }
 
