@@ -20,7 +20,7 @@ public class LoadingSceneController : MonoBehaviour
   // 定数
   //=========================================================
   /// <summary>最低表示秒数。</summary>
-  private const float MinDisplayTime = 1.5f;
+  private const float MinDisplayTime = 0.5f;
 
   //=========================================================
   // 内部変数
