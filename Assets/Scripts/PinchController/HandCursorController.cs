@@ -191,6 +191,7 @@ public sealed class HandCursorController
     _cursorSphere.position = position;
     _cursorSphere.localScale = Vector3.one * _cursorSphereDiameter;
     ApplyCursorColor(isPinching, isDepthReady);
+    ApplyCursorLayer();
     SetCursorVisible(true);
   }
 

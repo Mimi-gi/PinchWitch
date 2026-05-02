@@ -8,6 +8,7 @@ public class HandPinchController : MonoBehaviour
 {
   private const string GrabbableLayerName = "Grabbable";
   private const string GlassLayerName = "Glass";
+  private const string PlaneLayerName = "Plane";
 
   public event Action<Rigidbody> GrabStarted;
   public event Action<Rigidbody> GrabReleased;
@@ -114,7 +115,7 @@ public class HandPinchController : MonoBehaviour
   private void Reset()
   {
     handTrackingGraph = GetComponent<HandTrackingGraph>();
-    worldCamera = Camera.main;
+    worldCamera = FindWorldCameraForCursor();
     if (grabbableLayerMask.value == 0)
     {
       grabbableLayerMask = LayerMask.GetMask(GrabbableLayerName, GlassLayerName);
@@ -203,8 +204,52 @@ public class HandPinchController : MonoBehaviour
 
     if (worldCamera == null)
     {
-      worldCamera = Camera.main;
+      worldCamera = FindWorldCameraForCursor();
     }
+  }
+
+  private static Camera FindWorldCameraForCursor()
+  {
+    var planeLayer = LayerMask.NameToLayer(PlaneLayerName);
+    var mainCamera = Camera.main;
+    if (CanCameraRenderLayer(mainCamera, planeLayer))
+    {
+      return mainCamera;
+    }
+
+    var cameras = FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+    foreach (var candidate in cameras)
+    {
+      if (candidate != null && candidate.isActiveAndEnabled && CanCameraRenderLayer(candidate, planeLayer))
+      {
+        return candidate;
+      }
+    }
+
+    foreach (var candidate in cameras)
+    {
+      if (CanCameraRenderLayer(candidate, planeLayer))
+      {
+        return candidate;
+      }
+    }
+
+    return mainCamera;
+  }
+
+  private static bool CanCameraRenderLayer(Camera camera, int layer)
+  {
+    if (camera == null)
+    {
+      return false;
+    }
+
+    if (layer < 0)
+    {
+      return true;
+    }
+
+    return (camera.cullingMask & (1 << layer)) != 0;
   }
 
   private void EnsureShadowDirtyRegistryExists()
