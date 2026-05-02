@@ -245,6 +245,11 @@ public class ShadowColliderBuilder : MonoBehaviour
         var shouldEnableGeometry = isEnabled && output.HasGeometry;
         output.SetGeometryEnabled(shouldEnableGeometry);
         shadowRealmCollider = output.SourcePolygon;
+
+        if (shouldEnableGeometry && Application.isPlaying)
+        {
+            Wall2DPlayerCrushDetector.EvaluateAllActiveDetectorsImmediately();
+        }
     }
 
     public void MarkCacheInvalid()

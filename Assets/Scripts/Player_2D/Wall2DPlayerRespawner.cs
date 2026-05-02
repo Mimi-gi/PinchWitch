@@ -34,6 +34,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   private Coroutine _overlapRecoveryCoroutine;
   private bool _isRespawning;
   private float _respawnBlockedUntilTime;
+  private bool _isPlayerDead;
 
   public int ResetOrder => 0;
 
@@ -61,16 +62,17 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
   private void Update()
   {
-    // 落下復帰は常時監視する。2D/3D 切り替え前提のゲートは持たない。
+    // 落下死は常時監視する。2D/3D 切り替え前提のゲートは持たない。
     if (!respawnAtInitialPointWhenFallen
-        || _spawnedPlayerInstance == null)
+        || _spawnedPlayerInstance == null
+        || _isPlayerDead)
     {
       return;
     }
 
     if (_spawnedPlayerInstance.transform.position.y < fallRespawnYThreshold)
     {
-      RespawnPlayerAtInitialPoint();
+      KillSpawnedPlayerAtCurrentPosition();
     }
   }
 
@@ -86,7 +88,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   /// </summary>
   public void SetPlayerGameplayEnabled(bool isEnabled)
   {
-    SetSpawnedPlayer2DGameplayEnabled(isEnabled, keepPhysicsSimulationWhenDisabled: false, preserveCurrentMotion: false);
+    SetSpawnedPlayer2DGameplayEnabled(isEnabled && !_isPlayerDead, keepPhysicsSimulationWhenDisabled: false, preserveCurrentMotion: false);
   }
 
   [ContextMenu("Respawn 2D Player At Initial Point")]
@@ -98,6 +100,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     }
 
     BeginRespawnGuard();
+    _isPlayerDead = false;
 
     try
     {
@@ -188,6 +191,12 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
   private void ApplyInitialGameplayState()
   {
+    if (_isPlayerDead)
+    {
+      SetSpawnedPlayer2DGameplayEnabled(false);
+      return;
+    }
+
     // 生成・配置直後の物理状態を、現在の視点モード設定に合わせる。
     var switcher = FindFirstObjectByType<SpaceViewModeSwitcher>();
     if (switcher != null)
@@ -403,14 +412,27 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
   private void OnSpawnedPlayerCrushed()
   {
-    // 圧死したら、壁に挟まれたままでも必ず初期地点へ戻す。
-    RespawnPlayerAtInitialPoint();
+    // 圧死したら、その場で止めてプレイヤーを残す。
+    KillSpawnedPlayerAtCurrentPosition();
   }
 
   private void OnSpawnedPlayerMovementStalled()
   {
     // 移動停止が続いた場合も、壁詰まりや引っ掛かりとみなして復帰する。
     RespawnPlayerAtInitialPoint();
+  }
+
+  private void KillSpawnedPlayerAtCurrentPosition()
+  {
+    if (_spawnedPlayerInstance == null || _isPlayerDead)
+    {
+      return;
+    }
+
+    _isPlayerDead = true;
+    StopOverlapRecoveryCoroutine();
+    SetSpawnedPlayer2DGameplayEnabled(false, keepPhysicsSimulationWhenDisabled: false, preserveCurrentMotion: false);
+    SetSpawnedPlayerVisible(true);
   }
 
   private void ResolveOverlapIfNeeded()
@@ -489,6 +511,11 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
         continue;
       }
 
+      if (Wall2DPlayerCrushDetector.IsShadowCollider(overlapCollider))
+      {
+        continue;
+      }
+
       return true;
     }
 
@@ -504,6 +531,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     ClearSavedRespawnPoint();
     _isRespawning = false;
     _respawnBlockedUntilTime = 0f;
+    _isPlayerDead = false;
 
     if (_spawnedPlayerInstance != null)
     {
