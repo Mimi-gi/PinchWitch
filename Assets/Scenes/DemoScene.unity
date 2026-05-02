@@ -238,6 +238,11 @@ PrefabInstance:
       propertyPath: m_Name
       value: Curtain (2)
       objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 63067c2608634af4aa094a906f365423,
+        type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -687,6 +692,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: tripo_convert_afde5560-a6c4-475a-9d40-507e64c54b70
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 12a7fbbf59e974a4587b9b14dd0e4ada,
+        type: 3}
+      propertyPath: m_Layer
+      value: 6
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -6630,6 +6640,11 @@ PrefabInstance:
       propertyPath: m_ConstrainProportionsScale
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: -8390680405410486442, guid: 747ff5a09572f194d8270deb0dcc260c,
+        type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
     - target: {fileID: -6501838224823869002, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
       propertyPath: m_LocalScale.x
@@ -6665,10 +6680,25 @@ PrefabInstance:
       propertyPath: 'm_Materials.Array.data[1]'
       value: 
       objectReference: {fileID: 2100000, guid: 9bffd5b238a80594998fb70a9c46ddbb, type: 2}
+    - target: {fileID: -2658870919821519452, guid: 747ff5a09572f194d8270deb0dcc260c,
+        type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: -1303535312154082803, guid: 747ff5a09572f194d8270deb0dcc260c,
+        type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
       propertyPath: m_Name
       value: Curtain_Decorations
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 747ff5a09572f194d8270deb0dcc260c,
+        type: 3}
+      propertyPath: m_Layer
+      value: 6
       objectReference: {fileID: 0}
     - target: {fileID: 1831315059143207768, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
@@ -6689,6 +6719,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_ConstrainProportionsScale
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4026370798707178241, guid: 747ff5a09572f194d8270deb0dcc260c,
+        type: 3}
+      propertyPath: m_Layer
+      value: 6
       objectReference: {fileID: 0}
     - target: {fileID: 4456314613271022422, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
@@ -6725,6 +6760,11 @@ PrefabInstance:
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
       objectReference: {fileID: 2100000, guid: b3a7a2b8ca11aa64289dac508f9ca674, type: 2}
+    - target: {fileID: 6709521048497459107, guid: 747ff5a09572f194d8270deb0dcc260c,
+        type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
     - target: {fileID: 7188594303917502956, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
@@ -7041,6 +7081,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: Curtain (1)
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 63067c2608634af4aa094a906f365423,
+        type: 3}
+      propertyPath: m_Layer
+      value: 6
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -8182,7 +8227,7 @@ GameObject:
   - component: {fileID: 2010092516}
   - component: {fileID: 2010092518}
   - component: {fileID: 2010092517}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: nurbsToPoly11 (1)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -8396,7 +8441,7 @@ GameObject:
   - component: {fileID: 2131942243}
   - component: {fileID: 2131942242}
   - component: {fileID: 2131942241}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: 2DFloor
   m_TagString: Untagged
   m_Icon: {fileID: 0}
