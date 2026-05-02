@@ -2,6 +2,8 @@ using UnityEngine;
 
 public sealed class HandCursorController
 {
+  private const string PlaneLayerName = "Plane";
+
   // depth 未確定時に使うカーソル色。
   private static readonly Color UncalibratedCursorColor = Color.red;
 
@@ -133,8 +135,7 @@ public sealed class HandCursorController
       var cursorObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
       cursorObject.name = "HandCursorSphere";
       cursorObject.transform.SetParent(_ownerTransform, false);
-      var collider = cursorObject.GetComponent<Collider>();
-      if (collider != null)
+      if (cursorObject.TryGetComponent<Collider>(out var collider))
       {
         Object.Destroy(collider);
       }
@@ -143,6 +144,7 @@ public sealed class HandCursorController
       _createdCursorAtRuntime = true;
     }
 
+    ApplyCursorLayer();
     _cursorSphere.localScale = Vector3.one * _cursorSphereDiameter;
     if (_worldCamera != null)
     {
@@ -311,5 +313,31 @@ public sealed class HandCursorController
 
     frontWorldZ = _zRange.y;
     backWorldZ = _zRange.x;
+  }
+
+  // カーソルを Plane レイヤーに揃える。
+  private void ApplyCursorLayer()
+  {
+    if (_cursorSphere == null)
+    {
+      return;
+    }
+
+    var planeLayer = LayerMask.NameToLayer(PlaneLayerName);
+    if (planeLayer < 0)
+    {
+      return;
+    }
+
+    SetLayerRecursively(_cursorSphere, planeLayer);
+  }
+
+  private static void SetLayerRecursively(Transform target, int layer)
+  {
+    target.gameObject.layer = layer;
+    for (var i = 0; i < target.childCount; i++)
+    {
+      SetLayerRecursively(target.GetChild(i), layer);
+    }
   }
 }
