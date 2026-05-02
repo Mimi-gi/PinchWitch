@@ -4,10 +4,21 @@ public class UIManager : MonoBehaviour
 {
   [Header("ゲームクリア時に表示するUI")]
   [SerializeField] private GameObject gameClearUI;
+  [SerializeField] private ResultPanelController resultPanelController;
+  [SerializeField] private ResultPanelManager resultPanelManager;
 
-  void Start()
+  private void Awake()
   {
-    gameClearUI = GameObject.Find("GameClear_text");
+    CacheResultPanel();
+  }
+
+  private void Start()
+  {
+    if (gameClearUI == null)
+    {
+      gameClearUI = GameObject.Find("GameClear_text");
+    }
+
     // ゲーム開始時はクリアのUIは消しておく
     if (gameClearUI != null)
     {
@@ -25,16 +36,38 @@ public class UIManager : MonoBehaviour
       gameClearUI.SetActive(true);
     }
 
-    // 追加：ResultPanelを表示
-    ResultPanelController result = FindObjectOfType<ResultPanelController>();
+    ShowResultPanel();
+  }
 
-    if (result != null)
+  private void CacheResultPanel()
+  {
+    if (resultPanelController == null)
     {
-      result.Show();
+      resultPanelController = FindFirstObjectByType<ResultPanelController>(FindObjectsInactive.Include);
     }
-    else
+
+    if (resultPanelManager == null)
     {
-      Debug.LogWarning("[UIManager] ResultPanelController が見つかりません");
+      resultPanelManager = FindFirstObjectByType<ResultPanelManager>(FindObjectsInactive.Include);
     }
+  }
+
+  private void ShowResultPanel()
+  {
+    CacheResultPanel();
+
+    if (resultPanelController != null)
+    {
+      resultPanelController.Show();
+      return;
+    }
+
+    if (resultPanelManager != null)
+    {
+      resultPanelManager.Show();
+      return;
+    }
+
+    Debug.LogWarning("[UIManager] ResultPanel が見つかりません");
   }
 }

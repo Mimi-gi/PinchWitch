@@ -25,6 +25,8 @@ public enum GameScene
 
 public class GameSceneManager : MonoBehaviour
 {
+  private const int FadeCanvasSortingOrder = 32767;
+
   //=========================================================
   // シングルトン
   //=========================================================
@@ -75,6 +77,10 @@ public class GameSceneManager : MonoBehaviour
   /// <summary>Loadingシーン経由で読み込む遷移先シーン名。</summary>
   private static string _pendingSceneName;
 
+  private Coroutine _transitionCoroutine;
+  private Coroutine _fadeCoroutine;
+  private string _lastSceneStartFadeScenePath;
+
   //=========================================================
   // Unity イベント
   //=========================================================
@@ -85,11 +91,8 @@ public class GameSceneManager : MonoBehaviour
       _instance = this;
       DontDestroyOnLoad(gameObject);
 
-      // FadePanelを最初は透明にする
-      if (_fadeCanvasGroup != null)
-      {
-        _fadeCanvasGroup.alpha = 0f;
-      }
+      EnsureFadeCanvasGroup();
+      SetFadeAlpha(0f);
 
       ClearStageCount = PlayerPrefs.GetInt("ClearStageCount", 0);
 
@@ -104,24 +107,50 @@ public class GameSceneManager : MonoBehaviour
     }
   }
 
+  [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+  private static void BootstrapIfNeeded()
+  {
+    if (!EnsureInstance())
+    {
+      return;
+    }
+
+    _instance.StartSceneOpeningFadeIfNeeded();
+  }
+
   //=========================================================
   // Public API（シーン遷移）
   //=========================================================
   /// <summary>タイトルシーンへ遷移する。</summary>
   public static void GoTitle()
   {
+    if (!EnsureInstance())
+    {
+      return;
+    }
+
     LoadViaLoading(_instance._titleSceneName);
   }
 
   /// <summary>ステージセレクトシーンへ遷移する。</summary>
   public static void GoStageSelect()
   {
+    if (!EnsureInstance())
+    {
+      return;
+    }
+
     LoadViaLoading(_instance._selectSceneName);
   }
 
   /// <summary>チュートリアルシーンへ遷移する。</summary>
   public static void GoTutorial()
   {
+    if (!EnsureInstance())
+    {
+      return;
+    }
+
     LoadViaLoading(_instance._tutorialSceneName);
   }
 
@@ -130,6 +159,11 @@ public class GameSceneManager : MonoBehaviour
   /// </summary>
   public static void GoStage(int stageNum)
   {
+    if (!EnsureInstance())
+    {
+      return;
+    }
+
     CurrentStageNum = stageNum;
     string sceneName = _instance._stageScenePrefix + stageNum;
     LoadViaLoading(sceneName);
@@ -167,6 +201,17 @@ public class GameSceneManager : MonoBehaviour
     LoadViaLoading(sceneName);
   }
 
+  /// <summary>現在アクティブなシーンをフェード付きで再読み込みする。</summary>
+  public static void ReloadActiveSceneWithFade(float delaySeconds = 0f)
+  {
+    if (!EnsureInstance())
+    {
+      return;
+    }
+
+    _instance.StartTransition(_instance.ReloadActiveSceneRoutine(delaySeconds));
+  }
+
   //=========================================================
   // フェード
   //=========================================================
@@ -174,42 +219,51 @@ public class GameSceneManager : MonoBehaviour
   /// <summary>フェードを即座に透明にする。Loadingシーン開始時に呼ぶ。</summary>
   public void ClearFade()
   {
-    if (_fadeCanvasGroup != null)
-    {
-      _fadeCanvasGroup.alpha = 0f;
-    }
+    SetFadeAlpha(0f);
   }
 
   /// <summary>フェードを即座に黒くする。次シーン遷移直前に呼ぶ。</summary>
   public void FadeOut()
   {
-    if (_fadeCanvasGroup != null)
-    {
-      _fadeCanvasGroup.alpha = 1f;
-    }
+    SetFadeAlpha(1f);
   }
 
   /// <summary>フェードイン（黒→透明）。呼び出し元でyield returnして使う。</summary>
   public IEnumerator FadeIn()
   {
-    Debug.Log("[GameSceneManager] FadeIn呼ばれた");
+    yield return FadeTo(1f, 0f);
+  }
+
+  /// <summary>フェードアウト（透明→黒）。呼び出し元でyield returnして使う。</summary>
+  public IEnumerator FadeOutRoutine()
+  {
+    yield return FadeTo(0f, 1f);
+  }
+
+  private IEnumerator FadeTo(float fromAlpha, float toAlpha)
+  {
+    EnsureFadeCanvasGroup();
     if (_fadeCanvasGroup == null)
     {
       Debug.LogWarning("[GameSceneManager] _fadeCanvasGroup が null！");
       yield break;
     }
 
-    _fadeCanvasGroup.alpha = 1f;
-    Debug.Log("[GameSceneManager] alpha = 1 にセット");
+    _fadeCanvasGroup.alpha = fromAlpha;
+    if (_fadeDuration <= 0f)
+    {
+      _fadeCanvasGroup.alpha = toAlpha;
+      yield break;
+    }
+
     float elapsed = 0f;
     while (elapsed < _fadeDuration)
     {
-      elapsed += Time.deltaTime;
-      _fadeCanvasGroup.alpha = Mathf.Clamp01(1f - elapsed / _fadeDuration);
+      elapsed += Time.unscaledDeltaTime;
+      _fadeCanvasGroup.alpha = Mathf.Lerp(fromAlpha, toAlpha, Mathf.Clamp01(elapsed / _fadeDuration));
       yield return null;
     }
-    _fadeCanvasGroup.alpha = 0f;
-    Debug.Log("[GameSceneManager] FadeIn完了 alpha = 0");
+    _fadeCanvasGroup.alpha = toAlpha;
   }
 
   //=========================================================
@@ -217,25 +271,18 @@ public class GameSceneManager : MonoBehaviour
   //=========================================================
   private static void LoadViaLoading(string targetScene)
   {
+    if (!EnsureInstance())
+    {
+      return;
+    }
+
     _pendingSceneName = targetScene;
-    _instance.StartCoroutine(_instance.FadeAndLoad());
+    _instance.StartTransition(_instance.FadeAndLoad());
   }
 
   private IEnumerator FadeAndLoad()
   {
-    // フェードアウト
-    if (_fadeCanvasGroup != null)
-    {
-      _fadeCanvasGroup.alpha = 0f;
-      float elapsed = 0f;
-      while (elapsed < _fadeDuration)
-      {
-        elapsed += Time.deltaTime;
-        _fadeCanvasGroup.alpha = Mathf.Clamp01(elapsed / _fadeDuration);
-        yield return null;
-      }
-    }
-
+    yield return FadeOutRoutine();
     SceneManager.LoadScene(_instance._loadingSceneName);
   }
 
@@ -246,7 +293,7 @@ public class GameSceneManager : MonoBehaviour
   /// </summary>
   public void StartFadeInAfterLoad()
   {
-    StartCoroutine(FadeInAfterLoad());
+    StartFadeInFromBlack();
   }
 
   private IEnumerator FadeInAfterLoad()
@@ -254,9 +301,7 @@ public class GameSceneManager : MonoBehaviour
     // シーン切り替わりを待つ
     yield return null;
     yield return null; // 念のため2フレーム待つ
-    Debug.Log("[GameSceneManager] シーン切り替え後FadeIn開始");
     yield return StartCoroutine(FadeIn());
-    Debug.Log("[GameSceneManager] シーン切り替え後FadeIn完了");
   }
 
   /// <summary>
@@ -266,5 +311,197 @@ public class GameSceneManager : MonoBehaviour
   public static AsyncOperation StartPendingLoad()
   {
     return SceneManager.LoadSceneAsync(_pendingSceneName);
+  }
+
+  private IEnumerator ReloadActiveSceneRoutine(float delaySeconds)
+  {
+    Time.timeScale = 1f;
+
+    if (delaySeconds > 0f)
+    {
+      yield return new WaitForSecondsRealtime(delaySeconds);
+    }
+
+    yield return FadeOutRoutine();
+
+    Scene activeScene = SceneManager.GetActiveScene();
+    AsyncOperation loadOperation = LoadSceneForReload(activeScene);
+    if (loadOperation == null)
+    {
+      Debug.LogWarning($"[GameSceneManager] シーン '{activeScene.name}' を再読み込みできませんでした。");
+      yield return FadeIn();
+      yield break;
+    }
+
+    while (!loadOperation.isDone)
+    {
+      yield return null;
+    }
+
+    yield return null;
+    StartFadeInFromBlack();
+  }
+
+  private static AsyncOperation LoadSceneForReload(Scene activeScene)
+  {
+    if (activeScene.buildIndex >= 0)
+    {
+      return SceneManager.LoadSceneAsync(activeScene.buildIndex, LoadSceneMode.Single);
+    }
+
+    if (!string.IsNullOrEmpty(activeScene.name) && Application.CanStreamedLevelBeLoaded(activeScene.name))
+    {
+      return SceneManager.LoadSceneAsync(activeScene.name, LoadSceneMode.Single);
+    }
+
+#if UNITY_EDITOR
+    if (!string.IsNullOrEmpty(activeScene.path))
+    {
+      return UnityEditor.SceneManagement.EditorSceneManager.LoadSceneAsyncInPlayMode(
+        activeScene.path,
+        new LoadSceneParameters(LoadSceneMode.Single));
+    }
+#endif
+
+    return null;
+  }
+
+  private void StartTransition(IEnumerator transitionRoutine)
+  {
+    if (_transitionCoroutine != null)
+    {
+      return;
+    }
+
+    if (_fadeCoroutine != null)
+    {
+      StopCoroutine(_fadeCoroutine);
+      _fadeCoroutine = null;
+    }
+
+    _transitionCoroutine = StartCoroutine(RunTransition(transitionRoutine));
+  }
+
+  private IEnumerator RunTransition(IEnumerator transitionRoutine)
+  {
+    yield return StartCoroutine(transitionRoutine);
+    _transitionCoroutine = null;
+  }
+
+  private void StartSceneOpeningFadeIfNeeded()
+  {
+    Scene activeScene = SceneManager.GetActiveScene();
+    string sceneKey = string.IsNullOrEmpty(activeScene.path) ? activeScene.name : activeScene.path;
+    if (_lastSceneStartFadeScenePath == sceneKey)
+    {
+      return;
+    }
+
+    _lastSceneStartFadeScenePath = sceneKey;
+    StartFadeInFromBlack();
+  }
+
+  private void StartFadeInFromBlack()
+  {
+    EnsureFadeCanvasGroup();
+    if (_fadeCanvasGroup == null)
+    {
+      return;
+    }
+
+    if (_fadeCoroutine != null)
+    {
+      StopCoroutine(_fadeCoroutine);
+    }
+
+    SetFadeAlpha(1f);
+    _fadeCoroutine = StartCoroutine(FadeInAfterLoad());
+  }
+
+  private static bool EnsureInstance()
+  {
+    if (_instance != null)
+    {
+      return true;
+    }
+
+    GameSceneManager existing = FindFirstObjectByType<GameSceneManager>(FindObjectsInactive.Include);
+    if (existing != null)
+    {
+      existing.gameObject.SetActive(true);
+      if (_instance == null)
+      {
+        _instance = existing;
+        DontDestroyOnLoad(existing.gameObject);
+        existing.EnsureFadeCanvasGroup();
+        existing.SetFadeAlpha(0f);
+      }
+
+      return true;
+    }
+
+    var managerObject = new GameObject(nameof(GameSceneManager));
+    managerObject.AddComponent<GameSceneManager>();
+    return _instance != null;
+  }
+
+  private void EnsureFadeCanvasGroup()
+  {
+    if (_fadeCanvasGroup != null)
+    {
+      ConfigureFadeCanvas(_fadeCanvasGroup.GetComponentInParent<Canvas>());
+      _fadeCanvasGroup.interactable = false;
+      _fadeCanvasGroup.blocksRaycasts = false;
+      return;
+    }
+
+    var canvasObject = new GameObject("FadeCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
+    canvasObject.transform.SetParent(transform, false);
+
+    var canvas = canvasObject.GetComponent<Canvas>();
+    ConfigureFadeCanvas(canvas);
+
+    var canvasScaler = canvasObject.GetComponent<CanvasScaler>();
+    canvasScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+    canvasScaler.referenceResolution = new Vector2(1920f, 1080f);
+
+    var fadeObject = new GameObject("FadeImage_Black", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(CanvasGroup));
+    fadeObject.transform.SetParent(canvasObject.transform, false);
+
+    var fadeRect = fadeObject.GetComponent<RectTransform>();
+    fadeRect.anchorMin = Vector2.zero;
+    fadeRect.anchorMax = Vector2.one;
+    fadeRect.offsetMin = Vector2.zero;
+    fadeRect.offsetMax = Vector2.zero;
+
+    var fadeImage = fadeObject.GetComponent<Image>();
+    fadeImage.color = Color.black;
+    fadeImage.raycastTarget = false;
+
+    _fadeCanvasGroup = fadeObject.GetComponent<CanvasGroup>();
+    _fadeCanvasGroup.alpha = 0f;
+    _fadeCanvasGroup.interactable = false;
+    _fadeCanvasGroup.blocksRaycasts = false;
+  }
+
+  private static void ConfigureFadeCanvas(Canvas canvas)
+  {
+    if (canvas == null)
+    {
+      return;
+    }
+
+    canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+    canvas.overrideSorting = true;
+    canvas.sortingOrder = FadeCanvasSortingOrder;
+  }
+
+  private void SetFadeAlpha(float alpha)
+  {
+    EnsureFadeCanvasGroup();
+    if (_fadeCanvasGroup != null)
+    {
+      _fadeCanvasGroup.alpha = Mathf.Clamp01(alpha);
+    }
   }
 }

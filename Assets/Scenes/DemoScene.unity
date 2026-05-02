@@ -1790,6 +1790,7 @@ GameObject:
   - component: {fileID: 669156453}
   - component: {fileID: 669156452}
   - component: {fileID: 669156451}
+  - component: {fileID: 669156455}
   m_Layer: 5
   m_Name: Canvas_UI
   m_TagString: Untagged
@@ -1814,6 +1815,21 @@ MonoBehaviour:
   m_BlockingMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &669156455
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 669156450}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5a04319649d534cbab1de84aa801372c, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::UIManager
+  gameClearUI: {fileID: 442161980}
+  resultPanelController: {fileID: 0}
+  resultPanelManager: {fileID: 383250112}
 --- !u!114 &669156452
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6926,11 +6942,13 @@ MonoBehaviour:
   spawnedPlayerParent: {fileID: 0}
   respawnFromLastKnownPosition: 1
   respawnAtInitialPointWhenFallen: 1
-  fallRespawnYThreshold: -0.1
+  fallRespawnYThreshold: -10
   overlapRecoveryLayers:
     serializedVersion: 2
     m_Bits: 4294967295
   respawnCooldownSeconds: 0.5
+  reloadSceneOnGameOver: 1
+  gameOverReloadDelay: 0.15
 --- !u!4 &1553755123
 Transform:
   m_ObjectHideFlags: 0
