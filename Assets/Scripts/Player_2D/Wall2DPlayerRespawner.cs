@@ -18,6 +18,9 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   [SerializeField] private float fallRespawnYThreshold = -10f;
   [SerializeField] private LayerMask overlapRecoveryLayers = ~0;
   [SerializeField] private float respawnCooldownSeconds = 0.5f;
+  [Header("Game Over")]
+  [SerializeField] private bool reloadSceneOnGameOver;
+  [SerializeField] private float gameOverReloadDelay = 0.15f;
 
   private GameObject _spawnedPlayerInstance;
   private Wall2DPlayerController _spawnedPlayerController;
@@ -35,8 +38,15 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   private bool _isRespawning;
   private float _respawnBlockedUntilTime;
   private bool _isPlayerDead;
+  private bool _hasRequestedGameOverReload;
 
   public int ResetOrder => 0;
+
+  private enum GameOverCause
+  {
+    Fall,
+    Crush,
+  }
 
   private void Reset()
   {
@@ -72,7 +82,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
     if (_spawnedPlayerInstance.transform.position.y < fallRespawnYThreshold)
     {
-      KillSpawnedPlayerAtCurrentPosition();
+      KillSpawnedPlayerAtCurrentPosition(GameOverCause.Fall);
     }
   }
 
@@ -101,6 +111,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
     BeginRespawnGuard();
     _isPlayerDead = false;
+    _hasRequestedGameOverReload = false;
 
     try
     {
@@ -413,7 +424,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   private void OnSpawnedPlayerCrushed()
   {
     // 圧死したら、その場で止めてプレイヤーを残す。
-    KillSpawnedPlayerAtCurrentPosition();
+    KillSpawnedPlayerAtCurrentPosition(GameOverCause.Crush);
   }
 
   private void OnSpawnedPlayerMovementStalled()
@@ -422,7 +433,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     RespawnPlayerAtInitialPoint();
   }
 
-  private void KillSpawnedPlayerAtCurrentPosition()
+  private void KillSpawnedPlayerAtCurrentPosition(GameOverCause cause)
   {
     if (_spawnedPlayerInstance == null || _isPlayerDead)
     {
@@ -433,6 +444,19 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     StopOverlapRecoveryCoroutine();
     SetSpawnedPlayer2DGameplayEnabled(false, keepPhysicsSimulationWhenDisabled: false, preserveCurrentMotion: false);
     SetSpawnedPlayerVisible(true);
+    RequestGameOverReloadIfNeeded(cause);
+  }
+
+  private void RequestGameOverReloadIfNeeded(GameOverCause cause)
+  {
+    if (!reloadSceneOnGameOver || _hasRequestedGameOverReload)
+    {
+      return;
+    }
+
+    _hasRequestedGameOverReload = true;
+    Debug.Log($"[Wall2DPlayerRespawner] GameOver reload requested. cause={cause}, position={_spawnedPlayerInstance.transform.position}", this);
+    GameSceneManager.ReloadActiveSceneWithFade(Mathf.Max(0f, gameOverReloadDelay));
   }
 
   private void ResolveOverlapIfNeeded()
@@ -532,6 +556,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     _isRespawning = false;
     _respawnBlockedUntilTime = 0f;
     _isPlayerDead = false;
+    _hasRequestedGameOverReload = false;
 
     if (_spawnedPlayerInstance != null)
     {
