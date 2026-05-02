@@ -1981,7 +1981,7 @@ Camera:
   m_Depth: 0
   m_CullingMask:
     serializedVersion: 2
-    m_Bits: 8
+    m_Bits: 8200
   m_RenderingPath: -1
   m_TargetTexture: {fileID: 0}
   m_TargetDisplay: 0
@@ -7217,7 +7217,7 @@ GameObject:
   - component: {fileID: 1906743331}
   - component: {fileID: 1906743330}
   - component: {fileID: 1906743334}
-  m_Layer: 0
+  m_Layer: 13
   m_Name: Plane
   m_TagString: Untagged
   m_Icon: {fileID: 0}
