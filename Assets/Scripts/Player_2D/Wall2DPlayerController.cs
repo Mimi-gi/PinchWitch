@@ -46,6 +46,10 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   [SerializeField] private float movementStallRespawnDelay = 2f;
   [SerializeField] private float movementStallPositionEpsilon = 0.01f;
 
+  [Header("Rapid Reversal Crush")]
+  [SerializeField] private float rapidReversalWindowSeconds = 0.5f;
+  [SerializeField] private int rapidReversalCountToCrush = 3;
+
   public event Action MovementStalled;
 
   /// <summary>
@@ -78,6 +82,8 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   private float _movementStallDuration;
   private float _moveDirectionX = 1f;
   private bool _hasWorldBounds;
+  private float _lastReverseTime = float.NegativeInfinity;
+  private int _rapidReversalCount;
 
   // よじ登り中は通常移動を止め、開始地点から目標地点へ補間移動する。
   private bool _isClimbing;
@@ -180,6 +186,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   {
     ResetClimbState();
     ResetStuckTracking();
+    ResetRapidReversalTracking();
   }
 
   private bool TryProcessClimb()
@@ -547,7 +554,42 @@ public sealed class Wall2DPlayerController : MonoBehaviour
       _rigidbody2D.linearVelocity = velocity;
     }
 
+    if (ShouldCrushFromRapidReversal())
+    {
+      // 左右に短時間で何度も跳ね返る状態は、狭い場所に挟まれているとみなす。
+      if (_rigidbody2D != null)
+      {
+        _rigidbody2D.linearVelocity = Vector2.zero;
+      }
+
+      ResetRapidReversalTracking();
+      MovementStalled?.Invoke();
+      return;
+    }
+
     ResetStuckTracking();
+  }
+
+  private bool ShouldCrushFromRapidReversal()
+  {
+    var currentTime = Time.time;
+    if (currentTime - _lastReverseTime <= rapidReversalWindowSeconds)
+    {
+      _rapidReversalCount++;
+    }
+    else
+    {
+      _rapidReversalCount = 1;
+    }
+
+    _lastReverseTime = currentTime;
+    return _rapidReversalCount >= rapidReversalCountToCrush;
+  }
+
+  private void ResetRapidReversalTracking()
+  {
+    _lastReverseTime = float.NegativeInfinity;
+    _rapidReversalCount = 0;
   }
 
   private bool HasFloorBelow()
@@ -740,6 +782,8 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     floorProbeDistance = Mathf.Max(0.01f, floorProbeDistance);
     minimumFloorNormalY = Mathf.Clamp01(minimumFloorNormalY);
     fallGravityScale = Mathf.Max(0f, fallGravityScale);
+    rapidReversalWindowSeconds = Mathf.Max(0.01f, rapidReversalWindowSeconds);
+    rapidReversalCountToCrush = Mathf.Max(2, rapidReversalCountToCrush);
     if (worldBoundsMin.x > worldBoundsMax.x)
     {
       (worldBoundsMin.x, worldBoundsMax.x) = (worldBoundsMax.x, worldBoundsMin.x);
@@ -772,6 +816,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   public void MoveStop()
   {
     ResetClimbState();
+    ResetRapidReversalTracking();
     moveSpeed = 0f;
 
     if (_rigidbody2D == null)
@@ -796,6 +841,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   public void ResetMovementDirection()
   {
     ResetClimbState();
+    ResetRapidReversalTracking();
     _moveDirectionX = 1f;
 
     if (_rigidbody2D == null)
