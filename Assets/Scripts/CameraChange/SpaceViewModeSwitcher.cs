@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 using System;
 
 public enum SpaceViewMode
@@ -11,7 +12,8 @@ public enum SpaceViewMode
 public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
 {
   [Header("Input")]
-  [SerializeField] private KeyCode toggleKey = KeyCode.Space;
+  [FormerlySerializedAs("toggleKey")]
+  [SerializeField] private KeyCode startGameplayKey = KeyCode.Space;
 
   [Header("Cameras")]
   [SerializeField] private Camera world3DCamera;
@@ -73,9 +75,9 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
 
     UpdateRealTimeStartGesture();
 
-    if (Input.GetKeyDown(toggleKey))
+    if (Input.GetKeyDown(startGameplayKey))
     {
-      ToggleView();
+      StartRealTimeGameplay();
     }
   }
 
@@ -238,6 +240,16 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
     }
 
     if (_goodGestureHeldSeconds < goodGestureHoldSeconds)
+    {
+      return;
+    }
+
+    StartRealTimeGameplay();
+  }
+
+  private void StartRealTimeGameplay()
+  {
+    if (_realTimeGameplayStarted || !isRealTimeMode)
     {
       return;
     }
