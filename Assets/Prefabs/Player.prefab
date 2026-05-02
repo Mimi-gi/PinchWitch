@@ -113,7 +113,7 @@ Rigidbody2D:
   m_Mass: 2
   m_LinearDamping: 0
   m_AngularDamping: 0.05
-  m_GravityScale: 2
+  m_GravityScale: 1
   m_Material: {fileID: 6200000, guid: 39cb254498624152b8a49850fbe780aa, type: 2}
   m_IncludeLayers:
     serializedVersion: 2
@@ -175,29 +175,29 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Wall2DPlayerController
   moveSpeed: 3
-  traversalDirection: 0
-  surfaceStickVelocity: 5
-  groundLayers:
+  useGravityWhileMoving: 0
+  gravityScaleWhileMoving: 0
+  obstacleLayers:
     serializedVersion: 2
     m_Bits: 4294967295
-  groundCheckDistance: 0.08
   forwardProbeDistance: 0.18
-  surfaceSearchDistance: 0.2
-  detachedGravityScale: 2
-  preserveMomentumWhenDetached: 1
-  reverseDirectionAtWallBounds: 1
-  reverseDirectionAtBottomWallBoundary: 0
-  autoFindWallBounds: 1
-  wallBoundsSource: {fileID: 0}
-  wallBoundsMin: {x: -12.36, y: -12.3609295}
-  wallBoundsMax: {x: 12.36, y: 10.347729}
-  rotationDegreesPerSecond: 360
-  rotationSnapThreshold: 2
-  chooseTraversalDirectionFromFacingOnLanding: 1
+  minimumWallNormalAlignment: 0.65
+  climbClearance: 0.02
+  overlapCheckInset: 0.02
+  climbSpeed: 3
+  floorProbeDistance: 0.08
+  minimumFloorNormalY: 0.35
+  fallGravityScale: 1
+  autoFindWorldBounds: 1
+  worldBoundsSource: {fileID: 0}
+  worldBoundsMin: {x: -10, y: -10}
+  worldBoundsMax: {x: 10, y: 10}
   collisionDetectionMode: 1
   interpolationMode: 1
   movementStallRespawnDelay: 2
   movementStallPositionEpsilon: 0.01
+  rapidReversalWindowSeconds: 0.5
+  rapidReversalCountToCrush: 3
 --- !u!114 &-8191500760691961841
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -215,6 +215,10 @@ MonoBehaviour:
     m_Bits: 4294967295
   crushCheckDistance: 0.04
   minimumCrushContactAlignment: 0.65
+  fullCoverSampleRatio: 0.9
+  fullCoverSampleColumns: 3
+  fullCoverSampleRows: 5
+  fullCoverSampleInset: 0.02
 --- !u!114 &-6984775035002389195
 MonoBehaviour:
   m_ObjectHideFlags: 0
