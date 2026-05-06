@@ -226,7 +226,7 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: 63067c2608634af4aa094a906f365423,
         type: 3}
       propertyPath: m_ConstrainProportionsScale
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -7511558181221131132, guid: 63067c2608634af4aa094a906f365423,
         type: 3}
@@ -5377,12 +5377,12 @@ PrefabInstance:
     - target: {fileID: -6501838224823869002, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
       propertyPath: m_LocalScale.x
-      value: 1.03
+      value: 1.22
       objectReference: {fileID: 0}
     - target: {fileID: -6501838224823869002, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: -0.218
+      value: -0.26
       objectReference: {fileID: 0}
     - target: {fileID: -6501838224823869002, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
@@ -7406,7 +7406,7 @@ GameObject:
   - component: {fileID: 2010092516}
   - component: {fileID: 2010092518}
   - component: {fileID: 2010092517}
-  m_Layer: 6
+  m_Layer: 0
   m_Name: nurbsToPoly11 (1)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
