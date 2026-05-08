@@ -3506,6 +3506,11 @@ PrefabInstance:
       objectReference: {fileID: 1471524778}
     - target: {fileID: 8571076842338426122, guid: 140d1d2c406167c50819d89f86d9092e,
         type: 3}
+      propertyPath: m_RenderMode
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8571076842338426122, guid: 140d1d2c406167c50819d89f86d9092e,
+        type: 3}
       propertyPath: m_PlaneDistance
       value: 10
       objectReference: {fileID: 0}
@@ -5111,7 +5116,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1265820678}
   - component: {fileID: 1265820677}
-  m_Layer: 14
+  m_Layer: 0
   m_Name: Wall
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -7434,7 +7439,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 15.15, y: 0, z: 4.5}
-  m_LocalScale: {x: 60, y: 36.5, z: 25.385609}
+  m_LocalScale: {x: 10, y: 36.5, z: 25.385609}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -7449,7 +7454,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
   m_LocalPosition: {x: -15.41, y: 0, z: 4.5}
-  m_LocalScale: {x: 60, y: 36.5, z: 25.808704}
+  m_LocalScale: {x: 10, y: 36.5, z: 25.808704}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
