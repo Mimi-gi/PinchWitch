@@ -271,9 +271,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 07bd18f7382e201429a3f8964aea299c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Wall2DPlayerAnimator
-  isWalkingParam: IsWalking
-  isAirborneParam: IsAirborne
-  speedParam: Speed
+  baseLayerName: Base Layer
+  idleStateName: Idle
+  walkStateName: Walk
+  goodStateName: Good
+  goalStateName: Goal
+  climbStateName: Climb
+  fallStateName: Fall
+  goodReactionDuration: 1
+  walkSpeedThreshold: 0.05
   flipSpriteWithMovement: 1
   spriteDefaultFacesLeft: 1
   flipVelocityThreshold: 0.1
