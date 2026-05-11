@@ -28,6 +28,7 @@ public sealed class Wall2DPlayerAnimator : MonoBehaviour
 
   [Header("Reaction Timing")]
   [SerializeField] private float goodReactionDuration = 1f;
+  [SerializeField] private float goalReactionDuration = 1f;
   [SerializeField] private float walkSpeedThreshold = 0.05f;
 
   [Header("Sprite Flip")]
@@ -39,6 +40,7 @@ public sealed class Wall2DPlayerAnimator : MonoBehaviour
   private Wall2DPlayerController _controller;
   private SpriteRenderer _spriteRenderer;
   private Rigidbody2D _rigidbody2D;
+  private AnimatorUpdateMode _defaultUpdateMode;
 
   private int _idleStateHash;
   private int _walkStateHash;
@@ -52,6 +54,7 @@ public sealed class Wall2DPlayerAnimator : MonoBehaviour
   private bool _isGoalStateLocked;
 
   public float GoodReactionDuration => goodReactionDuration;
+  public float GoalReactionDuration => goalReactionDuration;
 
   private void Awake()
   {
@@ -59,6 +62,7 @@ public sealed class Wall2DPlayerAnimator : MonoBehaviour
     _controller = GetComponent<Wall2DPlayerController>();
     _spriteRenderer = GetComponent<SpriteRenderer>();
     _rigidbody2D = GetComponent<Rigidbody2D>();
+    _defaultUpdateMode = _animator.updateMode;
     CacheStateHashes();
   }
 
@@ -71,6 +75,7 @@ public sealed class Wall2DPlayerAnimator : MonoBehaviour
   private void OnValidate()
   {
     goodReactionDuration = Mathf.Max(0f, goodReactionDuration);
+    goalReactionDuration = Mathf.Max(0f, goalReactionDuration);
     walkSpeedThreshold = Mathf.Max(0f, walkSpeedThreshold);
     flipVelocityThreshold = Mathf.Max(0f, flipVelocityThreshold);
 
@@ -110,6 +115,12 @@ public sealed class Wall2DPlayerAnimator : MonoBehaviour
   {
     _isGoalStateLocked = true;
     _goodReactionEndTime = 0f;
+
+    if (_animator != null)
+    {
+      _animator.updateMode = AnimatorUpdateMode.UnscaledTime;
+    }
+
     PlayState(PlayerAnimationState.Goal, restart: true);
   }
 
@@ -128,6 +139,11 @@ public sealed class Wall2DPlayerAnimator : MonoBehaviour
     _currentState = null;
     _goodReactionEndTime = 0f;
     _isGoalStateLocked = false;
+
+    if (_animator != null)
+    {
+      _animator.updateMode = _defaultUpdateMode;
+    }
   }
 
   private PlayerAnimationState ResolveState()
