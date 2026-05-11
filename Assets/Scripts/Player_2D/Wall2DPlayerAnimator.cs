@@ -1,49 +1,60 @@
 using UnityEngine;
 
-/// <summary>
-/// Wall2DPlayerController の移動状態を読み取り、Animator パラメータと
-/// SpriteRenderer の左右反転を自動で更新する。
-///
-/// ■ Animator に用意するパラメータ（名前は変更可。その場合は Inspector から設定）
-///   IsWalking  (Bool)  : 接地中かつ移動中のとき true
-///   IsAirborne (Bool)  : 空中（非接地）のとき true
-///   Speed      (Float) : 移動速度の大きさ（Blend Tree 用）
-/// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Animator))]
 [RequireComponent(typeof(Wall2DPlayerController))]
 [RequireComponent(typeof(SpriteRenderer))]
+[RequireComponent(typeof(Rigidbody2D))]
 public sealed class Wall2DPlayerAnimator : MonoBehaviour
 {
-  [Header("Animator Parameter Names")]
-  [Tooltip("接地中かつ移動中を示す Bool パラメータ名")]
-  [SerializeField] private string isWalkingParam = "IsWalking";
+  private enum PlayerAnimationState
+  {
+    Idle,
+    Walk,
+    Good,
+    Goal,
+    Climb,
+    Fall,
+  }
 
-  [Tooltip("空中（非接地）状態を示す Bool パラメータ名")]
-  [SerializeField] private string isAirborneParam = "IsAirborne";
+  [Header("Animator States")]
+  [SerializeField] private string baseLayerName = "Base Layer";
+  [SerializeField] private string idleStateName = "Idle";
+  [SerializeField] private string walkStateName = "Walk";
+  [SerializeField] private string goodStateName = "Good";
+  [SerializeField] private string goalStateName = "Goal";
+  [SerializeField] private string climbStateName = "Climb";
+  [SerializeField] private string fallStateName = "Fall";
 
-  [Tooltip("移動速度を示す Float パラメータ名（Blend Tree 用）")]
-  [SerializeField] private string speedParam = "Speed";
+  [Header("Reaction Timing")]
+  [SerializeField] private float goodReactionDuration = 1f;
+  [SerializeField] private float goalReactionDuration = 1f;
+  [SerializeField] private float walkSpeedThreshold = 0.05f;
 
   [Header("Sprite Flip")]
-  [Tooltip("水平移動方向に合わせて SpriteRenderer を左右反転させるか")]
   [SerializeField] private bool flipSpriteWithMovement = true;
-
-  [Tooltip("スプライト素材がデフォルトで左向きの場合は ON にする。右向きなら OFF。")]
   [SerializeField] private bool spriteDefaultFacesLeft = false;
-
-  [Tooltip("反転を適用し始める速度のしきい値（この値未満のときは前の向きを維持）")]
   [SerializeField] private float flipVelocityThreshold = 0.1f;
-
-  // キャッシュ済み Animator パラメータハッシュ。
-  private int _isWalkingHash;
-  private int _isAirborneHash;
-  private int _speedHash;
 
   private Animator _animator;
   private Wall2DPlayerController _controller;
   private SpriteRenderer _spriteRenderer;
   private Rigidbody2D _rigidbody2D;
+  private AnimatorUpdateMode _defaultUpdateMode;
+
+  private int _idleStateHash;
+  private int _walkStateHash;
+  private int _goodStateHash;
+  private int _goalStateHash;
+  private int _climbStateHash;
+  private int _fallStateHash;
+
+  private PlayerAnimationState? _currentState;
+  private float _goodReactionEndTime;
+  private bool _isGoalStateLocked;
+
+  public float GoodReactionDuration => goodReactionDuration;
+  public float GoalReactionDuration => goalReactionDuration;
 
   private void Awake()
   {
@@ -51,24 +62,27 @@ public sealed class Wall2DPlayerAnimator : MonoBehaviour
     _controller = GetComponent<Wall2DPlayerController>();
     _spriteRenderer = GetComponent<SpriteRenderer>();
     _rigidbody2D = GetComponent<Rigidbody2D>();
+    _defaultUpdateMode = _animator.updateMode;
+    CacheStateHashes();
+  }
 
-    CacheParameterHashes();
+  private void OnEnable()
+  {
+    ResetTransientState();
+    PlayState(ResolveBaseState(), restart: true);
   }
 
   private void OnValidate()
   {
-    // Inspector でパラメータ名を変更したとき、再生中でもハッシュを更新する。
+    goodReactionDuration = Mathf.Max(0f, goodReactionDuration);
+    goalReactionDuration = Mathf.Max(0f, goalReactionDuration);
+    walkSpeedThreshold = Mathf.Max(0f, walkSpeedThreshold);
+    flipVelocityThreshold = Mathf.Max(0f, flipVelocityThreshold);
+
     if (Application.isPlaying)
     {
-      CacheParameterHashes();
+      CacheStateHashes();
     }
-  }
-
-  private void CacheParameterHashes()
-  {
-    _isWalkingHash = Animator.StringToHash(isWalkingParam);
-    _isAirborneHash = Animator.StringToHash(isAirborneParam);
-    _speedHash = Animator.StringToHash(speedParam);
   }
 
   private void Update()
@@ -78,33 +92,146 @@ public sealed class Wall2DPlayerAnimator : MonoBehaviour
       return;
     }
 
-    var isAttached = _controller.IsAttachedToSurface;
-    var isMoving = _controller.IsMoving;
+    PlayState(ResolveState(), restart: false);
 
-    // ── Animator パラメータ更新 ──────────────────────────────
-    _animator.SetBool(_isWalkingHash, isAttached && isMoving);
-    _animator.SetBool(_isAirborneHash, !isAttached);
-    _animator.SetFloat(_speedHash, isMoving ? _controller.CurrentMoveSpeed : 0f);
-
-    // ── スプライト左右反転 ──────────────────────────────────
     if (flipSpriteWithMovement && _rigidbody2D != null && _spriteRenderer != null)
     {
       UpdateSpriteFlip();
     }
   }
 
-  /// <summary>
-  /// Rigidbody2D の水平速度成分を基にスプライトの向きを決める。
-  /// 速度が小さいときは以前の向きをそのまま保つ。
-  /// spriteDefaultFacesLeft が true なら、右移動時に反転して正面を向かせる。
-  ///
-  /// 壁（垂直面）接地中は velocity.x のほとんどが「面への押し付け成分」であり
-  /// 進行方向を表さないため、反転の更新をスキップして直前の向きを維持する。
-  /// </summary>
+  public void PlayGoodReaction()
+  {
+    if (_isGoalStateLocked)
+    {
+      return;
+    }
+
+    _goodReactionEndTime = Time.unscaledTime + goodReactionDuration;
+    PlayState(PlayerAnimationState.Good, restart: true);
+  }
+
+  public void PlayGoalReaction()
+  {
+    _isGoalStateLocked = true;
+    _goodReactionEndTime = 0f;
+
+    if (_animator != null)
+    {
+      _animator.updateMode = AnimatorUpdateMode.UnscaledTime;
+    }
+
+    PlayState(PlayerAnimationState.Goal, restart: true);
+  }
+
+  private void CacheStateHashes()
+  {
+    _idleStateHash = CreateStateHash(idleStateName);
+    _walkStateHash = CreateStateHash(walkStateName);
+    _goodStateHash = CreateStateHash(goodStateName);
+    _goalStateHash = CreateStateHash(goalStateName);
+    _climbStateHash = CreateStateHash(climbStateName);
+    _fallStateHash = CreateStateHash(fallStateName);
+  }
+
+  private void ResetTransientState()
+  {
+    _currentState = null;
+    _goodReactionEndTime = 0f;
+    _isGoalStateLocked = false;
+
+    if (_animator != null)
+    {
+      _animator.updateMode = _defaultUpdateMode;
+    }
+  }
+
+  private PlayerAnimationState ResolveState()
+  {
+    if (_isGoalStateLocked)
+    {
+      return PlayerAnimationState.Goal;
+    }
+
+    if (_goodReactionEndTime > Time.unscaledTime)
+    {
+      return PlayerAnimationState.Good;
+    }
+
+    return ResolveBaseState();
+  }
+
+  private PlayerAnimationState ResolveBaseState()
+  {
+    if (_controller == null || !_controller.enabled)
+    {
+      return PlayerAnimationState.Idle;
+    }
+
+    if (_controller.IsClimbing)
+    {
+      return PlayerAnimationState.Climb;
+    }
+
+    if (_controller.IsFalling)
+    {
+      return PlayerAnimationState.Fall;
+    }
+
+    if (_controller.IsGrounded && _controller.CurrentMoveSpeed > walkSpeedThreshold)
+    {
+      return PlayerAnimationState.Walk;
+    }
+
+    return PlayerAnimationState.Idle;
+  }
+
+  private void PlayState(PlayerAnimationState state, bool restart)
+  {
+    if (!restart && _currentState == state)
+    {
+      return;
+    }
+
+    var stateHash = GetStateHash(state);
+    if (!_animator.HasState(0, stateHash))
+    {
+      return;
+    }
+
+    if (restart)
+    {
+      _animator.Play(stateHash, 0, 0f);
+    }
+    else
+    {
+      _animator.Play(stateHash, 0);
+    }
+
+    _currentState = state;
+  }
+
+  private int CreateStateHash(string stateName)
+  {
+    return Animator.StringToHash($"{baseLayerName}.{stateName}");
+  }
+
+  private int GetStateHash(PlayerAnimationState state)
+  {
+    return state switch
+    {
+      PlayerAnimationState.Idle => _idleStateHash,
+      PlayerAnimationState.Walk => _walkStateHash,
+      PlayerAnimationState.Good => _goodStateHash,
+      PlayerAnimationState.Goal => _goalStateHash,
+      PlayerAnimationState.Climb => _climbStateHash,
+      PlayerAnimationState.Fall => _fallStateHash,
+      _ => _idleStateHash,
+    };
+  }
+
   private void UpdateSpriteFlip()
   {
-    // 接地面の法線 X 成分が Y 成分より大きければ「壁（垂直面）」と判定する。
-    // 壁登り中は反転を更新しない（最後に水平移動していたときの向きを維持）。
     if (_controller.IsAttachedToSurface)
     {
       var normal = _controller.CurrentSurfaceNormal;
@@ -116,10 +243,11 @@ public sealed class Wall2DPlayerAnimator : MonoBehaviour
     }
 
     var velocity = _rigidbody2D.linearVelocity;
-    if (Mathf.Abs(velocity.x) >= flipVelocityThreshold)
+    if (Mathf.Abs(velocity.x) < flipVelocityThreshold)
     {
-      // 左向き素材：右に動くとき反転 / 右向き素材：左に動くとき反転
-      _spriteRenderer.flipX = spriteDefaultFacesLeft ? velocity.x > 0f : velocity.x < 0f;
+      return;
     }
+
+    _spriteRenderer.flipX = spriteDefaultFacesLeft ? velocity.x > 0f : velocity.x < 0f;
   }
 }

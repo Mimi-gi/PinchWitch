@@ -56,7 +56,16 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   /// 既存アニメーションとの互換用。
   /// 現在の仕様では「壁や床に沿う」概念を使っていないため、常に接地扱いを返す。
   /// </summary>
-  public bool IsAttachedToSurface => true;
+  public bool IsAttachedToSurface => _isClimbing || _isGrounded;
+
+  /// <summary>蠎翫↓謗･蝨ｰ縺励※縺・ｋ蝣ｴ蜷医・ true縲・/summary>
+  public bool IsGrounded => _isGrounded;
+
+  /// <summary>繧医§逋ｻ繧贋ｸｭ縺ｧ蜷後∪縺ｧ遘ｻ蜍輔＠縺ｦ縺・ｋ蝣ｴ蜷医・ true縲・/summary>
+  public bool IsClimbing => _isClimbing;
+
+  /// <summary>蠎翫′縺ｪ縺上∝ｮ牙・蜍輔ｒ陦ｨ遉ｺ縺励◆縺・ｴ蜷医・ true縲・/summary>
+  public bool IsFalling => !_isClimbing && !_isGrounded;
 
   /// <summary>現在、横移動する速度が設定されているか。</summary>
   public bool IsMoving => moveSpeed > Mathf.Epsilon;
@@ -65,10 +74,12 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   /// 既存アニメーションとの互換用。
   /// 向き合わせは行っていないので、常に上向き法線を返す。
   /// </summary>
-  public Vector2 CurrentSurfaceNormal => UpDirection;
+  public Vector2 CurrentSurfaceNormal => _currentSurfaceNormal;
 
   /// <summary>アニメーションや外部参照向けの現在速度。</summary>
-  public float CurrentMoveSpeed => moveSpeed;
+  public float CurrentMoveSpeed => _rigidbody2D != null
+    ? Mathf.Abs(_rigidbody2D.linearVelocity.x)
+    : moveSpeed;
 
   private readonly RaycastHit2D[] _wallHits = new RaycastHit2D[16];
   private readonly RaycastHit2D[] _floorHits = new RaycastHit2D[16];
@@ -84,6 +95,8 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   private bool _hasWorldBounds;
   private float _lastReverseTime = float.NegativeInfinity;
   private int _rapidReversalCount;
+  private bool _isGrounded;
+  private Vector2 _currentSurfaceNormal = UpDirection;
 
   // よじ登り中は通常移動を止め、開始地点から目標地点へ補間移動する。
   private bool _isClimbing;
@@ -137,6 +150,8 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   private void OnDisable()
   {
     ResetClimbState();
+    _isGrounded = false;
+    _currentSurfaceNormal = UpDirection;
 
     if (_rigidbody2D != null)
     {
@@ -151,6 +166,11 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   {
     UpdateMovementStallState();
 
+    if (_isClimbing)
+    {
+      _isGrounded = false;
+    }
+
     if (TryProcessClimb())
     {
       HandleWorldBoundsIfNeeded();
@@ -158,7 +178,9 @@ public sealed class Wall2DPlayerController : MonoBehaviour
       return;
     }
 
-    var hasFloorBelow = HasFloorBelow();
+    var hasFloorBelow = TryGetFloorBelow(out var floorNormal);
+    _isGrounded = hasFloorBelow;
+    _currentSurfaceNormal = hasFloorBelow ? floorNormal : UpDirection;
     if (hasFloorBelow)
     {
       HandleForwardObstacle();
@@ -297,7 +319,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     }
 
     var requiredClimbHeight = GetRequiredClimbHeight(wallHit);
-    if (CanClimbWall(requiredClimbHeight) && TryStartClimb(requiredClimbHeight))
+    if (CanClimbWall(requiredClimbHeight) && TryStartClimb(requiredClimbHeight, wallHit.normal))
     {
       ResetStuckTracking();
       return;
@@ -421,7 +443,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     return requiredClimbHeight <= playerHeight;
   }
 
-  private bool TryStartClimb(float climbHeight)
+  private bool TryStartClimb(float climbHeight, Vector2 wallNormal)
   {
     if (_rigidbody2D == null || _collider2D == null)
     {
@@ -435,7 +457,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
       return false;
     }
 
-    BeginClimb(targetPosition);
+    BeginClimb(targetPosition, wallNormal);
     return true;
   }
 
@@ -470,7 +492,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     return false;
   }
 
-  private void BeginClimb(Vector2 targetPosition)
+  private void BeginClimb(Vector2 targetPosition, Vector2 wallNormal)
   {
     if (_rigidbody2D == null)
     {
@@ -478,6 +500,8 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     }
 
     _isClimbing = true;
+    _isGrounded = false;
+    _currentSurfaceNormal = wallNormal;
     _climbStartPosition = _rigidbody2D.position;
     _climbTargetPosition = targetPosition;
     _climbElapsed = 0f;
@@ -541,6 +565,11 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     _climbDuration = 0f;
     _climbStartPosition = Vector2.zero;
     _climbTargetPosition = Vector2.zero;
+
+    if (!_isGrounded)
+    {
+      _currentSurfaceNormal = UpDirection;
+    }
   }
 
   private void ReverseDirection()
@@ -621,6 +650,42 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     return false;
   }
 
+  private bool TryGetFloorBelow(out Vector2 floorNormal)
+  {
+    floorNormal = UpDirection;
+
+    if (_collider2D == null)
+    {
+      return false;
+    }
+
+    var contactFilter = CreateObstacleContactFilter();
+    var probeDistance = Mathf.Max(0.01f, floorProbeDistance);
+    var hitCount = _collider2D.Cast(DownDirection, contactFilter, _floorHits, probeDistance);
+    var bestDistance = float.PositiveInfinity;
+    var found = false;
+
+    for (var i = 0; i < hitCount; i++)
+    {
+      var hit = _floorHits[i];
+      if (hit.collider == null)
+      {
+        continue;
+      }
+
+      if (hit.normal.y < minimumFloorNormalY || hit.distance >= bestDistance)
+      {
+        continue;
+      }
+
+      bestDistance = hit.distance;
+      floorNormal = hit.normal;
+      found = true;
+    }
+
+    return found;
+  }
+
   private void ApplyMovement(bool hasFloorBelow)
   {
     if (_rigidbody2D == null)
@@ -650,7 +715,10 @@ public sealed class Wall2DPlayerController : MonoBehaviour
       return;
     }
 
-    _rigidbody2D.gravityScale = GetCurrentGravityScale(HasFloorBelow());
+    var hasFloorBelow = TryGetFloorBelow(out var floorNormal);
+    _isGrounded = hasFloorBelow;
+    _currentSurfaceNormal = hasFloorBelow ? floorNormal : UpDirection;
+    _rigidbody2D.gravityScale = GetCurrentGravityScale(hasFloorBelow);
     _rigidbody2D.rotation = 0f;
   }
 

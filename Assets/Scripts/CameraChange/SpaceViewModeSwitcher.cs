@@ -34,12 +34,14 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
   public bool IsRealTimeMode => isRealTimeMode;
   public bool IsRealTimeGameplayStarted => !IsRealTimeStartGestureRequired() || _realTimeGameplayStarted;
   public bool ShouldEnablePlayerGameplay => isRealTimeMode
-    ? IsRealTimeGameplayStarted
+    ? IsRealTimeGameplayStarted && !_isStartReactionPlaying
     : CurrentMode == SpaceViewMode.Wall2D;
   public int ResetOrder => -100;
 
   private bool _realTimeGameplayStarted;
   private float _goodGestureHeldSeconds;
+  private bool _isStartReactionPlaying;
+  private float _startReactionEndTime;
 
   private void Reset()
   {
@@ -73,11 +75,12 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
       return;
     }
 
+    UpdateStartReactionPlayback();
     UpdateRealTimeStartGesture();
 
     if (Input.GetKeyDown(startGameplayKey))
     {
-      StartRealTimeGameplay();
+      StartRealTimeGameplay(playGoodReaction: true);
     }
   }
 
@@ -216,6 +219,8 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
   {
     _realTimeGameplayStarted = !IsRealTimeStartGestureRequired();
     _goodGestureHeldSeconds = 0f;
+    _isStartReactionPlaying = false;
+    _startReactionEndTime = 0f;
   }
 
   private void UpdateRealTimeStartGesture()
@@ -244,10 +249,10 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
       return;
     }
 
-    StartRealTimeGameplay();
+    StartRealTimeGameplay(playGoodReaction: true);
   }
 
-  private void StartRealTimeGameplay()
+  private void StartRealTimeGameplay(bool playGoodReaction)
   {
     if (_realTimeGameplayStarted || !isRealTimeMode)
     {
@@ -256,6 +261,50 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
 
     _realTimeGameplayStarted = true;
     _goodGestureHeldSeconds = 0f;
+    _isStartReactionPlaying = false;
+    _startReactionEndTime = 0f;
+
+    if (playGoodReaction)
+    {
+      BeginStartReactionIfPossible();
+    }
+
+    UpdatePlayerMovementState();
+  }
+
+  private void BeginStartReactionIfPossible()
+  {
+    var playerAnimator = FindFirstObjectByType<Wall2DPlayerAnimator>(FindObjectsInactive.Include);
+    if (playerAnimator == null)
+    {
+      return;
+    }
+
+    playerAnimator.PlayGoodReaction();
+
+    if (playerAnimator.GoodReactionDuration <= 0f)
+    {
+      return;
+    }
+
+    _isStartReactionPlaying = true;
+    _startReactionEndTime = Time.unscaledTime + playerAnimator.GoodReactionDuration;
+  }
+
+  private void UpdateStartReactionPlayback()
+  {
+    if (!_isStartReactionPlaying)
+    {
+      return;
+    }
+
+    if (Time.unscaledTime < _startReactionEndTime)
+    {
+      return;
+    }
+
+    _isStartReactionPlaying = false;
+    _startReactionEndTime = 0f;
     UpdatePlayerMovementState();
   }
 }
