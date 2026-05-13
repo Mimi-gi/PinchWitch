@@ -2266,7 +2266,7 @@ GameObject:
   - component: {fileID: 1067297074}
   - component: {fileID: 1067297073}
   m_Layer: 0
-  m_Name: Floor
+  m_Name: Wood_BackGround_0
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2639,7 +2639,7 @@ GameObject:
   - component: {fileID: 1200531624}
   - component: {fileID: 1200531623}
   m_Layer: 0
-  m_Name: Floor (1)
+  m_Name: Wood_BackGround_1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
