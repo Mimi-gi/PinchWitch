@@ -18,7 +18,6 @@ public class StageSelectController : MonoBehaviour
   [SerializeField] private Button[] _stageButtons; // ステージ数分ボタンを登録
   [SerializeField] private HandPinchController _handPinchController;
   [SerializeField] private float _requiredGrabSeconds = 1f;
-  [SerializeField] private bool _respectStageUnlock;
 
   private Rigidbody _grabbedStageBody;
   private StageSelectGrabTarget _grabbedStageTarget;
@@ -132,7 +131,7 @@ public class StageSelectController : MonoBehaviour
     }
 
     StageSelectGrabTarget grabTarget = ResolveGrabTarget(grabbedBody);
-    if (grabTarget == null || !CanSelectStage(grabTarget.StageNum))
+    if (grabTarget == null || !IsValidStageNum(grabTarget.StageNum))
     {
       ClearGrabSelection();
       return;
@@ -153,7 +152,7 @@ public class StageSelectController : MonoBehaviour
 
   private void GoStage(int stageNum)
   {
-    if (_isTransitioning || !CanSelectStage(stageNum))
+    if (_isTransitioning || !IsValidStageNum(stageNum))
     {
       return;
     }
@@ -162,14 +161,9 @@ public class StageSelectController : MonoBehaviour
     GameSceneManager.GoStage(stageNum);
   }
 
-  private bool CanSelectStage(int stageNum)
+  private static bool IsValidStageNum(int stageNum)
   {
-    if (stageNum <= 0)
-    {
-      return false;
-    }
-
-    return !_respectStageUnlock || stageNum <= GameSceneManager.ClearStageCount + 1;
+    return stageNum > 0;
   }
 
   private void ClearGrabSelection()

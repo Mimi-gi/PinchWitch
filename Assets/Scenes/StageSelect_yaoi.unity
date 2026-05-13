@@ -2988,7 +2988,6 @@ MonoBehaviour:
   _stageButtons: []
   _handPinchController: {fileID: 275874975}
   _requiredGrabSeconds: 0.8
-  _respectStageUnlock: 0
 --- !u!1 &739147338
 GameObject:
   m_ObjectHideFlags: 0
