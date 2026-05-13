@@ -160,7 +160,7 @@ public class GameSceneManager : MonoBehaviour
     }
 
     CurrentStageNum = stageNum;
-    string sceneName = _instance._stageScenePrefix + stageNum;
+    string sceneName = _instance.ResolveStageSceneName(stageNum);
     LoadDirect(sceneName);
   }
 
@@ -278,6 +278,40 @@ public class GameSceneManager : MonoBehaviour
     }
 
     _instance.StartTransition(_instance.FadeAndLoadDirect(targetScene));
+  }
+
+  private string ResolveStageSceneName(int stageNum)
+  {
+    string sceneName = _stageScenePrefix + stageNum;
+    if (Application.CanStreamedLevelBeLoaded(sceneName))
+    {
+      return sceneName;
+    }
+
+    string fallbackPrefix = ResolveLowerFirstStagePrefix();
+    string fallbackSceneName = fallbackPrefix + stageNum;
+    if (fallbackSceneName != sceneName && Application.CanStreamedLevelBeLoaded(fallbackSceneName))
+    {
+      return fallbackSceneName;
+    }
+
+    return sceneName;
+  }
+
+  private string ResolveLowerFirstStagePrefix()
+  {
+    if (string.IsNullOrEmpty(_stageScenePrefix))
+    {
+      return _stageScenePrefix;
+    }
+
+    char firstCharacter = char.ToLowerInvariant(_stageScenePrefix[0]);
+    if (_stageScenePrefix.Length == 1)
+    {
+      return firstCharacter.ToString();
+    }
+
+    return firstCharacter + _stageScenePrefix.Substring(1);
   }
 
   private IEnumerator FadeAndLoadDirect(string targetScene)
