@@ -4,7 +4,7 @@
 // 作成日     : 2025/04/10
 // 説明       : シーン遷移を一元管理するシングルトン。
 //              DontDestroyOnLoadで全シーンをまたいで生存する。
-//              シーン名はenumで管理し、必ずLoading経由で遷移する。
+//              シーン名はenumで管理し、フェード付きで直接遷移する。
 //=============================================================
 using System.Collections;
 using UnityEngine;
@@ -20,7 +20,6 @@ public enum GameScene
   Title,
   StageSelect,
   Tutorial,
-  Loading,
 }
 
 public class GameSceneManager : MonoBehaviour
@@ -40,7 +39,6 @@ public class GameSceneManager : MonoBehaviour
   [SerializeField] private string _titleSceneName = "Title";
   [SerializeField] private string _selectSceneName = "StageSelect";
   [SerializeField] private string _tutorialSceneName = "Tutorial";
-  [SerializeField] private string _loadingSceneName = "Loading";
 
   /// <summary>ステージシーンの命名プレフィックス。Stage_1, Stage_2 ...の形式。</summary>
   [SerializeField] private string _stageScenePrefix = "Stage_";
@@ -74,9 +72,6 @@ public class GameSceneManager : MonoBehaviour
   //=========================================================
   // 内部変数
   //=========================================================
-  /// <summary>Loadingシーン経由で読み込む遷移先シーン名。</summary>
-  private static string _pendingSceneName;
-
   private Coroutine _transitionCoroutine;
   private Coroutine _fadeCoroutine;
   private string _lastSceneStartFadeScenePath;
@@ -129,7 +124,7 @@ public class GameSceneManager : MonoBehaviour
       return;
     }
 
-    LoadViaLoading(_instance._titleSceneName);
+    LoadDirect(_instance._titleSceneName);
   }
 
   /// <summary>ステージセレクトシーンへ遷移する。</summary>
@@ -140,7 +135,7 @@ public class GameSceneManager : MonoBehaviour
       return;
     }
 
-    LoadViaLoading(_instance._selectSceneName);
+    LoadDirect(_instance._selectSceneName);
   }
 
   /// <summary>チュートリアルシーンへ遷移する。</summary>
@@ -151,7 +146,7 @@ public class GameSceneManager : MonoBehaviour
       return;
     }
 
-    LoadViaLoading(_instance._tutorialSceneName);
+    LoadDirect(_instance._tutorialSceneName);
   }
 
   /// <summary>
@@ -166,7 +161,7 @@ public class GameSceneManager : MonoBehaviour
 
     CurrentStageNum = stageNum;
     string sceneName = _instance._stageScenePrefix + stageNum;
-    LoadViaLoading(sceneName);
+    LoadDirect(sceneName);
   }
 
   /// <summary>現在のステージをリトライする。</summary>
@@ -198,7 +193,7 @@ public class GameSceneManager : MonoBehaviour
   /// <summary>任意のシーン名で遷移する（柔軟対応用）。</summary>
   public static void GoScene(string sceneName)
   {
-    LoadViaLoading(sceneName);
+    LoadDirect(sceneName);
   }
 
   /// <summary>現在アクティブなシーンをフェード付きで再読み込みする。</summary>
@@ -216,7 +211,7 @@ public class GameSceneManager : MonoBehaviour
   // フェード
   //=========================================================
 
-  /// <summary>フェードを即座に透明にする。Loadingシーン開始時に呼ぶ。</summary>
+  /// <summary>フェードを即座に透明にする。</summary>
   public void ClearFade()
   {
     SetFadeAlpha(0f);
@@ -267,29 +262,49 @@ public class GameSceneManager : MonoBehaviour
   }
 
   //=========================================================
-  // Loading経由の遷移
+  // 直接遷移
   //=========================================================
-  private static void LoadViaLoading(string targetScene)
+  private static void LoadDirect(string targetScene)
   {
     if (!EnsureInstance())
     {
       return;
     }
 
-    _pendingSceneName = targetScene;
-    _instance.StartTransition(_instance.FadeAndLoad());
+    if (string.IsNullOrEmpty(targetScene))
+    {
+      Debug.LogWarning("[GameSceneManager] 遷移先シーン名が空です。");
+      return;
+    }
+
+    _instance.StartTransition(_instance.FadeAndLoadDirect(targetScene));
   }
 
-  private IEnumerator FadeAndLoad()
+  private IEnumerator FadeAndLoadDirect(string targetScene)
   {
+    Time.timeScale = 1f;
     yield return FadeOutRoutine();
-    SceneManager.LoadScene(_instance._loadingSceneName);
+
+    AsyncOperation loadOperation = SceneManager.LoadSceneAsync(targetScene, LoadSceneMode.Single);
+    if (loadOperation == null)
+    {
+      Debug.LogWarning($"[GameSceneManager] シーン '{targetScene}' を読み込めませんでした。");
+      yield return FadeIn();
+      yield break;
+    }
+
+    while (!loadOperation.isDone)
+    {
+      yield return null;
+    }
+
+    yield return null;
+    StartFadeInFromBlack();
   }
 
 
   /// <summary>
   /// シーン切り替え後にFadeInを実行する。
-  /// LoadingSceneControllerが破棄された後も動き続ける。
   /// </summary>
   public void StartFadeInAfterLoad()
   {
@@ -302,15 +317,6 @@ public class GameSceneManager : MonoBehaviour
     yield return null;
     yield return null; // 念のため2フレーム待つ
     yield return StartCoroutine(FadeIn());
-  }
-
-  /// <summary>
-  /// Loadingシーンから呼ぶ。
-  /// 記憶しておいた遷移先シーンの非同期ロードを開始する。
-  /// </summary>
-  public static AsyncOperation StartPendingLoad()
-  {
-    return SceneManager.LoadSceneAsync(_pendingSceneName);
   }
 
   private IEnumerator ReloadActiveSceneRoutine(float delaySeconds)
