@@ -7,6 +7,7 @@ public class AudioManager : MonoBehaviour
     [Header("Audio Source")]
     public AudioSource seSource;
     public AudioSource bgmSource;
+    public AudioSource walkSource;
 
     [Header("SE Clip")]
     public AudioClip SE_Cansel;
@@ -59,5 +60,57 @@ public class AudioManager : MonoBehaviour
         }
 
         seSource.PlayOneShot(clip, Mathf.Clamp01(volume));
+    }
+
+    public void PlayWalkSE()
+    {
+        var source = walkSource != null ? walkSource : seSource;
+        PlayClipUntilFinished(source, SE_Walk);
+    }
+
+    public void StopWalkSE()
+    {
+        var source = walkSource != null ? walkSource : seSource;
+        StopClip(source, SE_Walk);
+    }
+
+    private void PlayClipUntilFinished(AudioSource source, AudioClip clip)
+    {
+        if (clip == null)
+        {
+            Debug.LogWarning("[AudioManager] 再生する AudioClip が指定されていません。", this);
+            return;
+        }
+
+        if (source == null)
+        {
+            Debug.LogWarning("[AudioManager] AudioSource が見つかりません。", this);
+            return;
+        }
+
+        if (source.isPlaying && source.clip == clip)
+        {
+            return;
+        }
+
+        source.clip = clip;
+        source.loop = false;
+        source.Play();
+    }
+
+    private void StopClip(AudioSource source, AudioClip clip)
+    {
+        if (source == null || clip == null)
+        {
+            return;
+        }
+
+        if (source.clip != clip)
+        {
+            return;
+        }
+
+        source.Stop();
+        source.clip = null;
     }
 }
