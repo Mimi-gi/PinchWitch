@@ -354,6 +354,14 @@ public class HandPinchController : MonoBehaviour
            && _goodGestureDetector.IsDetected(_mediaPipeReceiver, MediaPipeReceiver.TrackedHandType.Left);
   }
 
+  public bool HasAnyFreshHand()
+  {
+    return isActiveAndEnabled
+           && _mediaPipeReceiver != null
+           && (_mediaPipeReceiver.HasFreshHand(MediaPipeReceiver.TrackedHandType.Left)
+               || _mediaPipeReceiver.HasFreshHand(MediaPipeReceiver.TrackedHandType.Right));
+  }
+
   // Cursor 制御に渡す設定を構築する。
   private HandCursorController.Config BuildCursorConfig()
   {
