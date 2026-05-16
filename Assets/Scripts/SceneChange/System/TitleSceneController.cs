@@ -62,7 +62,8 @@ public class TitleSceneController : MonoBehaviour
   {
     _isStarting = true;
     yield return new WaitForSecondsRealtime(_handDetectedStartDelaySeconds);
-    StartGame();
+    AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Title);
+    GameSceneManager.GoStageSelect();
   }
 
   private void StartGame()
