@@ -33,15 +33,14 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
   public SpaceViewMode CurrentMode { get; private set; } = SpaceViewMode.World3D;
   public bool IsRealTimeMode => isRealTimeMode;
   public bool IsRealTimeGameplayStarted => !IsRealTimeStartGestureRequired() || _realTimeGameplayStarted;
-  public bool ShouldEnablePlayerGameplay => isRealTimeMode
-    ? IsRealTimeGameplayStarted && !_isStartReactionPlaying
-    : CurrentMode == SpaceViewMode.Wall2D;
+  public bool ShouldEnablePlayerGameplay => ResolveBasePlayerGameplayEnabled() && !_isPlayerGameplayLockedExternally;
   public int ResetOrder => -100;
 
   private bool _realTimeGameplayStarted;
   private float _goodGestureHeldSeconds;
   private bool _isStartReactionPlaying;
   private float _startReactionEndTime;
+  private bool _isPlayerGameplayLockedExternally;
 
   private void Reset()
   {
@@ -133,6 +132,28 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
     respawner.SetPlayerGameplayEnabled(ShouldEnablePlayerGameplay);
   }
 
+  public void SetExternalPlayerGameplayLock(bool isLocked)
+  {
+    if (_isPlayerGameplayLockedExternally == isLocked)
+    {
+      return;
+    }
+
+    _isPlayerGameplayLockedExternally = isLocked;
+    UpdatePlayerMovementState();
+  }
+
+  public void EnsureRealTimeGameplayStarted(bool playGoodReaction = false)
+  {
+    if (!isRealTimeMode)
+    {
+      UpdatePlayerMovementState();
+      return;
+    }
+
+    StartRealTimeGameplay(playGoodReaction);
+  }
+
   /// <summary>
   /// 視点切り替えを起動時のモードへ戻す。
   /// </summary>
@@ -213,6 +234,13 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
   private bool IsRealTimeStartGestureRequired()
   {
     return isRealTimeMode && requireGoodGestureToStartRealTime;
+  }
+
+  private bool ResolveBasePlayerGameplayEnabled()
+  {
+    return isRealTimeMode
+      ? IsRealTimeGameplayStarted && !_isStartReactionPlaying
+      : CurrentMode == SpaceViewMode.Wall2D;
   }
 
   private void ResetRealTimeStartGate()

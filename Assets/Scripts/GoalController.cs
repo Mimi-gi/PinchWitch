@@ -1,39 +1,54 @@
+using System;
 using UnityEngine;
 
 public class GoalController : MonoBehaviour
 {
-  //UIManagerを保持する変数
+  public event Action<Collider2D> GoalReached;
+
+  public bool OverrideDefaultClearHandling { get; set; }
+
   private UIManager uiManager;
+  private bool _hasReachedGoal;
 
-  void Start()
+  private void Start()
   {
-    uiManager = Object.FindFirstObjectByType<UIManager>();
-  }
-
-  void Update()
-  {
-
+    uiManager = UnityEngine.Object.FindFirstObjectByType<UIManager>();
   }
 
   public void OnTriggerEnter2D(Collider2D collision)
   {
-    if (collision.CompareTag("Player"))
+    if (!collision.CompareTag("Player") || _hasReachedGoal)
     {
-      Debug.Log("Goal!");
-
-      Wall2DPlayerController playerController = collision.GetComponent<Wall2DPlayerController>();
-      Wall2DPlayerAnimator playerAnimator = collision.GetComponent<Wall2DPlayerAnimator>();
-      playerAnimator?.PlayGoalReaction();
-      playerController.MoveStop();
-      // UIManagerが見つかっていれば、ゲームクリアUIを表示する
-      if (uiManager != null)
-      {
-        uiManager.GameClear();
-      }
-      else
-      {
-        Debug.Log("uiManager が見つからないよ");
-      }
+      return;
     }
+
+    _hasReachedGoal = true;
+    Debug.Log("Goal!");
+
+    var playerController = collision.GetComponent<Wall2DPlayerController>();
+    var playerAnimator = collision.GetComponent<Wall2DPlayerAnimator>();
+    if (playerAnimator != null)
+    {
+      playerAnimator.PlayGoalReaction();
+    }
+
+    if (playerController != null)
+    {
+      playerController.MoveStop();
+    }
+
+    GoalReached?.Invoke(collision);
+    if (OverrideDefaultClearHandling)
+    {
+      return;
+    }
+
+    if (uiManager != null)
+    {
+      uiManager.GameClear();
+      return;
+    }
+
+    Debug.Log("uiManager が見つからないよ");
   }
 }
