@@ -7533,6 +7533,11 @@ PrefabInstance:
       propertyPath: m_Name
       value: Audio
       objectReference: {fileID: 0}
+    - target: {fileID: 5145742312237073888, guid: ea9cde5f4718e478995e3a717967b864,
+        type: 3}
+      propertyPath: SE_Select
+      value: 
+      objectReference: {fileID: 8300000, guid: 9972b384ac7f28b439ee70806e8eaf7b, type: 3}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -8402,7 +8407,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 15.15, y: 0, z: 4.5}
-  m_LocalScale: {x: 10, y: 36.5, z: 25.385609}
+  m_LocalScale: {x: 58, y: 36.5, z: 25.385609}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -8417,7 +8422,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
   m_LocalPosition: {x: -15.41, y: 0, z: 4.5}
-  m_LocalScale: {x: 10, y: 36.5, z: 25.808704}
+  m_LocalScale: {x: 58, y: 36.5, z: 25.808704}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}

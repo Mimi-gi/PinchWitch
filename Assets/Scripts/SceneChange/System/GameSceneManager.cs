@@ -67,7 +67,7 @@ public class GameSceneManager : MonoBehaviour
   //=========================================================
   [Header("画面フェード")]
   [SerializeField] private CanvasGroup _fadeCanvasGroup;
-  [SerializeField] private float _fadeDuration = 0.3f;
+  [SerializeField] private float _fadeDuration = 1f;
 
   //=========================================================
   // 内部変数
