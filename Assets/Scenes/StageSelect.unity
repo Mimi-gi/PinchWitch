@@ -922,6 +922,11 @@ PrefabInstance:
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
       objectReference: {fileID: 2100000, guid: d513f1028d3224183bb251d93d796d11, type: 2}
+    - target: {fileID: 2446316148234320151, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
+      objectReference: {fileID: 0}
     - target: {fileID: 4789153600988231615, guid: 071568314587048398b18dafdc93d0a7,
         type: 3}
       propertyPath: m_LocalScale.x
@@ -997,6 +1002,11 @@ PrefabInstance:
       propertyPath: m_Name
       value: Trump_8
       objectReference: {fileID: 0}
+    - target: {fileID: 7901099493238045089, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -1021,6 +1031,11 @@ PrefabInstance:
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
       objectReference: {fileID: 2100000, guid: 01eaf110a66e94b81ab6f03d47fd966b, type: 2}
+    - target: {fileID: 2446316148234320151, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
+      objectReference: {fileID: 0}
     - target: {fileID: 4789153600988231615, guid: 071568314587048398b18dafdc93d0a7,
         type: 3}
       propertyPath: m_LocalScale.x
@@ -1096,6 +1111,11 @@ PrefabInstance:
       propertyPath: m_Name
       value: Trump_6
       objectReference: {fileID: 0}
+    - target: {fileID: 7901099493238045089, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -1120,6 +1140,11 @@ PrefabInstance:
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
       objectReference: {fileID: 2100000, guid: 2e3ca2f5b935d4bf3824836bd2523472, type: 2}
+    - target: {fileID: 2446316148234320151, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
+      objectReference: {fileID: 0}
     - target: {fileID: 4789153600988231615, guid: 071568314587048398b18dafdc93d0a7,
         type: 3}
       propertyPath: m_LocalScale.x
@@ -1194,6 +1219,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: Trump_7
+      objectReference: {fileID: 0}
+    - target: {fileID: 7901099493238045089, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -1836,7 +1866,7 @@ Camera:
   m_Depth: 0
   m_CullingMask:
     serializedVersion: 2
-    m_Bits: 8264
+    m_Bits: 41032
   m_RenderingPath: -1
   m_TargetTexture: {fileID: 0}
   m_TargetDisplay: 0
@@ -2896,6 +2926,11 @@ PrefabInstance:
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
       objectReference: {fileID: 2100000, guid: 03686542807eb4e048a2e48f3c387123, type: 2}
+    - target: {fileID: 2446316148234320151, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
+      objectReference: {fileID: 0}
     - target: {fileID: 4789153600988231615, guid: 071568314587048398b18dafdc93d0a7,
         type: 3}
       propertyPath: m_LocalScale.x
@@ -2970,6 +3005,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: Trump_10
+      objectReference: {fileID: 0}
+    - target: {fileID: 7901099493238045089, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -3563,6 +3603,11 @@ PrefabInstance:
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
       objectReference: {fileID: 2100000, guid: 142d8946c61724315a63defd8c54d9c8, type: 2}
+    - target: {fileID: 2446316148234320151, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
+      objectReference: {fileID: 0}
     - target: {fileID: 4789153600988231615, guid: 071568314587048398b18dafdc93d0a7,
         type: 3}
       propertyPath: m_LocalScale.x
@@ -3637,6 +3682,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: Trump_2
+      objectReference: {fileID: 0}
+    - target: {fileID: 7901099493238045089, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -4468,6 +4518,11 @@ PrefabInstance:
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
       objectReference: {fileID: 2100000, guid: d24efc2c5ab3142a4979045a5876ee85, type: 2}
+    - target: {fileID: 2446316148234320151, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
+      objectReference: {fileID: 0}
     - target: {fileID: 4789153600988231615, guid: 071568314587048398b18dafdc93d0a7,
         type: 3}
       propertyPath: m_LocalScale.x
@@ -4542,6 +4597,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: Trump_4
+      objectReference: {fileID: 0}
+    - target: {fileID: 7901099493238045089, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -5171,7 +5231,7 @@ PrefabInstance:
     - target: {fileID: -8390680405410486442, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
       propertyPath: m_Layer
-      value: 0
+      value: 6
       objectReference: {fileID: 0}
     - target: {fileID: -6501838224823869002, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
@@ -5211,12 +5271,12 @@ PrefabInstance:
     - target: {fileID: -2658870919821519452, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
       propertyPath: m_Layer
-      value: 0
+      value: 6
       objectReference: {fileID: 0}
     - target: {fileID: -1303535312154082803, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
       propertyPath: m_Layer
-      value: 0
+      value: 6
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
@@ -5226,7 +5286,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
       propertyPath: m_Layer
-      value: 0
+      value: 6
       objectReference: {fileID: 0}
     - target: {fileID: 1831315059143207768, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
@@ -5251,7 +5311,7 @@ PrefabInstance:
     - target: {fileID: 4026370798707178241, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
       propertyPath: m_Layer
-      value: 0
+      value: 6
       objectReference: {fileID: 0}
     - target: {fileID: 4456314613271022422, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
@@ -5296,7 +5356,7 @@ PrefabInstance:
     - target: {fileID: 6709521048497459107, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
       propertyPath: m_Layer
-      value: 0
+      value: 6
       objectReference: {fileID: 0}
     - target: {fileID: 7188594303917502956, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
@@ -5356,6 +5416,11 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 934243728}
     m_Modifications:
+    - target: {fileID: 2446316148234320151, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
+      objectReference: {fileID: 0}
     - target: {fileID: 4789153600988231615, guid: 071568314587048398b18dafdc93d0a7,
         type: 3}
       propertyPath: m_LocalPosition.x
@@ -5410,6 +5475,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: Trump
+      objectReference: {fileID: 0}
+    - target: {fileID: 7901099493238045089, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -6178,7 +6248,7 @@ Light:
   m_RenderMode: 0
   m_CullingMask:
     serializedVersion: 2
-    m_Bits: 72
+    m_Bits: 32776
   m_RenderingLayerMask: 4294967295
   m_Lightmapping: 4
   m_LightShadowCasterMode: 0
@@ -6371,6 +6441,11 @@ PrefabInstance:
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
       objectReference: {fileID: 2100000, guid: e1544dc77f39f4e5d97e3c7459159961, type: 2}
+    - target: {fileID: 2446316148234320151, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
+      objectReference: {fileID: 0}
     - target: {fileID: 4789153600988231615, guid: 071568314587048398b18dafdc93d0a7,
         type: 3}
       propertyPath: m_LocalScale.x
@@ -6446,6 +6521,11 @@ PrefabInstance:
       propertyPath: m_Name
       value: Trump_9
       objectReference: {fileID: 0}
+    - target: {fileID: 7901099493238045089, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -6470,6 +6550,11 @@ PrefabInstance:
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
       objectReference: {fileID: 2100000, guid: 5818c6d19cdf34ff69d23bda6cc9d9bb, type: 2}
+    - target: {fileID: 2446316148234320151, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
+      objectReference: {fileID: 0}
     - target: {fileID: 4789153600988231615, guid: 071568314587048398b18dafdc93d0a7,
         type: 3}
       propertyPath: m_LocalScale.x
@@ -6544,6 +6629,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: Trump_5
+      objectReference: {fileID: 0}
+    - target: {fileID: 7901099493238045089, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -6704,6 +6794,11 @@ PrefabInstance:
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
       objectReference: {fileID: 2100000, guid: 85fbc9be99da340babf96fc69cf8347d, type: 2}
+    - target: {fileID: 2446316148234320151, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
+      objectReference: {fileID: 0}
     - target: {fileID: 4789153600988231615, guid: 071568314587048398b18dafdc93d0a7,
         type: 3}
       propertyPath: m_LocalScale.x
@@ -6778,6 +6873,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: Trump_3
+      objectReference: {fileID: 0}
+    - target: {fileID: 7901099493238045089, guid: 071568314587048398b18dafdc93d0a7,
+        type: 3}
+      propertyPath: m_Layer
+      value: 15
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -6882,7 +6982,7 @@ GameObject:
   - component: {fileID: 2010092516}
   - component: {fileID: 2010092518}
   - component: {fileID: 2010092517}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: nurbsToPoly11 (1)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -7003,7 +7103,7 @@ GameObject:
   - component: {fileID: 543450652306308857}
   - component: {fileID: 3469287838370296156}
   - component: {fileID: 1711813854376494486}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Curtain_move_L
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -7021,7 +7121,7 @@ GameObject:
   - component: {fileID: 543450653662526846}
   - component: {fileID: 3469287837513102043}
   - component: {fileID: 1711813855599773201}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Curtain_move_R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
