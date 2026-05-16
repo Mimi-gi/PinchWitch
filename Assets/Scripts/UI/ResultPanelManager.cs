@@ -7,8 +7,6 @@ public class ResultPanelManager : MonoBehaviour
 {
   private const string StageScenePrefix = "Stage_";
   private const int FirstStageNum = 1;
-  private const int LastStageNum = 7;
-  private const string ClearStageCountKey = "ClearStageCount";
 
   [Header("ボタン")]
   public Button nextStage_Button;
@@ -117,7 +115,7 @@ public class ResultPanelManager : MonoBehaviour
 
     SaveClearStageProgress(currentStageNum);
 
-    if (currentStageNum >= LastStageNum)
+    if (currentStageNum >= GameSceneManager.TotalStageCount)
     {
       GameSceneManager.GoStageSelect();
       return;
@@ -153,14 +151,11 @@ public class ResultPanelManager : MonoBehaviour
     string stageNumText = sceneName.Substring(StageScenePrefix.Length);
     return int.TryParse(stageNumText, out stageNum)
       && stageNum >= FirstStageNum
-      && stageNum <= LastStageNum;
+      && stageNum <= GameSceneManager.TotalStageCount;
   }
 
   private static void SaveClearStageProgress(int clearedStageNum)
   {
-    GameSceneManager.CurrentStageNum = clearedStageNum;
-    GameSceneManager.ClearStageCount = Mathf.Max(GameSceneManager.ClearStageCount, clearedStageNum);
-    PlayerPrefs.SetInt(ClearStageCountKey, GameSceneManager.ClearStageCount);
-    PlayerPrefs.Save();
+    StageProgressManager.RecordClear(clearedStageNum);
   }
 }

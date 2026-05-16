@@ -157,14 +157,34 @@ public class StageSelectController : MonoBehaviour
       return;
     }
 
+    int destinationStageNum = ResolveDestinationStageNum(stageNum);
+    if (!IsValidStageNum(destinationStageNum))
+    {
+      return;
+    }
+
     _isTransitioning = true;
-    AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Select);
-    GameSceneManager.GoStage(stageNum);
+    if (AudioManager.Instance != null)
+    {
+      AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Select);
+    }
+
+    GameSceneManager.GoStage(destinationStageNum);
+  }
+
+  private static int ResolveDestinationStageNum(int selectedStageNum)
+  {
+    if (StageProgressManager.IsCleared(selectedStageNum))
+    {
+      return selectedStageNum;
+    }
+
+    return StageProgressManager.NextPlayableStageNum;
   }
 
   private static bool IsValidStageNum(int stageNum)
   {
-    return stageNum > 0;
+    return stageNum > 0 && stageNum <= StageProgressManager.TotalStageCount;
   }
 
   private void ClearGrabSelection()

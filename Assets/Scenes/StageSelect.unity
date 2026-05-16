@@ -5400,6 +5400,10 @@ PrefabInstance:
         type: 3}
       insertIndex: -1
       addedObject: {fileID: 2010092516}
+    - targetCorrespondingSourceObject: {fileID: -8679921383154817045, guid: 747ff5a09572f194d8270deb0dcc260c,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1628682361}
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 747ff5a09572f194d8270deb0dcc260c, type: 3}
 --- !u!4 &1299925010 stripped
@@ -6348,12 +6352,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1628682359}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.27739847, y: -0, z: -0, w: 0.960755}
-  m_LocalPosition: {x: 0, y: 11.76, z: -11.74}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalRotation: {x: -0, y: -0.960755, z: 0.27739847, w: 0}
+  m_LocalPosition: {x: 0, y: 0.276174, z: 0.3656184}
+  m_LocalScale: {x: 0.020964356, y: 0.02096436, z: 0.020964356}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 1299925010}
   m_LocalEulerAnglesHint: {x: 32.21, y: 0, z: 0}
 --- !u!1001 &1657183063
 PrefabInstance:
@@ -6537,6 +6541,114 @@ Transform:
     type: 3}
   m_PrefabInstance: {fileID: 1763030117}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1803084406
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1803084408}
+  - component: {fileID: 1803084407}
+  m_Layer: 0
+  m_Name: TrumpController
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1803084407
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1803084406}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 03141b4c6fcb4330b1513c123f2a58bd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TrumpController
+  trump1: {fileID: 1366759160}
+  trump2: {fileID: 1012447929}
+  trump3: {fileID: 1926025713}
+  trump4: {fileID: 1153913356}
+  trump5: {fileID: 1880528452}
+  trump6: {fileID: 542626347}
+  trump7: {fileID: 575605032}
+  trump8: {fileID: 521759271}
+  trump9: {fileID: 1763030118}
+  trump10: {fileID: 880201090}
+  frontZRotation: 0
+  backZRotation: 180
+  liftHeight: 1
+  liftDuration: 0.25
+  flipDuration: 0.45
+  returnDuration: 0.25
+  moveCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  rotationCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+--- !u!4 &1803084408
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1803084406}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.38154, y: -0.16103, z: 13.05}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1880528451
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -7267,7 +7379,6 @@ SceneRoots:
   - {fileID: 543450652306308857}
   - {fileID: 543450653662526846}
   - {fileID: 1299925009}
-  - {fileID: 1628682361}
   - {fileID: 934243728}
   - {fileID: 1033518804}
   - {fileID: 622755107}
@@ -7279,3 +7390,4 @@ SceneRoots:
   - {fileID: 1029085038}
   - {fileID: 585621859}
   - {fileID: 710000101}
+  - {fileID: 1803084408}
