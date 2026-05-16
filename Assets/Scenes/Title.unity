@@ -1584,7 +1584,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GameSceneManager
   _titleSceneName: Title
   _selectSceneName: StageSelect
-  _tutorialSceneName: Tutorial
+  _tutorialSceneName: TutorialScene_20260516
   _loadingSceneName: Loading
   _stageScenePrefix: Stage_
   _isDebug: 1

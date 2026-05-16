@@ -38,7 +38,7 @@ public class GameSceneManager : MonoBehaviour
   [Header("シーン名設定")]
   [SerializeField] private string _titleSceneName = "Title";
   [SerializeField] private string _selectSceneName = "StageSelect";
-  [SerializeField] private string _tutorialSceneName = "Tutorial";
+  [SerializeField] private string _tutorialSceneName = "TutorialScene_20260516";
 
   /// <summary>ステージシーンの命名プレフィックス。Stage_1, Stage_2 ...の形式。</summary>
   [SerializeField] private string _stageScenePrefix = "Stage_";
