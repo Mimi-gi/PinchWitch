@@ -29,6 +29,8 @@ public class AudioManager : MonoBehaviour
     public AudioClip SE_Tutorial;
     public AudioClip SE_Walk;
 
+    private bool _hasWarnedMissingWalkSource;
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -64,14 +66,18 @@ public class AudioManager : MonoBehaviour
 
     public void PlayWalkSE()
     {
-        var source = walkSource != null ? walkSource : seSource;
-        PlayClipUntilFinished(source, SE_Walk);
+        if (walkSource == null)
+        {
+            WarnMissingWalkSourceOnce();
+            return;
+        }
+
+        PlayClipUntilFinished(walkSource, SE_Walk);
     }
 
     public void StopWalkSE()
     {
-        var source = walkSource != null ? walkSource : seSource;
-        StopClip(source, SE_Walk);
+        StopClip(walkSource, SE_Walk);
     }
 
     private void PlayClipUntilFinished(AudioSource source, AudioClip clip)
@@ -112,5 +118,16 @@ public class AudioManager : MonoBehaviour
 
         source.Stop();
         source.clip = null;
+    }
+
+    private void WarnMissingWalkSourceOnce()
+    {
+        if (_hasWarnedMissingWalkSource)
+        {
+            return;
+        }
+
+        _hasWarnedMissingWalkSource = true;
+        Debug.LogWarning("[AudioManager] Walk 用 AudioSource が設定されていません。", this);
     }
 }
