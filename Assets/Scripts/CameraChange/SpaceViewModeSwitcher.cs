@@ -42,6 +42,7 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
   private float _goodGestureHeldSeconds;
   private bool _isStartReactionPlaying;
   private float _startReactionEndTime;
+  private bool _hasPlayedGameplayStartSE;
 
   private void Reset()
   {
@@ -221,6 +222,7 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
     _goodGestureHeldSeconds = 0f;
     _isStartReactionPlaying = false;
     _startReactionEndTime = 0f;
+    _hasPlayedGameplayStartSE = false;
   }
 
   private void UpdateRealTimeStartGesture()
@@ -269,6 +271,11 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
       BeginStartReactionIfPossible();
     }
 
+    if (!_isStartReactionPlaying)
+    {
+      PlayGameplayStartSE();
+    }
+
     UpdatePlayerMovementState();
   }
 
@@ -305,6 +312,18 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
 
     _isStartReactionPlaying = false;
     _startReactionEndTime = 0f;
+    PlayGameplayStartSE();
     UpdatePlayerMovementState();
+  }
+
+  private void PlayGameplayStartSE()
+  {
+    if (_hasPlayedGameplayStartSE)
+    {
+      return;
+    }
+
+    _hasPlayedGameplayStartSE = true;
+    AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Start);
   }
 }

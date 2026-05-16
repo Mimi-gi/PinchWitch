@@ -301,8 +301,10 @@ public class HandPinchController : MonoBehaviour
 
     _grabInteractor.GrabStarted -= HandleGrabStarted;
     _grabInteractor.GrabReleased -= HandleGrabReleased;
+    _grabInteractor.ReleasedBodyLanded -= HandleReleasedBodyLanded;
     _grabInteractor.GrabStarted += HandleGrabStarted;
     _grabInteractor.GrabReleased += HandleGrabReleased;
+    _grabInteractor.ReleasedBodyLanded += HandleReleasedBodyLanded;
   }
 
   private void UnsubscribeFromGrabInteractor()
@@ -314,16 +316,24 @@ public class HandPinchController : MonoBehaviour
 
     _grabInteractor.GrabStarted -= HandleGrabStarted;
     _grabInteractor.GrabReleased -= HandleGrabReleased;
+    _grabInteractor.ReleasedBodyLanded -= HandleReleasedBodyLanded;
   }
 
   private void HandleGrabStarted(Rigidbody grabbedBody)
   {
+    AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Pinch);
+
     GrabStarted?.Invoke(grabbedBody);
   }
 
   private void HandleGrabReleased(Rigidbody releasedBody)
   {
     GrabReleased?.Invoke(releasedBody);
+  }
+
+  private void HandleReleasedBodyLanded(Rigidbody releasedBody)
+  {
+    AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Release);
   }
 
   // 他入力コンポーネントへ grab 操作に必要な共有依存を渡す。

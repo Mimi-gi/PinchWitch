@@ -4,21 +4,19 @@ public class GoalController : MonoBehaviour
 {
   //UIManagerを保持する変数
   private UIManager uiManager;
+  private bool _hasCleared;
 
   void Start()
   {
     uiManager = Object.FindFirstObjectByType<UIManager>();
   }
 
-  void Update()
-  {
-
-  }
-
   public void OnTriggerEnter2D(Collider2D collision)
   {
-    if (collision.CompareTag("Player"))
+    if (collision.CompareTag("Player") && !_hasCleared)
     {
+      _hasCleared = true;
+      AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Clear);
       Debug.Log("Goal!");
 
       Wall2DPlayerController playerController = collision.GetComponent<Wall2DPlayerController>();

@@ -96,6 +96,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   private float _lastReverseTime = float.NegativeInfinity;
   private int _rapidReversalCount;
   private bool _isGrounded;
+  private bool _wasFallingBeforeLanding;
   private Vector2 _currentSurfaceNormal = UpDirection;
 
   // よじ登り中は通常移動を止め、開始地点から目標地点へ補間移動する。
@@ -151,6 +152,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   {
     ResetClimbState();
     _isGrounded = false;
+    _wasFallingBeforeLanding = false;
     _currentSurfaceNormal = UpDirection;
 
     if (_rigidbody2D != null)
@@ -181,6 +183,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     var hasFloorBelow = TryGetFloorBelow(out var floorNormal);
     _isGrounded = hasFloorBelow;
     _currentSurfaceNormal = hasFloorBelow ? floorNormal : UpDirection;
+    UpdateLandingAudioState(hasFloorBelow);
     if (hasFloorBelow)
     {
       HandleForwardObstacle();
@@ -209,6 +212,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     ResetClimbState();
     ResetStuckTracking();
     ResetRapidReversalTracking();
+    _wasFallingBeforeLanding = false;
   }
 
   private bool TryProcessClimb()
@@ -511,6 +515,8 @@ public sealed class Wall2DPlayerController : MonoBehaviour
       ? 0f
       : Mathf.Max(Time.fixedDeltaTime, climbDistance / climbSpeed);
 
+    AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Climb);
+
     // 登っている最中に物理挙動が混ざるとガタつくので、速度と重力を一旦止める。
     _rigidbody2D.gravityScale = 0f;
     _rigidbody2D.linearVelocity = Vector2.zero;
@@ -575,6 +581,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   private void ReverseDirection()
   {
     _moveDirectionX *= -1f;
+    AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Turn);
 
     if (_rigidbody2D != null)
     {
@@ -717,9 +724,26 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
     var hasFloorBelow = TryGetFloorBelow(out var floorNormal);
     _isGrounded = hasFloorBelow;
+    _wasFallingBeforeLanding = !hasFloorBelow;
     _currentSurfaceNormal = hasFloorBelow ? floorNormal : UpDirection;
     _rigidbody2D.gravityScale = GetCurrentGravityScale(hasFloorBelow);
     _rigidbody2D.rotation = 0f;
+  }
+
+  private void UpdateLandingAudioState(bool hasFloorBelow)
+  {
+    if (hasFloorBelow)
+    {
+      if (_wasFallingBeforeLanding)
+      {
+        AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Land);
+      }
+
+      _wasFallingBeforeLanding = false;
+      return;
+    }
+
+    _wasFallingBeforeLanding = true;
   }
 
   private float GetCurrentGravityScale(bool hasFloorBelow)

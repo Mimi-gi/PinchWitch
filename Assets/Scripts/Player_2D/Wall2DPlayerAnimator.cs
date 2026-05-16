@@ -72,6 +72,11 @@ public sealed class Wall2DPlayerAnimator : MonoBehaviour
     PlayState(ResolveBaseState(), restart: true);
   }
 
+  private void OnDisable()
+  {
+    AudioManager.Instance.StopWalkSE();
+  }
+
   private void OnValidate()
   {
     goodReactionDuration = Mathf.Max(0f, goodReactionDuration);
@@ -92,7 +97,9 @@ public sealed class Wall2DPlayerAnimator : MonoBehaviour
       return;
     }
 
-    PlayState(ResolveState(), restart: false);
+    var resolvedState = ResolveState();
+    PlayState(resolvedState, restart: false);
+    UpdateStateAudio(resolvedState);
 
     if (flipSpriteWithMovement && _rigidbody2D != null && _spriteRenderer != null)
     {
@@ -209,6 +216,17 @@ public sealed class Wall2DPlayerAnimator : MonoBehaviour
     }
 
     _currentState = state;
+  }
+
+  private void UpdateStateAudio(PlayerAnimationState state)
+  {
+    if (state != PlayerAnimationState.Walk)
+    {
+      AudioManager.Instance.StopWalkSE();
+      return;
+    }
+
+    AudioManager.Instance.PlayWalkSE();
   }
 
   private int CreateStateHash(string stateName)

@@ -75,6 +75,7 @@ public sealed class GrabInteractor
 
   public event Action<Rigidbody> GrabStarted;
   public event Action<Rigidbody> GrabReleased;
+  public event Action<Rigidbody> ReleasedBodyLanded;
 
   // grab 操作用の設定でインタラクタを生成する。
   public GrabInteractor(Config config)
@@ -370,8 +371,10 @@ public sealed class GrabInteractor
         continue;
       }
 
+      var landedBody = dropState.body;
       FinishVerticalDrop(dropState);
       _verticalDropStates.RemoveAt(i);
+      ReleasedBodyLanded?.Invoke(landedBody);
     }
   }
 

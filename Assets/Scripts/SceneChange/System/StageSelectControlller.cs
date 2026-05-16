@@ -17,7 +17,7 @@ public class StageSelectController : MonoBehaviour
 {
   [SerializeField] private Button[] _stageButtons; // ステージ数分ボタンを登録
   [SerializeField] private HandPinchController _handPinchController;
-  [SerializeField] private float _requiredGrabSeconds = 1f;
+  [SerializeField] private float _requiredGrabSeconds = 0.8f;
 
   private Rigidbody _grabbedStageBody;
   private StageSelectGrabTarget _grabbedStageTarget;
@@ -158,6 +158,7 @@ public class StageSelectController : MonoBehaviour
     }
 
     _isTransitioning = true;
+    AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Select);
     GameSceneManager.GoStage(stageNum);
   }
 
