@@ -9,7 +9,6 @@
 
 using System.Collections;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Titleシーン専用。ボタンイベントと初回起動判定を担当。
@@ -23,20 +22,6 @@ public class TitleSceneController : MonoBehaviour
   [SerializeField] private float _handDetectedStartDelaySeconds = 1f;
 
   private bool _isStarting;
-
-  [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-  private static void BootstrapOnTitleSceneLoad()
-  {
-    Scene activeScene = SceneManager.GetActiveScene();
-    if (!IsTitleScene(activeScene.name)
-        || FindFirstObjectByType<TitleSceneController>(FindObjectsInactive.Include) != null)
-    {
-      return;
-    }
-
-    var controllerObject = new GameObject(nameof(TitleSceneController));
-    controllerObject.AddComponent<TitleSceneController>();
-  }
 
   private void Awake()
   {
@@ -108,13 +93,6 @@ public class TitleSceneController : MonoBehaviour
     }
 
     _handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
-  }
-
-  private static bool IsTitleScene(string sceneName)
-  {
-    return sceneName == "Title"
-           || sceneName == "Title_old"
-           || sceneName == "Ayano_Title";
   }
 
   /// <summary>
