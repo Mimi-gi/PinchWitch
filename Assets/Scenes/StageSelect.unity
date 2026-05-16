@@ -5171,7 +5171,7 @@ PrefabInstance:
     - target: {fileID: -8390680405410486442, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
       propertyPath: m_Layer
-      value: 6
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -6501838224823869002, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
@@ -5211,12 +5211,12 @@ PrefabInstance:
     - target: {fileID: -2658870919821519452, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
       propertyPath: m_Layer
-      value: 6
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -1303535312154082803, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
       propertyPath: m_Layer
-      value: 6
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
@@ -5226,7 +5226,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
       propertyPath: m_Layer
-      value: 6
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1831315059143207768, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
@@ -5251,7 +5251,7 @@ PrefabInstance:
     - target: {fileID: 4026370798707178241, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
       propertyPath: m_Layer
-      value: 6
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4456314613271022422, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
@@ -5296,7 +5296,7 @@ PrefabInstance:
     - target: {fileID: 6709521048497459107, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
       propertyPath: m_Layer
-      value: 6
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7188594303917502956, guid: 747ff5a09572f194d8270deb0dcc260c,
         type: 3}
@@ -6178,7 +6178,7 @@ Light:
   m_RenderMode: 0
   m_CullingMask:
     serializedVersion: 2
-    m_Bits: 8
+    m_Bits: 72
   m_RenderingLayerMask: 4294967295
   m_Lightmapping: 4
   m_LightShadowCasterMode: 0
@@ -7003,7 +7003,7 @@ GameObject:
   - component: {fileID: 543450652306308857}
   - component: {fileID: 3469287838370296156}
   - component: {fileID: 1711813854376494486}
-  m_Layer: 6
+  m_Layer: 0
   m_Name: Curtain_move_L
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -7021,7 +7021,7 @@ GameObject:
   - component: {fileID: 543450653662526846}
   - component: {fileID: 3469287837513102043}
   - component: {fileID: 1711813855599773201}
-  m_Layer: 6
+  m_Layer: 0
   m_Name: Curtain_move_R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
