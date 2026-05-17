@@ -47,12 +47,12 @@ public class GameSceneManager : MonoBehaviour
   // ステージ情報
   //=========================================================
   /// <summary>ステージ総数。ステージを追加したら変更すること。</summary>
-  public static int TotalStageCount = 3;
+  public static int TotalStageCount = 10;
 
   /// <summary>現在プレイ中のステージ番号（1始まり）。</summary>
   public static int CurrentStageNum = 1;
 
-  /// <summary>クリア済みステージ数。PlayerPrefsで永続保存される。</summary>
+  /// <summary>クリア済みステージ数。StageProgressManagerで永続保存される。</summary>
   public static int ClearStageCount = 0;
 
   //=========================================================
@@ -89,7 +89,7 @@ public class GameSceneManager : MonoBehaviour
       EnsureFadeCanvasGroup();
       SetFadeAlpha(0f);
 
-      ClearStageCount = PlayerPrefs.GetInt("ClearStageCount", 0);
+      ClearStageCount = StageProgressManager.LoadClearStageCount(TotalStageCount);
 
       if (_isDebug)
       {
@@ -176,9 +176,7 @@ public class GameSceneManager : MonoBehaviour
   /// </summary>
   public static void GoNextStage()
   {
-    ClearStageCount = Mathf.Max(ClearStageCount, CurrentStageNum);
-    PlayerPrefs.SetInt("ClearStageCount", ClearStageCount);
-    PlayerPrefs.Save();
+    ClearStageCount = StageProgressManager.RecordClear(CurrentStageNum);
 
     if (CurrentStageNum < TotalStageCount)
     {

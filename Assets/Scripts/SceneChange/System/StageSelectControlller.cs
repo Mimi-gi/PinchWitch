@@ -17,6 +17,7 @@ public class StageSelectController : MonoBehaviour
 {
   [SerializeField] private Button[] _stageButtons; // ステージ数分ボタンを登録
   [SerializeField] private HandPinchController _handPinchController;
+  [SerializeField] private StageSelectTrumpLoadingController _loadingController;
   [SerializeField] private float _requiredGrabSeconds = 0.8f;
 
   private Rigidbody _grabbedStageBody;
@@ -31,6 +32,11 @@ public class StageSelectController : MonoBehaviour
 
   private void Start()
   {
+    if (_loadingController == null)
+    {
+      _loadingController = FindFirstObjectByType<StageSelectTrumpLoadingController>(FindObjectsInactive.Include);
+    }
+
     UpdateStageButtons();
   }
 
@@ -157,14 +163,40 @@ public class StageSelectController : MonoBehaviour
       return;
     }
 
+    int destinationStageNum = ResolveDestinationStageNum(stageNum);
+    if (!IsValidStageNum(destinationStageNum))
+    {
+      return;
+    }
+
     _isTransitioning = true;
-    AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Select);
-    GameSceneManager.GoStage(stageNum);
+    if (AudioManager.Instance != null)
+    {
+      AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Select);
+    }
+
+    if (_loadingController != null)
+    {
+      _loadingController.Play(_grabbedStageTarget, destinationStageNum, GameSceneManager.GoStage);
+      return;
+    }
+
+    GameSceneManager.GoStage(destinationStageNum);
+  }
+
+  private static int ResolveDestinationStageNum(int selectedStageNum)
+  {
+    if (StageProgressManager.IsCleared(selectedStageNum))
+    {
+      return selectedStageNum;
+    }
+
+    return StageProgressManager.NextPlayableStageNum;
   }
 
   private static bool IsValidStageNum(int stageNum)
   {
-    return stageNum > 0;
+    return stageNum > 0 && stageNum <= StageProgressManager.TotalStageCount;
   }
 
   private void ClearGrabSelection()
@@ -176,8 +208,7 @@ public class StageSelectController : MonoBehaviour
 
   private static StageSelectGrabTarget ResolveGrabTarget(Rigidbody grabbedBody)
   {
-    StageSelectGrabTarget grabTarget = grabbedBody.GetComponent<StageSelectGrabTarget>();
-    if (grabTarget != null)
+    if (grabbedBody.TryGetComponent(out StageSelectGrabTarget grabTarget))
     {
       return grabTarget;
     }

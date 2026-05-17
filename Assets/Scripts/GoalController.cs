@@ -1,37 +1,47 @@
+using System.Collections;
 using UnityEngine;
 
 public class GoalController : MonoBehaviour
 {
-  //UIManagerを保持する変数
-  private UIManager uiManager;
-  private bool _hasCleared;
+  [SerializeField] private float _stageSelectDelaySeconds = 0.5f;
 
-  void Start()
-  {
-    uiManager = Object.FindFirstObjectByType<UIManager>();
-  }
+  private bool _hasCleared;
 
   public void OnTriggerEnter2D(Collider2D collision)
   {
     if (collision.CompareTag("Player") && !_hasCleared)
     {
       _hasCleared = true;
-      AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Clear);
-      Debug.Log("Goal!");
-
-      Wall2DPlayerController playerController = collision.GetComponent<Wall2DPlayerController>();
-      Wall2DPlayerAnimator playerAnimator = collision.GetComponent<Wall2DPlayerAnimator>();
-      playerAnimator?.PlayGoalReaction();
-      playerController.MoveStop();
-      // UIManagerが見つかっていれば、ゲームクリアUIを表示する
-      if (uiManager != null)
-      {
-        uiManager.GameClear();
-      }
-      else
-      {
-        Debug.Log("uiManager が見つからないよ");
-      }
+      StartCoroutine(ClearAndReturnStageSelect(collision));
     }
+  }
+
+  private IEnumerator ClearAndReturnStageSelect(Collider2D playerCollider)
+  {
+    StageProgressManager.RecordCurrentStageClear();
+
+    if (AudioManager.Instance != null)
+    {
+      AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Clear);
+    }
+
+    Debug.Log("Goal!");
+
+    if (playerCollider.TryGetComponent(out Wall2DPlayerAnimator playerAnimator))
+    {
+      playerAnimator.PlayGoalReaction();
+    }
+
+    if (playerCollider.TryGetComponent(out Wall2DPlayerController playerController))
+    {
+      playerController.MoveStop();
+    }
+
+    if (_stageSelectDelaySeconds > 0f)
+    {
+      yield return new WaitForSeconds(_stageSelectDelaySeconds);
+    }
+
+    GameSceneManager.GoStageSelect();
   }
 }
