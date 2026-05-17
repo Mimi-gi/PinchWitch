@@ -3,73 +3,80 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.UI;
 
 [DisallowMultipleComponent]
 /// <summary>
-/// チュートリアルの進行を 1 ステップずつ順番に管理するコントローラ。
-/// Inspector で steps を並べるだけで、
-/// 「ナレーション → 移動開始 → トリガー待ち → 3D操作解放 → クリア」
-/// のような流れを構成できる。
+/// チュートリアル全体の進行を 1 本の steps で順番に制御するコントローラ。
+/// Narration や Trigger 待ち、2D/3D の操作開放、フェード演出などを
+/// Inspector 上で並べてシーケンスとして実行する。
 /// </summary>
 public sealed class TutorialSequenceController : MonoBehaviour
 {
   public enum TutorialStepKind
   {
-    // 複数ページ対応のナレーションを表示する。
-    Narration,
-    // 指定 ID のトリガーが通知されるまで待機する。
-    WaitForTrigger,
-    // 指定秒数だけ待機する。
-    WaitForSeconds,
-    // 2D プレイヤー進行の停止 / 再開を切り替える。
-    Set2DGameplay,
-    // 3D 操作の停止 / 再開を切り替える。
-    Set3DInteraction,
-    // 3D視点 / 2D視点を切り替える。
-    SetViewMode,
-    // チュートリアルを終了する。
-    CompleteTutorial,
+    // 既存シーンの enum 値を壊さないように明示的に番号を固定する。
+    Narration = 0,
+    WaitForTrigger = 1,
+    WaitForSeconds = 2,
+    Set2DGameplay = 3,
+    Set3DInteraction = 4,
+    SetViewMode = 5,
+    CompleteTutorial = 6,
+    FadeScreen = 7,
   }
 
   [Serializable]
   public sealed class TutorialNarrationPage
   {
-    // データ管理用の任意 ID。処理上は未使用。
+    // ページ管理用の任意 ID。
     public string pageId;
-    // UI 側で話者名を出したい時に使う。
+    // UI 上に表示する話者名。
     public string speakerName;
-    // 文字送りの対象になる本文。
+    // 文字送り対象の本文。
     [TextArea(2, 6)] public string message;
-    // ナレーションに添える画像。未設定でも可。
+    // ページごとに差し替えるイラスト。
     public Sprite illustration;
   }
 
   [Serializable]
   public sealed class TutorialStep
   {
-    // データ管理用の任意 ID。ログや識別用。
+    // ログや管理用の任意 ID。
     public string stepId;
     // このステップで何をするか。
     public TutorialStepKind kind = TutorialStepKind.Narration;
-    // Inspector 上で用途を書いておくメモ。
+    // Inspector 上で用途をメモしておく欄。
     [TextArea(1, 3)] public string note;
-    // Narration のときに使うページ一覧。
+
+    // Narration 用
     public List<TutorialNarrationPage> pages = new List<TutorialNarrationPage>();
-    // WaitForTrigger のときに待つトリガー ID。
+
+    // WaitForTrigger 用
     public string triggerId;
-    // WaitForSeconds の待機秒数。
+
+    // WaitForSeconds 用
     public float waitSeconds;
-    // true なら Time.timeScale の影響を受けずに待つ。
     public bool useUnscaledTime = true;
-    // Set2DGameplay の切り替え値。
+
+    // FadeScreen 用
+    public Color fadeColor = Color.white;
+    [Range(0f, 1f)] public float fadeFromAlpha = 1f;
+    [Range(0f, 1f)] public float fadeToAlpha = 0f;
+    public float fadeDuration = 0.75f;
+    public bool fadeUseUnscaledTime = true;
+
+    // Set2DGameplay 用
     public bool enable2DGameplay = true;
-    // Set3DInteraction の切り替え値。
+
+    // Set3DInteraction 用
     public bool enable3DInteraction = true;
-    // SetViewMode の切り替え先。
+
+    // SetViewMode 用
     public SpaceViewMode targetViewMode = SpaceViewMode.World3D;
-    // ステップ開始時に Inspector から追加処理を差し込みたい時に使う。
+
+    // ステップ開始時 / 完了時に Inspector から追加で演出を差し込める。
     public UnityEvent onStepStarted;
-    // ステップ完了時に Inspector から追加処理を差し込みたい時に使う。
     public UnityEvent onStepCompleted;
   }
 
@@ -80,25 +87,19 @@ public sealed class TutorialSequenceController : MonoBehaviour
 
   [Header("Sequence")]
   [SerializeField] private bool playOnStart = true;
-  // ここに上から順番にステップを並べる。
   [SerializeField] private List<TutorialStep> steps = new List<TutorialStep>();
 
   [Header("Initial Gameplay State")]
-  // シーケンス開始直後の 2D プレイヤー進行可否。
   [SerializeField] private bool initial2DGameplayEnabled;
-  // シーケンス開始直後の 3D 操作可否。
   [SerializeField] private bool initial3DInteractionEnabled;
 
   [Header("Narration")]
-  // 1 秒あたりに表示する文字数。
   [SerializeField] private float typewriterCharactersPerSecond = 32f;
-  // true ならキー入力で文字送りを進められる。
   [SerializeField] private bool acceptAdvanceInput = true;
-  // ナレーション送りに使うキー。
   [SerializeField] private KeyCode[] advanceKeys = { KeyCode.Space, KeyCode.Return, KeyCode.Mouse0 };
+  [SerializeField] private float advanceInputGracePeriod = 0.1f;
 
   [Header("Scene References")]
-  // true なら未設定参照をシーンから自動で探す。
   [SerializeField] private bool autoResolveSceneReferences = true;
   [SerializeField] private SpaceViewModeSwitcher spaceViewModeSwitcher;
   [SerializeField] private Wall2DPlayerRespawner wall2DPlayerRespawner;
@@ -106,12 +107,15 @@ public sealed class TutorialSequenceController : MonoBehaviour
   [SerializeField] private MouseGrabInputController mouseGrabInputController;
   [SerializeField] private GoalController goalController;
 
+  [Header("Screen Fade")]
+  [SerializeField] private GameObject screenFadeRoot;
+  [SerializeField] private CanvasGroup screenFadeCanvasGroup;
+  [SerializeField] private Image screenFadeImage;
+  [SerializeField] private bool disableScreenFadeRootWhenTransparent = true;
+
   [Header("Goal Handling")]
-  // true なら通常のクリアUIを止めて、チュートリアル側でゴール処理を受け持つ。
   [SerializeField] private bool interceptGoalClear = true;
-  // ゴールをトリガー待ちとして扱う時に使う ID。
   [SerializeField] private string goalTriggerId = "Goal";
-  // シーケンス完了時に StageSelect へ遷移する。
   [SerializeField] private bool goStageSelectWhenSequenceCompletes = true;
 
   public bool IsSequenceRunning => _isSequenceRunning;
@@ -152,6 +156,8 @@ public sealed class TutorialSequenceController : MonoBehaviour
   private bool _is2DGameplayEnabled;
   private bool _is3DInteractionEnabled;
   private bool _isSubscribedToGoal;
+  private float _advanceInputBlockedUntilUnscaledTime;
+  private bool _waitForAdvanceInputRelease;
 
   private void Reset()
   {
@@ -177,7 +183,6 @@ public sealed class TutorialSequenceController : MonoBehaviour
   {
     if (playOnStart)
     {
-      // シーン開始と同時にチュートリアルを流したい場合の入口。
       BeginSequence();
     }
   }
@@ -191,7 +196,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
 
     UpdateTypewriter();
 
-    if (!acceptAdvanceInput || !IsNarrationStepActive || !HasAdvanceInputThisFrame())
+    if (!acceptAdvanceInput || !IsNarrationStepActive || IsAdvanceInputBlocked() || !HasAdvanceInputThisFrame())
     {
       return;
     }
@@ -212,7 +217,6 @@ public sealed class TutorialSequenceController : MonoBehaviour
 
   public void BeginSequence()
   {
-    // 外部から何度でも呼べるよう、毎回初期化して 0 ステップ目から再開する。
     StopActiveStepCoroutine();
     ResetGameplayState();
     ResetSequenceProgress();
@@ -237,7 +241,6 @@ public sealed class TutorialSequenceController : MonoBehaviour
 
     if (!IsCurrentNarrationFullyRevealed)
     {
-      // 文字送り中に押されたら、まずは全文表示まで一気に進める。
       RevealCurrentNarrationImmediately();
       return true;
     }
@@ -251,19 +254,16 @@ public sealed class TutorialSequenceController : MonoBehaviour
     var nextPageIndex = _currentPageIndex + 1;
     if (nextPageIndex < step.pages.Count)
     {
-      // ページがまだ残っていれば次ページへ。
       StartNarrationPage(nextPageIndex);
       return true;
     }
 
-    // 最終ページまで終わったらステップ完了。
     CompleteCurrentStep();
     return true;
   }
 
   public void NotifyTriggerReached(string triggerId)
   {
-    // Trigger 側から「指定 ID に到達した」と通知された時の入口。
     if (!_isSequenceRunning || !_isWaitingForTrigger || string.IsNullOrEmpty(triggerId))
     {
       return;
@@ -282,7 +282,6 @@ public sealed class TutorialSequenceController : MonoBehaviour
 
   public void CompleteSequence()
   {
-    // チュートリアルを明示的に終わらせる共通出口。
     if (_isSequenceCompleted)
     {
       return;
@@ -304,13 +303,11 @@ public sealed class TutorialSequenceController : MonoBehaviour
 
   public void Set2DGameplayEnabled(bool isEnabled)
   {
-    // UI や他スクリプトから直接 2D 進行を切り替えたい時用。
     Apply2DGameplayStep(isEnabled);
   }
 
   public void Set3DInteractionEnabled(bool isEnabled)
   {
-    // UI や他スクリプトから直接 3D 操作を切り替えたい時用。
     _is3DInteractionEnabled = isEnabled;
     ApplyGameplayState();
   }
@@ -329,7 +326,6 @@ public sealed class TutorialSequenceController : MonoBehaviour
   {
     if (!IsStepIndexValid(stepIndex))
     {
-      // 最後まで終わったらシーケンス全体を完了扱いにする。
       CompleteSequence();
       return;
     }
@@ -354,8 +350,10 @@ public sealed class TutorialSequenceController : MonoBehaviour
       case TutorialStepKind.WaitForSeconds:
         StartWaitForSeconds(step);
         break;
+      case TutorialStepKind.FadeScreen:
+        StartFadeScreen(step);
+        break;
       case TutorialStepKind.Set2DGameplay:
-        // true の時は 2D を再開するだけでなく、必要ならスペース待ちも解除する。
         Apply2DGameplayStep(step.enable2DGameplay);
         CompleteCurrentStep();
         break;
@@ -400,6 +398,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
     _currentPageIndex = pageIndex;
     _typewriterProgress = 0f;
     _visibleCharacterCount = 0;
+    BlockAdvanceInputTemporarily();
 
     if (typewriterCharactersPerSecond <= 0f || string.IsNullOrEmpty(CurrentFullText))
     {
@@ -412,7 +411,6 @@ public sealed class TutorialSequenceController : MonoBehaviour
 
   private void StartTriggerWait(TutorialStep step)
   {
-    // Trigger 側から同じ ID が通知されるまでここで待機する。
     _expectedTriggerId = step.triggerId ?? string.Empty;
     _isWaitingForTrigger = !string.IsNullOrEmpty(_expectedTriggerId);
     StateChanged?.Invoke();
@@ -426,6 +424,20 @@ public sealed class TutorialSequenceController : MonoBehaviour
   private void StartWaitForSeconds(TutorialStep step)
   {
     _activeStepCoroutine = StartCoroutine(WaitForSecondsStep(step.waitSeconds, step.useUnscaledTime));
+  }
+
+  private void StartFadeScreen(TutorialStep step)
+  {
+    CacheScreenFadeReferences();
+
+    if (screenFadeRoot == null && screenFadeCanvasGroup == null && screenFadeImage == null)
+    {
+      Debug.LogWarning("[TutorialSequenceController] FadeScreen 用の UI 参照が未設定のためステップをスキップします。");
+      CompleteCurrentStep();
+      return;
+    }
+
+    _activeStepCoroutine = StartCoroutine(FadeScreenStep(step));
   }
 
   private IEnumerator WaitForSecondsStep(float waitSeconds, bool useUnscaledTime)
@@ -446,9 +458,30 @@ public sealed class TutorialSequenceController : MonoBehaviour
     CompleteCurrentStep();
   }
 
+  private IEnumerator FadeScreenStep(TutorialStep step)
+  {
+    SetScreenFadeImmediate(step.fadeColor, step.fadeFromAlpha);
+
+    if (step.fadeDuration > 0f)
+    {
+      var elapsed = 0f;
+      while (elapsed < step.fadeDuration)
+      {
+        elapsed += step.fadeUseUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
+        var t = Mathf.Clamp01(elapsed / step.fadeDuration);
+        ApplyScreenFadeAlpha(Mathf.Lerp(step.fadeFromAlpha, step.fadeToAlpha, t));
+        yield return null;
+      }
+    }
+
+    ApplyScreenFadeAlpha(step.fadeToAlpha);
+
+    _activeStepCoroutine = null;
+    CompleteCurrentStep();
+  }
+
   private void CompleteCurrentStep()
   {
-    // 現在ステップの終了処理をまとめて行い、次ステップへ進める。
     var step = CurrentStep;
     if (step != null)
     {
@@ -484,6 +517,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
     _typewriterProgress = 0f;
     _isWaitingForTrigger = false;
     _expectedTriggerId = string.Empty;
+    _waitForAdvanceInputRelease = false;
   }
 
   private void UpdateTypewriter()
@@ -520,7 +554,6 @@ public sealed class TutorialSequenceController : MonoBehaviour
 
   private void ApplyGameplayState()
   {
-    // 進行状態に応じて、2D / 3D の入力可否を実際のコンポーネントへ反映する。
     if (spaceViewModeSwitcher == null && autoResolveSceneReferences)
     {
       spaceViewModeSwitcher = FindFirstObjectByType<SpaceViewModeSwitcher>(FindObjectsInactive.Include);
@@ -564,14 +597,12 @@ public sealed class TutorialSequenceController : MonoBehaviour
       return;
     }
 
-    // チュートリアルでは「2D を再開した瞬間にそのまま進む」ことが多いため、
-    // リアルタイム開始ゲートもここで明示的に開ける。
+    // チュートリアル中は 2D 開放と同時に自動進行を始めたい。
     spaceViewModeSwitcher.EnsureRealTimeGameplayStarted(playGoodReaction: false);
   }
 
   private void AutoResolveSceneReferences()
   {
-    // 参照を手で入れ忘れても動きやすいように、シーンから自動探索する。
     if (!autoResolveSceneReferences)
     {
       return;
@@ -601,11 +632,12 @@ public sealed class TutorialSequenceController : MonoBehaviour
     {
       goalController = FindFirstObjectByType<GoalController>(FindObjectsInactive.Include);
     }
+
+    CacheScreenFadeReferences();
   }
 
   private void SubscribeToGoalController()
   {
-    // ゴール到達時にチュートリアル側へ通知を受ける。
     if (goalController == null || _isSubscribedToGoal)
     {
       return;
@@ -635,7 +667,6 @@ public sealed class TutorialSequenceController : MonoBehaviour
       return;
     }
 
-    // ゴールを triggerId 扱いにしている場合は、その待機を解除する。
     if (_isWaitingForTrigger && string.Equals(_expectedTriggerId, goalTriggerId, StringComparison.OrdinalIgnoreCase))
     {
       NotifyTriggerReached(goalTriggerId);
@@ -659,6 +690,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
   private void ClampSerializedValues()
   {
     typewriterCharactersPerSecond = Mathf.Max(0f, typewriterCharactersPerSecond);
+    advanceInputGracePeriod = Mathf.Max(0f, advanceInputGracePeriod);
     goalTriggerId = goalTriggerId ?? string.Empty;
 
     if (steps == null)
@@ -676,6 +708,10 @@ public sealed class TutorialSequenceController : MonoBehaviour
       }
 
       step.waitSeconds = Mathf.Max(0f, step.waitSeconds);
+      step.fadeDuration = Mathf.Max(0f, step.fadeDuration);
+      step.fadeFromAlpha = Mathf.Clamp01(step.fadeFromAlpha);
+      step.fadeToAlpha = Mathf.Clamp01(step.fadeToAlpha);
+
       if (step.pages == null)
       {
         step.pages = new List<TutorialNarrationPage>();
@@ -699,6 +735,115 @@ public sealed class TutorialSequenceController : MonoBehaviour
     }
 
     return false;
+  }
+
+  private void BlockAdvanceInputTemporarily()
+  {
+    _waitForAdvanceInputRelease = IsAnyAdvanceInputPressed();
+
+    if (advanceInputGracePeriod <= 0f)
+    {
+      return;
+    }
+
+    _advanceInputBlockedUntilUnscaledTime = Time.unscaledTime + advanceInputGracePeriod;
+  }
+
+  private bool IsAdvanceInputBlocked()
+  {
+    if (_waitForAdvanceInputRelease)
+    {
+      _waitForAdvanceInputRelease = IsAnyAdvanceInputPressed();
+    }
+
+    return _waitForAdvanceInputRelease || Time.unscaledTime < _advanceInputBlockedUntilUnscaledTime;
+  }
+
+  private bool IsAnyAdvanceInputPressed()
+  {
+    if (advanceKeys == null || advanceKeys.Length == 0)
+    {
+      return Input.GetMouseButton(0);
+    }
+
+    for (var i = 0; i < advanceKeys.Length; i++)
+    {
+      if (Input.GetKey(advanceKeys[i]))
+      {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private void CacheScreenFadeReferences()
+  {
+    if (screenFadeRoot == null && screenFadeCanvasGroup != null)
+    {
+      screenFadeRoot = screenFadeCanvasGroup.gameObject;
+    }
+
+    if (screenFadeRoot == null && screenFadeImage != null)
+    {
+      screenFadeRoot = screenFadeImage.gameObject;
+    }
+
+    if (screenFadeCanvasGroup == null && screenFadeRoot != null)
+    {
+      screenFadeCanvasGroup = screenFadeRoot.GetComponent<CanvasGroup>();
+    }
+
+    if (screenFadeImage == null && screenFadeRoot != null)
+    {
+      screenFadeImage = screenFadeRoot.GetComponentInChildren<Image>(true);
+    }
+  }
+
+  private void SetScreenFadeImmediate(Color color, float alpha)
+  {
+    CacheScreenFadeReferences();
+    SetScreenFadeRootVisible(true);
+
+    if (screenFadeImage != null)
+    {
+      var opaqueColor = color;
+      opaqueColor.a = 1f;
+      screenFadeImage.color = opaqueColor;
+    }
+
+    ApplyScreenFadeAlpha(alpha);
+  }
+
+  private void ApplyScreenFadeAlpha(float alpha)
+  {
+    alpha = Mathf.Clamp01(alpha);
+
+    if (screenFadeCanvasGroup != null)
+    {
+      screenFadeCanvasGroup.alpha = alpha;
+      screenFadeCanvasGroup.blocksRaycasts = alpha > 0.001f;
+      screenFadeCanvasGroup.interactable = false;
+    }
+    else if (screenFadeImage != null)
+    {
+      var imageColor = screenFadeImage.color;
+      imageColor.a = alpha;
+      screenFadeImage.color = imageColor;
+    }
+
+    if (disableScreenFadeRootWhenTransparent)
+    {
+      SetScreenFadeRootVisible(alpha > 0.001f);
+    }
+  }
+
+  private void SetScreenFadeRootVisible(bool isVisible)
+  {
+    if (screenFadeRoot != null && screenFadeRoot.activeSelf != isVisible)
+    {
+      screenFadeRoot.SetActive(isVisible);
+    }
   }
 
   private string BuildDisplayedText()
