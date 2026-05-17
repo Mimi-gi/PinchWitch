@@ -17,6 +17,7 @@ public class StageSelectController : MonoBehaviour
 {
   [SerializeField] private Button[] _stageButtons; // ステージ数分ボタンを登録
   [SerializeField] private HandPinchController _handPinchController;
+  [SerializeField] private StageSelectTrumpLoadingController _loadingController;
   [SerializeField] private float _requiredGrabSeconds = 0.8f;
 
   private Rigidbody _grabbedStageBody;
@@ -31,6 +32,11 @@ public class StageSelectController : MonoBehaviour
 
   private void Start()
   {
+    if (_loadingController == null)
+    {
+      _loadingController = FindFirstObjectByType<StageSelectTrumpLoadingController>(FindObjectsInactive.Include);
+    }
+
     UpdateStageButtons();
   }
 
@@ -169,6 +175,12 @@ public class StageSelectController : MonoBehaviour
       AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Select);
     }
 
+    if (_loadingController != null)
+    {
+      _loadingController.Play(_grabbedStageTarget, destinationStageNum, GameSceneManager.GoStage);
+      return;
+    }
+
     GameSceneManager.GoStage(destinationStageNum);
   }
 
@@ -196,8 +208,7 @@ public class StageSelectController : MonoBehaviour
 
   private static StageSelectGrabTarget ResolveGrabTarget(Rigidbody grabbedBody)
   {
-    StageSelectGrabTarget grabTarget = grabbedBody.GetComponent<StageSelectGrabTarget>();
-    if (grabTarget != null)
+    if (grabbedBody.TryGetComponent(out StageSelectGrabTarget grabTarget))
     {
       return grabTarget;
     }
