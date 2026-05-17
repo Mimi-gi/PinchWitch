@@ -68,6 +68,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
 
     // Set2DGameplay 用
     public bool enable2DGameplay = true;
+    public bool waitForRealtimeStartInput;
 
     // Set3DInteraction 用
     public bool enable3DInteraction = true;
@@ -159,6 +160,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
   private bool _isWaitingForTrigger;
   private string _expectedTriggerId = string.Empty;
   private bool _is2DGameplayEnabled;
+  private bool _waitForRealtimeStartInputOn2DGameplay;
   private bool _is3DInteractionEnabled;
   private bool _isSubscribedToGoal;
   private float _advanceInputBlockedUntilUnscaledTime;
@@ -375,9 +377,9 @@ public sealed class TutorialSequenceController : MonoBehaviour
     }
   }
 
-  public void Set2DGameplayEnabled(bool isEnabled)
+  public void Set2DGameplayEnabled(bool isEnabled, bool waitForRealtimeStartInput = false)
   {
-    Apply2DGameplayStep(isEnabled);
+    Apply2DGameplayStep(isEnabled, waitForRealtimeStartInput);
   }
 
   public void Set3DInteractionEnabled(bool isEnabled)
@@ -429,7 +431,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
         StartFadeScreen(step);
         break;
       case TutorialStepKind.Set2DGameplay:
-        Apply2DGameplayStep(step.enable2DGameplay);
+        Apply2DGameplayStep(step.enable2DGameplay, step.waitForRealtimeStartInput);
         CompleteCurrentStep();
         break;
       case TutorialStepKind.Set3DInteraction:
@@ -585,6 +587,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
   private void ResetGameplayState()
   {
     _is2DGameplayEnabled = initial2DGameplayEnabled;
+    _waitForRealtimeStartInputOn2DGameplay = false;
     _is3DInteractionEnabled = initial3DInteractionEnabled;
   }
 
@@ -680,12 +683,20 @@ public sealed class TutorialSequenceController : MonoBehaviour
 
     if (spaceViewModeSwitcher != null)
     {
-      spaceViewModeSwitcher.SetExternalPlayerGameplayLock(!_is2DGameplayEnabled);
+      if (_is2DGameplayEnabled && _waitForRealtimeStartInputOn2DGameplay)
+      {
+        spaceViewModeSwitcher.WaitForRealTimeGameplayStart();
+      }
+      else
+      {
+        spaceViewModeSwitcher.SetExternalPlayerGameplayLock(!_is2DGameplayEnabled);
+      }
+
       spaceViewModeSwitcher.UpdatePlayerMovementState();
     }
     else if (wall2DPlayerRespawner != null)
     {
-      wall2DPlayerRespawner.SetPlayerGameplayEnabled(_is2DGameplayEnabled);
+      wall2DPlayerRespawner.SetPlayerGameplayEnabled(_is2DGameplayEnabled && !_waitForRealtimeStartInputOn2DGameplay);
     }
 
     if (handPinchController != null)
@@ -711,12 +722,13 @@ public sealed class TutorialSequenceController : MonoBehaviour
     StateChanged?.Invoke();
   }
 
-  private void Apply2DGameplayStep(bool isEnabled)
+  private void Apply2DGameplayStep(bool isEnabled, bool waitForRealtimeStartInput = false)
   {
     _is2DGameplayEnabled = isEnabled;
+    _waitForRealtimeStartInputOn2DGameplay = isEnabled && waitForRealtimeStartInput;
     ApplyGameplayState();
 
-    if (!isEnabled || spaceViewModeSwitcher == null)
+    if (!isEnabled || waitForRealtimeStartInput || spaceViewModeSwitcher == null)
     {
       return;
     }
@@ -935,6 +947,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
         fadeDuration = sourceStep.fadeDuration,
         fadeUseUnscaledTime = sourceStep.fadeUseUnscaledTime,
         enable2DGameplay = sourceStep.enable2DGameplay,
+        waitForRealtimeStartInput = sourceStep.waitForRealtimeStartInput,
         enable3DInteraction = sourceStep.enable3DInteraction,
         targetViewMode = sourceStep.targetViewMode,
         pages = ClonePages(sourceStep.pages),
