@@ -112,6 +112,8 @@ public class HandPinchController : MonoBehaviour
   private bool _lastAppliedSwapLeftRightRoles;
 
   // Inspector 上の初期参照とデフォルト設定を補完する。
+  private bool _interactionEnabled = true;
+
   private void Reset()
   {
     handTrackingGraph = GetComponent<HandTrackingGraph>();
@@ -177,6 +179,11 @@ public class HandPinchController : MonoBehaviour
   {
     var handRoles = CreateHandRoleAssignment();
     _trackedHandStateStore?.Update(_mediaPipeReceiver);
+    if (!_interactionEnabled)
+    {
+      return;
+    }
+
     if (_grabInputCoordinator != null && _grabInputCoordinator.IsBlocked(GrabInputSource.Hand))
     {
       _rotationGestureDetector?.Reset();
@@ -191,6 +198,11 @@ public class HandPinchController : MonoBehaviour
   // 物理オブジェクトの追従を FixedUpdate で更新する。
   private void FixedUpdate()
   {
+    if (!_interactionEnabled)
+    {
+      return;
+    }
+
     _grabInteractor?.FixedTick(Time.fixedDeltaTime);
   }
 
@@ -330,7 +342,7 @@ public class HandPinchController : MonoBehaviour
   public bool TryGetGrabInputContext(out GrabInputContext context)
   {
     context = default;
-    if (!isActiveAndEnabled || _grabInteractor == null || _outlineController == null || _grabInputCoordinator == null)
+    if (!isActiveAndEnabled || !_interactionEnabled || _grabInteractor == null || _outlineController == null || _grabInputCoordinator == null)
     {
       return false;
     }
@@ -352,6 +364,20 @@ public class HandPinchController : MonoBehaviour
     return isActiveAndEnabled
            && _goodGestureDetector != null
            && _goodGestureDetector.IsDetected(_mediaPipeReceiver, MediaPipeReceiver.TrackedHandType.Left);
+  }
+
+  public void SetInteractionEnabled(bool isEnabled)
+  {
+    if (_interactionEnabled == isEnabled)
+    {
+      return;
+    }
+
+    _interactionEnabled = isEnabled;
+    if (!isEnabled)
+    {
+      ResetInteractionStateForInteractionDisable();
+    }
   }
 
   // Cursor 制御に渡す設定を構築する。
@@ -524,6 +550,11 @@ public class HandPinchController : MonoBehaviour
     _handInteractionProcessor?.ResetInteractionState();
     _grabInteractor?.ForceFinishVerticalDrops();
     _grabInputCoordinator?.Release(GrabInputSource.Hand);
+  }
+
+  private void ResetInteractionStateForInteractionDisable()
+  {
+    ResetInteractionStateForControllerShutdown();
   }
 
   // Vector2 の最小値と最大値の順序が逆なら入れ替える。

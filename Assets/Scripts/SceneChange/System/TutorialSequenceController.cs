@@ -576,12 +576,22 @@ public sealed class TutorialSequenceController : MonoBehaviour
 
     if (handPinchController != null)
     {
-      handPinchController.enabled = _is3DInteractionEnabled;
+      if (!handPinchController.enabled)
+      {
+        handPinchController.enabled = true;
+      }
+
+      handPinchController.SetInteractionEnabled(_is3DInteractionEnabled);
     }
 
     if (mouseGrabInputController != null)
     {
-      mouseGrabInputController.enabled = _is3DInteractionEnabled;
+      if (!mouseGrabInputController.enabled)
+      {
+        mouseGrabInputController.enabled = true;
+      }
+
+      mouseGrabInputController.SetInteractionEnabled(_is3DInteractionEnabled);
     }
 
     StateChanged?.Invoke();

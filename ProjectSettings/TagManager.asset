@@ -5,6 +5,7 @@ TagManager:
   serializedVersion: 3
   tags:
   - Global Resource
+  - Grabbable
   layers:
   - Default
   - TransparentFX
