@@ -6,6 +6,7 @@
 //              DontDestroyOnLoadで全シーンをまたいで生存する。
 //              シーン名はenumで管理し、フェード付きで直接遷移する。
 //=============================================================
+using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -25,6 +26,7 @@ public enum GameScene
 public class GameSceneManager : MonoBehaviour
 {
   private const int FadeCanvasSortingOrder = 32767;
+  private const string StageSelectNarrationSourceSceneName = "stage_1";
 
   //=========================================================
   // シングルトン
@@ -75,6 +77,7 @@ public class GameSceneManager : MonoBehaviour
   private Coroutine _transitionCoroutine;
   private Coroutine _fadeCoroutine;
   private string _lastSceneStartFadeScenePath;
+  private static bool _shouldShowStageSelectTutorialNarration;
 
   //=========================================================
   // Unity イベント
@@ -135,7 +138,15 @@ public class GameSceneManager : MonoBehaviour
       return;
     }
 
+    UpdateStageSelectTutorialNarrationRequest();
     LoadDirect(_instance._selectSceneName);
+  }
+
+  public static bool ConsumeStageSelectTutorialNarrationRequest()
+  {
+    bool shouldShowNarration = _shouldShowStageSelectTutorialNarration;
+    _shouldShowStageSelectTutorialNarration = false;
+    return shouldShowNarration;
   }
 
   /// <summary>チュートリアルシーンへ遷移する。</summary>
@@ -278,6 +289,15 @@ public class GameSceneManager : MonoBehaviour
     }
 
     _instance.StartTransition(_instance.FadeAndLoadDirect(targetScene));
+  }
+
+  private static void UpdateStageSelectTutorialNarrationRequest()
+  {
+    Scene activeScene = SceneManager.GetActiveScene();
+    _shouldShowStageSelectTutorialNarration = string.Equals(
+      activeScene.name,
+      StageSelectNarrationSourceSceneName,
+      StringComparison.OrdinalIgnoreCase);
   }
 
   private string ResolveStageSceneName(int stageNum)

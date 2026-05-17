@@ -88,6 +88,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
   [Header("Sequence")]
   [SerializeField] private bool playOnStart = true;
   [SerializeField] private List<TutorialStep> steps = new List<TutorialStep>();
+  [SerializeField] private bool enableDebugLogging = true;
 
   [Header("Initial Gameplay State")]
   [SerializeField] private bool initial2DGameplayEnabled;
@@ -96,6 +97,8 @@ public sealed class TutorialSequenceController : MonoBehaviour
   [Header("Narration")]
   [SerializeField] private float typewriterCharactersPerSecond = 32f;
   [SerializeField] private bool acceptAdvanceInput = true;
+  [SerializeField] private bool autoAdvanceNarration;
+  [SerializeField] private float autoAdvanceNarrationDelay = 1.25f;
   [SerializeField] private KeyCode[] advanceKeys = { KeyCode.Space, KeyCode.Return, KeyCode.Mouse0 };
   [SerializeField] private float advanceInputGracePeriod = 0.1f;
 
@@ -117,6 +120,8 @@ public sealed class TutorialSequenceController : MonoBehaviour
   [SerializeField] private bool interceptGoalClear = true;
   [SerializeField] private string goalTriggerId = "Goal";
   [SerializeField] private bool goStageSelectWhenSequenceCompletes = true;
+  [SerializeField] private bool waitForGoalReactionBeforeAdvancing = true;
+  [SerializeField] private float additionalGoalAdvanceDelay = 0f;
 
   public bool IsSequenceRunning => _isSequenceRunning;
   public bool IsSequenceCompleted => _isSequenceCompleted;
@@ -158,6 +163,8 @@ public sealed class TutorialSequenceController : MonoBehaviour
   private bool _isSubscribedToGoal;
   private float _advanceInputBlockedUntilUnscaledTime;
   private bool _waitForAdvanceInputRelease;
+  private float _autoAdvanceNarrationAtUnscaledTime = -1f;
+  private Coroutine _pendingGoalAdvanceCoroutine;
 
   private void Reset()
   {
@@ -195,6 +202,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
     }
 
     UpdateTypewriter();
+    UpdateNarrationAutoAdvance();
 
     if (!acceptAdvanceInput || !IsNarrationStepActive || IsAdvanceInputBlocked() || !HasAdvanceInputThisFrame())
     {
@@ -207,6 +215,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
   private void OnDisable()
   {
     StopActiveStepCoroutine();
+    StopPendingGoalAdvanceCoroutine();
     UnsubscribeFromGoalController();
   }
 
@@ -218,18 +227,81 @@ public sealed class TutorialSequenceController : MonoBehaviour
   public void BeginSequence()
   {
     StopActiveStepCoroutine();
+    StopPendingGoalAdvanceCoroutine();
     ResetGameplayState();
     ResetSequenceProgress();
     ApplyGameplayState();
 
     _isSequenceRunning = true;
     _isSequenceCompleted = false;
+    LogDebug("Sequence started.");
     AdvanceToStep(0);
   }
 
   public void RestartSequence()
   {
     BeginSequence();
+  }
+
+  public void ConfigureRuntimeSequence(
+    IList<TutorialStep> runtimeSteps,
+    bool startImmediately = true,
+    bool runtimeInitial2DGameplayEnabled = false,
+    bool runtimeInitial3DInteractionEnabled = false,
+    bool runtimeGoStageSelectWhenComplete = false,
+    bool runtimeInterceptGoalClear = false,
+    float runtimeTypewriterCharactersPerSecond = -1f,
+    bool? runtimeAcceptAdvanceInput = null,
+    bool? runtimeAutoAdvanceNarration = null,
+    float runtimeAutoAdvanceNarrationDelay = -1f)
+  {
+    StopActiveStepCoroutine();
+    StopPendingGoalAdvanceCoroutine();
+    playOnStart = false;
+    initial2DGameplayEnabled = runtimeInitial2DGameplayEnabled;
+    initial3DInteractionEnabled = runtimeInitial3DInteractionEnabled;
+    goStageSelectWhenSequenceCompletes = runtimeGoStageSelectWhenComplete;
+    interceptGoalClear = runtimeInterceptGoalClear;
+
+    if (runtimeAcceptAdvanceInput.HasValue)
+    {
+      acceptAdvanceInput = runtimeAcceptAdvanceInput.Value;
+    }
+
+    if (runtimeAutoAdvanceNarration.HasValue)
+    {
+      autoAdvanceNarration = runtimeAutoAdvanceNarration.Value;
+    }
+
+    if (runtimeTypewriterCharactersPerSecond >= 0f)
+    {
+      typewriterCharactersPerSecond = runtimeTypewriterCharactersPerSecond;
+    }
+
+    if (runtimeAutoAdvanceNarrationDelay >= 0f)
+    {
+      autoAdvanceNarrationDelay = runtimeAutoAdvanceNarrationDelay;
+    }
+
+    steps = CloneSteps(runtimeSteps);
+
+    ClampSerializedValues();
+    ResetSequenceProgress();
+    _isSequenceRunning = false;
+    _isSequenceCompleted = false;
+    AutoResolveSceneReferences();
+    ResetGameplayState();
+    ApplyGameplayState();
+
+    if (_isSubscribedToGoal && goalController != null)
+    {
+      goalController.OverrideDefaultClearHandling = interceptGoalClear;
+    }
+
+    if (startImmediately)
+    {
+      BeginSequence();
+    }
   }
 
   public bool AdvanceNarration()
@@ -276,6 +348,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
 
     _isWaitingForTrigger = false;
     _expectedTriggerId = string.Empty;
+    LogDebug($"Trigger reached: {triggerId}");
     StateChanged?.Invoke();
     CompleteCurrentStep();
   }
@@ -292,6 +365,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
     _isSequenceCompleted = true;
     _isWaitingForTrigger = false;
     _expectedTriggerId = string.Empty;
+    LogDebug("Sequence completed.");
     SequenceCompleted?.Invoke();
     StateChanged?.Invoke();
 
@@ -335,6 +409,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
     _currentStepIndex = stepIndex;
 
     var step = steps[stepIndex];
+    LogDebug($"Step started: {BuildStepLabel(stepIndex, step)}");
     step.onStepStarted?.Invoke();
     StepChanged?.Invoke(stepIndex, step.stepId ?? string.Empty);
     StateChanged?.Invoke();
@@ -398,6 +473,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
     _currentPageIndex = pageIndex;
     _typewriterProgress = 0f;
     _visibleCharacterCount = 0;
+    _autoAdvanceNarrationAtUnscaledTime = -1f;
     BlockAdvanceInputTemporarily();
 
     if (typewriterCharactersPerSecond <= 0f || string.IsNullOrEmpty(CurrentFullText))
@@ -405,6 +481,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
       RevealCurrentNarrationImmediately();
     }
 
+    LogDebug($"Narration page: step={_currentStepIndex + 1}/{steps.Count}, page={pageIndex + 1}/{step.pages.Count}, speaker={CurrentSpeakerName}");
     NarrationPageChanged?.Invoke(_currentStepIndex, _currentPageIndex);
     StateChanged?.Invoke();
   }
@@ -413,6 +490,9 @@ public sealed class TutorialSequenceController : MonoBehaviour
   {
     _expectedTriggerId = step.triggerId ?? string.Empty;
     _isWaitingForTrigger = !string.IsNullOrEmpty(_expectedTriggerId);
+    LogDebug(_isWaitingForTrigger
+      ? $"Waiting for trigger: {_expectedTriggerId}"
+      : $"Trigger wait skipped: {BuildStepLabel(_currentStepIndex, step)}");
     StateChanged?.Invoke();
 
     if (!_isWaitingForTrigger)
@@ -423,6 +503,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
 
   private void StartWaitForSeconds(TutorialStep step)
   {
+    LogDebug($"Waiting for seconds: {step.waitSeconds:0.###} (unscaled={step.useUnscaledTime})");
     _activeStepCoroutine = StartCoroutine(WaitForSecondsStep(step.waitSeconds, step.useUnscaledTime));
   }
 
@@ -437,6 +518,8 @@ public sealed class TutorialSequenceController : MonoBehaviour
       return;
     }
 
+    LogDebug(
+      $"Fade screen: color={step.fadeColor}, from={step.fadeFromAlpha:0.##}, to={step.fadeToAlpha:0.##}, duration={step.fadeDuration:0.###}, unscaled={step.fadeUseUnscaledTime}");
     _activeStepCoroutine = StartCoroutine(FadeScreenStep(step));
   }
 
@@ -485,6 +568,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
     var step = CurrentStep;
     if (step != null)
     {
+      LogDebug($"Step completed: {BuildStepLabel(_currentStepIndex, step)}");
       step.onStepCompleted?.Invoke();
     }
 
@@ -515,6 +599,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
     _currentPageIndex = -1;
     _visibleCharacterCount = 0;
     _typewriterProgress = 0f;
+    _autoAdvanceNarrationAtUnscaledTime = -1f;
     _isWaitingForTrigger = false;
     _expectedTriggerId = string.Empty;
     _waitForAdvanceInputRelease = false;
@@ -550,6 +635,35 @@ public sealed class TutorialSequenceController : MonoBehaviour
     _visibleCharacterCount = CurrentFullText.Length;
     _typewriterProgress = _visibleCharacterCount;
     StateChanged?.Invoke();
+  }
+
+  private void UpdateNarrationAutoAdvance()
+  {
+    if (!autoAdvanceNarration || !IsNarrationStepActive)
+    {
+      _autoAdvanceNarrationAtUnscaledTime = -1f;
+      return;
+    }
+
+    if (!IsCurrentNarrationFullyRevealed)
+    {
+      _autoAdvanceNarrationAtUnscaledTime = -1f;
+      return;
+    }
+
+    if (_autoAdvanceNarrationAtUnscaledTime < 0f)
+    {
+      _autoAdvanceNarrationAtUnscaledTime = Time.unscaledTime + autoAdvanceNarrationDelay;
+      return;
+    }
+
+    if (Time.unscaledTime < _autoAdvanceNarrationAtUnscaledTime)
+    {
+      return;
+    }
+
+    _autoAdvanceNarrationAtUnscaledTime = -1f;
+    AdvanceNarration();
   }
 
   private void ApplyGameplayState()
@@ -677,13 +791,15 @@ public sealed class TutorialSequenceController : MonoBehaviour
       return;
     }
 
+    StopPendingGoalAdvanceCoroutine();
+
     if (_isWaitingForTrigger && string.Equals(_expectedTriggerId, goalTriggerId, StringComparison.OrdinalIgnoreCase))
     {
-      NotifyTriggerReached(goalTriggerId);
+      _pendingGoalAdvanceCoroutine = StartCoroutine(HandleGoalReachedAfterDelay(_, completeSequenceDirectly: false));
       return;
     }
 
-    CompleteSequence();
+    _pendingGoalAdvanceCoroutine = StartCoroutine(HandleGoalReachedAfterDelay(_, completeSequenceDirectly: true));
   }
 
   private void StopActiveStepCoroutine()
@@ -697,10 +813,70 @@ public sealed class TutorialSequenceController : MonoBehaviour
     _activeStepCoroutine = null;
   }
 
+  private void StopPendingGoalAdvanceCoroutine()
+  {
+    if (_pendingGoalAdvanceCoroutine == null)
+    {
+      return;
+    }
+
+    StopCoroutine(_pendingGoalAdvanceCoroutine);
+    _pendingGoalAdvanceCoroutine = null;
+  }
+
+  private IEnumerator HandleGoalReachedAfterDelay(Collider2D playerCollider, bool completeSequenceDirectly)
+  {
+    var waitSeconds = ResolveGoalAdvanceDelaySeconds(playerCollider);
+    if (waitSeconds > 0f)
+    {
+      LogDebug($"Waiting for goal reaction: {waitSeconds:0.###} seconds");
+      yield return new WaitForSecondsRealtime(waitSeconds);
+    }
+
+    _pendingGoalAdvanceCoroutine = null;
+
+    if (!_isSequenceRunning || _isSequenceCompleted)
+    {
+      yield break;
+    }
+
+    if (completeSequenceDirectly)
+    {
+      CompleteSequence();
+      yield break;
+    }
+
+    NotifyTriggerReached(goalTriggerId);
+  }
+
+  private float ResolveGoalAdvanceDelaySeconds(Collider2D playerCollider)
+  {
+    var delaySeconds = Mathf.Max(0f, additionalGoalAdvanceDelay);
+    if (!waitForGoalReactionBeforeAdvancing || playerCollider == null)
+    {
+      return delaySeconds;
+    }
+
+    var playerAnimator = playerCollider.GetComponent<Wall2DPlayerAnimator>();
+    if (playerAnimator == null)
+    {
+      playerAnimator = playerCollider.GetComponentInParent<Wall2DPlayerAnimator>();
+    }
+
+    if (playerAnimator != null)
+    {
+      delaySeconds += Mathf.Max(0f, playerAnimator.GoalReactionDuration);
+    }
+
+    return delaySeconds;
+  }
+
   private void ClampSerializedValues()
   {
     typewriterCharactersPerSecond = Mathf.Max(0f, typewriterCharactersPerSecond);
+    autoAdvanceNarrationDelay = Mathf.Max(0f, autoAdvanceNarrationDelay);
     advanceInputGracePeriod = Mathf.Max(0f, advanceInputGracePeriod);
+    additionalGoalAdvanceDelay = Mathf.Max(0f, additionalGoalAdvanceDelay);
     goalTriggerId = goalTriggerId ?? string.Empty;
 
     if (steps == null)
@@ -727,6 +903,77 @@ public sealed class TutorialSequenceController : MonoBehaviour
         step.pages = new List<TutorialNarrationPage>();
       }
     }
+  }
+
+  private static List<TutorialStep> CloneSteps(IList<TutorialStep> sourceSteps)
+  {
+    var clonedSteps = new List<TutorialStep>();
+    if (sourceSteps == null)
+    {
+      return clonedSteps;
+    }
+
+    for (var i = 0; i < sourceSteps.Count; i++)
+    {
+      var sourceStep = sourceSteps[i];
+      if (sourceStep == null)
+      {
+        continue;
+      }
+
+      var clonedStep = new TutorialStep
+      {
+        stepId = sourceStep.stepId,
+        kind = sourceStep.kind,
+        note = sourceStep.note,
+        triggerId = sourceStep.triggerId,
+        waitSeconds = sourceStep.waitSeconds,
+        useUnscaledTime = sourceStep.useUnscaledTime,
+        fadeColor = sourceStep.fadeColor,
+        fadeFromAlpha = sourceStep.fadeFromAlpha,
+        fadeToAlpha = sourceStep.fadeToAlpha,
+        fadeDuration = sourceStep.fadeDuration,
+        fadeUseUnscaledTime = sourceStep.fadeUseUnscaledTime,
+        enable2DGameplay = sourceStep.enable2DGameplay,
+        enable3DInteraction = sourceStep.enable3DInteraction,
+        targetViewMode = sourceStep.targetViewMode,
+        pages = ClonePages(sourceStep.pages),
+        onStepStarted = new UnityEvent(),
+        onStepCompleted = new UnityEvent(),
+      };
+
+      clonedSteps.Add(clonedStep);
+    }
+
+    return clonedSteps;
+  }
+
+  private static List<TutorialNarrationPage> ClonePages(IList<TutorialNarrationPage> sourcePages)
+  {
+    var clonedPages = new List<TutorialNarrationPage>();
+    if (sourcePages == null)
+    {
+      return clonedPages;
+    }
+
+    for (var i = 0; i < sourcePages.Count; i++)
+    {
+      var sourcePage = sourcePages[i];
+      if (sourcePage == null)
+      {
+        continue;
+      }
+
+      clonedPages.Add(new TutorialNarrationPage
+      {
+        pageId = sourcePage.pageId,
+        speakerName = sourcePage.speakerName,
+        message = sourcePage.message,
+        illustration = sourcePage.illustration,
+      });
+    }
+
+    return clonedPages;
   }
 
   private bool HasAdvanceInputThisFrame()
@@ -785,6 +1032,29 @@ public sealed class TutorialSequenceController : MonoBehaviour
     }
 
     return false;
+  }
+
+  private void LogDebug(string message)
+  {
+    if (!enableDebugLogging)
+    {
+      return;
+    }
+
+    Debug.Log($"[TutorialSequence] {message}", this);
+  }
+
+  private string BuildStepLabel(int stepIndex, TutorialStep step)
+  {
+    if (step == null)
+    {
+      return $"index={stepIndex}";
+    }
+
+    var stepNumber = stepIndex + 1;
+    var totalSteps = steps != null ? steps.Count : 0;
+    var stepId = string.IsNullOrWhiteSpace(step.stepId) ? "(no-id)" : step.stepId;
+    return $"{stepNumber}/{totalSteps} id={stepId} kind={step.kind}";
   }
 
   private void CacheScreenFadeReferences()

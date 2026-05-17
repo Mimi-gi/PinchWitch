@@ -298,7 +298,7 @@ MonoBehaviour:
   triggerId: Correct3
   triggerMode: 1
   requiredTag: Grabbable
-  fireOnce: 1
+  fireOnce: 0
 --- !u!135 &89629991
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -667,7 +667,7 @@ MonoBehaviour:
   triggerId: Correct2
   triggerMode: 1
   requiredTag: Grabbable
-  fireOnce: 1
+  fireOnce: 0
 --- !u!135 &203734540
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -1367,51 +1367,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TutorialSequenceController
   playOnStart: 1
   steps:
-  - stepId: StepStart
+  - stepId: Start
     kind: 0
     note: 
     pages:
     - pageId: 
       speakerName: 
       message: 
-      illustration: {fileID: 21300000, guid: e04ee9e42621c8f40974745b67855f32, type: 3}
-    triggerId: 
-    waitSeconds: 0
-    useUnscaledTime: 0
-    fadeColor: {r: 1, g: 1, b: 1, a: 1}
-    fadeFromAlpha: 1
-    fadeToAlpha: 0
-    fadeDuration: 0.75
-    fadeUseUnscaledTime: 1
-    enable2DGameplay: 0
-    enable3DInteraction: 0
-    targetViewMode: 0
-    onStepStarted:
-      m_PersistentCalls:
-        m_Calls: []
-    onStepCompleted:
-      m_PersistentCalls:
-        m_Calls: []
-  - stepId: narration_1
-    kind: 0
-    note: 
-    pages:
-    - pageId: 1
-      speakerName: "\u30CA\u30EC\u30FC\u30B7\u30E7\u30F3"
-      message: "\u3042\u308B\u5BDD\u82E6\u3057\u3044\u591C\u3001\u30A2\u30EA\u30B9\u306F\u3072\u3069\u304F\u3046\u306A\u3055\u308C\u3066\u3044\u305F\u3002"
-      illustration: {fileID: 21300000, guid: e04ee9e42621c8f40974745b67855f32, type: 3}
-    - pageId: 2
-      speakerName: 
-      message: 
-      illustration: {fileID: 21300000, guid: 82f3dddd87bc1a44abbbfa3b1d845659, type: 3}
-    - pageId: 3
-      speakerName: "\u30CA\u30EC\u30FC\u30B7\u30E7\u30F3"
-      message: "\u76EE\u3092\u958B\u3051\u308B\u3068\u3001\u305D\u3053\u306F\u771F\u3063\u767D\u306A\u4E16\u754C\u3002"
-      illustration: {fileID: 21300000, guid: e839f09290398b548b5f6b8b2cb08b4a, type: 3}
-    - pageId: 4
-      speakerName: "\u30CA\u30EC\u30FC\u30B7\u30E7\u30F3"
-      message: "\u4E2D\u306B\u306F\u307D\u3064\u3093\u3068\u30B7\u30A2\u30BF\u30FC\u304C\u3042\u308A\u3001\u4F55\u6C17\u306A\u304F\u898B\u308B\u3068\u3001"
-      illustration: {fileID: 21300000, guid: ceedfdc31b93d974b87679518d75c9ca, type: 3}
+      illustration: {fileID: 0}
     triggerId: 
     waitSeconds: 0
     useUnscaledTime: 0
@@ -1654,27 +1617,6 @@ MonoBehaviour:
     onStepCompleted:
       m_PersistentCalls:
         m_Calls: []
-  - stepId: 3DNavi_4
-    kind: 1
-    note: "3D\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u3092\u8A98\u5C0E"
-    pages: []
-    triggerId: Correct4
-    waitSeconds: 0
-    useUnscaledTime: 0
-    fadeColor: {r: 1, g: 1, b: 1, a: 1}
-    fadeFromAlpha: 1
-    fadeToAlpha: 0
-    fadeDuration: 0.75
-    fadeUseUnscaledTime: 1
-    enable2DGameplay: 0
-    enable3DInteraction: 0
-    targetViewMode: 0
-    onStepStarted:
-      m_PersistentCalls:
-        m_Calls: []
-    onStepCompleted:
-      m_PersistentCalls:
-        m_Calls: []
   - stepId: desable3D
     kind: 4
     note: "3D\u64CD\u4F5C\u505C\u6B62"
@@ -1759,10 +1701,13 @@ MonoBehaviour:
     onStepCompleted:
       m_PersistentCalls:
         m_Calls: []
+  enableDebugLogging: 1
   initial2DGameplayEnabled: 0
   initial3DInteractionEnabled: 0
   typewriterCharactersPerSecond: 32
-  acceptAdvanceInput: 1
+  acceptAdvanceInput: 0
+  autoAdvanceNarration: 1
+  autoAdvanceNarrationDelay: 1.25
   advanceKeys: 0d00000043010000
   advanceInputGracePeriod: 0.1
   autoResolveSceneReferences: 1
@@ -1967,8 +1912,8 @@ MonoBehaviour:
   illustrationRoot: {fileID: 0}
   advanceButton: {fileID: 0}
   defaultSpeakerLabel: 
-  revealPromptText: ...
-  advancePromptText: Click / Space
+  revealPromptText: 
+  advancePromptText: 
 --- !u!225 &336926024
 CanvasGroup:
   m_ObjectHideFlags: 0
@@ -2325,15 +2270,14 @@ Transform:
   m_GameObject: {fileID: 450047408}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.63156796, y: -0.511, z: 4.48754}
-  m_LocalScale: {x: 0.43917438, y: 1, z: 1}
+  m_LocalPosition: {x: -1.0980802, y: 0, z: 0.89753985}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1644082661}
   - {fileID: 203734542}
   - {fileID: 89629989}
-  - {fileID: 1987182771}
-  m_Father: {fileID: 2074219592}
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &638479256
 GameObject:
@@ -5985,7 +5929,7 @@ MonoBehaviour:
   triggerId: Correct1
   triggerMode: 1
   requiredTag: Grabbable
-  fireOnce: 1
+  fireOnce: 0
 --- !u!135 &1644082659
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -6540,86 +6484,6 @@ RectTransform:
     type: 3}
   m_PrefabInstance: {fileID: 841116727}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &1987182770
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1987182771}
-  - component: {fileID: 1987182774}
-  - component: {fileID: 1987182773}
-  - component: {fileID: 1987182772}
-  m_Layer: 0
-  m_Name: NavigatePoint4
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1987182771
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1987182770}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 2.5980802, y: 0.07, z: -4.0075397}
-  m_LocalScale: {x: 0.42106, y: 0.42106, z: 0.42106}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 450047409}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1987182772
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1987182770}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 609f44e7283f46d0aeaf10f63b4c7a1a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TutorialSequenceTrigger
-  sequenceController: {fileID: 284249379}
-  triggerId: Correct4
-  triggerMode: 1
-  requiredTag: Grabbable
-  fireOnce: 1
---- !u!135 &1987182773
-SphereCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1987182770}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Radius: 0.5
-  m_Center: {x: 0, y: 0, z: 0}
---- !u!33 &1987182774
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1987182770}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &2010092515
 GameObject:
   m_ObjectHideFlags: 0
@@ -6729,7 +6593,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!65 &2074219589
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -6820,8 +6684,7 @@ Transform:
   m_LocalPosition: {x: 0.34, y: 0.511, z: -3.59}
   m_LocalScale: {x: 2.277, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 450047409}
+  m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2131942240
@@ -7004,3 +6867,4 @@ SceneRoots:
   - {fileID: 1704726947}
   - {fileID: 1851712135}
   - {fileID: 2074219592}
+  - {fileID: 450047409}

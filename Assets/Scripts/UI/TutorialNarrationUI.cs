@@ -95,6 +95,37 @@ public sealed class TutorialNarrationUI : MonoBehaviour
     RefreshVisualState();
   }
 
+  public void ConfigureRuntimeUI(
+    GameObject root,
+    CanvasGroup rootCanvasGroup,
+    GameObject textWindow,
+    TMP_Text speaker,
+    TMP_Text body,
+    TMP_Text prompt,
+    Image illustration,
+    GameObject illustrationContainer = null,
+    Button button = null,
+    string fallbackSpeakerLabel = "",
+    string revealPrompt = "...",
+    string advancePrompt = "Click / Space")
+  {
+    narrationRoot = root != null ? root : gameObject;
+    canvasGroup = rootCanvasGroup;
+    textWindowRoot = textWindow;
+    speakerText = speaker;
+    bodyText = body;
+    promptText = prompt;
+    illustrationImage = illustration;
+    illustrationRoot = illustrationContainer;
+    advanceButton = button;
+    defaultSpeakerLabel = fallbackSpeakerLabel ?? string.Empty;
+    revealPromptText = revealPrompt ?? "...";
+    advancePromptText = advancePrompt ?? "Click / Space";
+
+    BindAdvanceButton();
+    RefreshVisualState();
+  }
+
   public void AdvanceNarration()
   {
     if (sequenceController == null)
