@@ -33,9 +33,7 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
   public SpaceViewMode CurrentMode { get; private set; } = SpaceViewMode.World3D;
   public bool IsRealTimeMode => isRealTimeMode;
   public bool IsRealTimeGameplayStarted => !IsRealTimeStartGestureRequired() || _realTimeGameplayStarted;
-  public bool ShouldEnablePlayerGameplay => isRealTimeMode
-    ? IsRealTimeGameplayStarted && !_isStartReactionPlaying
-    : CurrentMode == SpaceViewMode.Wall2D;
+  public bool ShouldEnablePlayerGameplay => ResolveBasePlayerGameplayEnabled() && !_isPlayerGameplayLockedExternally;
   public int ResetOrder => -100;
 
   private bool _realTimeGameplayStarted;
@@ -43,6 +41,9 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
   private bool _isStartReactionPlaying;
   private float _startReactionEndTime;
   private bool _hasPlayedGameplayStartSE;
+  private bool _isPlayerGameplayLockedExternally;
+  private bool _unlockPlayerGameplayWhenRealtimeStarts;
+  private bool _waitForStartInputRelease;
 
   private void Reset()
   {
@@ -77,6 +78,16 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
     }
 
     UpdateStartReactionPlayback();
+
+    if (_waitForStartInputRelease)
+    {
+      _waitForStartInputRelease = IsStartGameplayInputPressed();
+      if (_waitForStartInputRelease)
+      {
+        return;
+      }
+    }
+
     UpdateRealTimeStartGesture();
 
     if (Input.GetKeyDown(startGameplayKey))
@@ -132,6 +143,57 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
     }
 
     respawner.SetPlayerGameplayEnabled(ShouldEnablePlayerGameplay);
+  }
+
+  public void SetExternalPlayerGameplayLock(bool isLocked)
+  {
+    _unlockPlayerGameplayWhenRealtimeStarts = false;
+
+    if (_isPlayerGameplayLockedExternally == isLocked)
+    {
+      return;
+    }
+
+    _isPlayerGameplayLockedExternally = isLocked;
+    UpdatePlayerMovementState();
+  }
+
+  public void WaitForRealTimeGameplayStart()
+  {
+    if (!isRealTimeMode)
+    {
+      _unlockPlayerGameplayWhenRealtimeStarts = false;
+      SetExternalPlayerGameplayLock(false);
+      return;
+    }
+
+    if (IsRealTimeStartGestureRequired())
+    {
+      _realTimeGameplayStarted = false;
+    }
+
+    _unlockPlayerGameplayWhenRealtimeStarts = true;
+    _goodGestureHeldSeconds = 0f;
+    _waitForStartInputRelease = IsStartGameplayInputPressed();
+
+    if (_isPlayerGameplayLockedExternally)
+    {
+      return;
+    }
+
+    _isPlayerGameplayLockedExternally = true;
+    UpdatePlayerMovementState();
+  }
+
+  public void EnsureRealTimeGameplayStarted(bool playGoodReaction = false)
+  {
+    if (!isRealTimeMode)
+    {
+      UpdatePlayerMovementState();
+      return;
+    }
+
+    StartRealTimeGameplay(playGoodReaction);
   }
 
   /// <summary>
@@ -216,6 +278,13 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
     return isRealTimeMode && requireGoodGestureToStartRealTime;
   }
 
+  private bool ResolveBasePlayerGameplayEnabled()
+  {
+    return isRealTimeMode
+      ? IsRealTimeGameplayStarted && !_isStartReactionPlaying
+      : CurrentMode == SpaceViewMode.Wall2D;
+  }
+
   private void ResetRealTimeStartGate()
   {
     _realTimeGameplayStarted = !IsRealTimeStartGestureRequired();
@@ -223,6 +292,9 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
     _isStartReactionPlaying = false;
     _startReactionEndTime = 0f;
     _hasPlayedGameplayStartSE = false;
+    _isPlayerGameplayLockedExternally = false;
+    _unlockPlayerGameplayWhenRealtimeStarts = false;
+    _waitForStartInputRelease = false;
   }
 
   private void UpdateRealTimeStartGesture()
@@ -265,10 +337,17 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
     _goodGestureHeldSeconds = 0f;
     _isStartReactionPlaying = false;
     _startReactionEndTime = 0f;
+    _waitForStartInputRelease = false;
 
     if (playGoodReaction)
     {
       BeginStartReactionIfPossible();
+    }
+
+    if (_unlockPlayerGameplayWhenRealtimeStarts)
+    {
+      _unlockPlayerGameplayWhenRealtimeStarts = false;
+      _isPlayerGameplayLockedExternally = false;
     }
 
     if (!_isStartReactionPlaying)
@@ -277,6 +356,21 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
     }
 
     UpdatePlayerMovementState();
+  }
+
+  private bool IsStartGameplayInputPressed()
+  {
+    if (Input.GetKey(startGameplayKey))
+    {
+      return true;
+    }
+
+    if (handPinchController == null)
+    {
+      handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
+    }
+
+    return handPinchController != null && handPinchController.IsLeftGoodGestureDetected();
   }
 
   private void BeginStartReactionIfPossible()

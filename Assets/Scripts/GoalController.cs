@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using UnityEngine;
 
@@ -5,19 +6,21 @@ public class GoalController : MonoBehaviour
 {
   [SerializeField] private float _stageSelectDelaySeconds = 0.5f;
 
-  private bool _hasCleared;
+  public event Action<Collider2D> GoalReached;
+
+  public bool OverrideDefaultClearHandling { get; set; }
+
+  private bool _hasReachedGoal;
 
   public void OnTriggerEnter2D(Collider2D collision)
   {
-    if (collision.CompareTag("Player") && !_hasCleared)
+    if (!collision.CompareTag("Player") || _hasReachedGoal)
     {
-      _hasCleared = true;
-      StartCoroutine(ClearAndReturnStageSelect(collision));
+      return;
     }
-  }
 
-  private IEnumerator ClearAndReturnStageSelect(Collider2D playerCollider)
-  {
+    _hasReachedGoal = true;
+
     StageProgressManager.RecordCurrentStageClear();
 
     if (AudioManager.Instance != null)
@@ -27,16 +30,27 @@ public class GoalController : MonoBehaviour
 
     Debug.Log("Goal!");
 
-    if (playerCollider.TryGetComponent(out Wall2DPlayerAnimator playerAnimator))
+    if (collision.TryGetComponent(out Wall2DPlayerAnimator playerAnimator))
     {
       playerAnimator.PlayGoalReaction();
     }
 
-    if (playerCollider.TryGetComponent(out Wall2DPlayerController playerController))
+    if (collision.TryGetComponent(out Wall2DPlayerController playerController))
     {
       playerController.MoveStop();
     }
 
+    GoalReached?.Invoke(collision);
+    if (OverrideDefaultClearHandling)
+    {
+      return;
+    }
+
+    StartCoroutine(ReturnStageSelectAfterDelay());
+  }
+
+  private IEnumerator ReturnStageSelectAfterDelay()
+  {
     if (_stageSelectDelaySeconds > 0f)
     {
       yield return new WaitForSeconds(_stageSelectDelaySeconds);

@@ -1,9 +1,13 @@
+using System;
 using UnityEngine;
 
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(50)]
 public sealed class MouseGrabInputController : MonoBehaviour
 {
+  public event Action<Rigidbody> GrabStarted;
+  public event Action<Rigidbody> GrabReleased;
+
   [Header("Source")]
   // grab 共有依存を提供する手操作コントローラー。
   [SerializeField] private HandPinchController handPinchController;
@@ -21,6 +25,8 @@ public sealed class MouseGrabInputController : MonoBehaviour
   private MouseGrabController _mouseGrabController;
   private GrabInputContext _grabInputContext;
   private bool _hasGrabInputContext;
+  private bool _interactionEnabled = true;
+  private GrabInteractor _subscribedGrabInteractor;
 
   private void Reset()
   {
@@ -46,11 +52,13 @@ public sealed class MouseGrabInputController : MonoBehaviour
   private void OnDisable()
   {
     ResetInteractionState();
+    UnsubscribeFromGrabInteractor();
   }
 
   private void OnDestroy()
   {
     ResetInteractionState();
+    UnsubscribeFromGrabInteractor();
   }
 
   private void Update()
@@ -74,6 +82,7 @@ public sealed class MouseGrabInputController : MonoBehaviour
 
     _grabInputContext = context;
     _hasGrabInputContext = true;
+    SubscribeToGrabInteractor(context.GrabInteractor);
     if (_mouseGrabController == null)
     {
       _mouseGrabController = new MouseGrabController(
@@ -108,7 +117,7 @@ public sealed class MouseGrabInputController : MonoBehaviour
   {
     return new MouseGrabController.Config
     {
-      enabled = enableMouseInput,
+      enabled = _interactionEnabled && enableMouseInput,
       mouseCamera = mouseCamera,
       fallbackWorldCamera = context.FallbackWorldCamera,
       grabbableLayerMask = context.GrabbableLayerMask,
@@ -120,6 +129,25 @@ public sealed class MouseGrabInputController : MonoBehaviour
     };
   }
 
+  public void SetInteractionEnabled(bool isEnabled)
+  {
+    if (_interactionEnabled == isEnabled)
+    {
+      return;
+    }
+
+    _interactionEnabled = isEnabled;
+    if (!_interactionEnabled)
+    {
+      ResetInteractionState();
+    }
+
+    if (_hasGrabInputContext)
+    {
+      _mouseGrabController?.ApplyConfiguration(BuildMouseConfig(_grabInputContext));
+    }
+  }
+
   private void ResetInteractionState()
   {
     _mouseGrabController?.Reset();
@@ -127,6 +155,46 @@ public sealed class MouseGrabInputController : MonoBehaviour
     {
       _grabInputContext.InputCoordinator?.Release(GrabInputSource.Pointer);
     }
+  }
+
+  private void SubscribeToGrabInteractor(GrabInteractor grabInteractor)
+  {
+    if (_subscribedGrabInteractor == grabInteractor)
+    {
+      return;
+    }
+
+    UnsubscribeFromGrabInteractor();
+    _subscribedGrabInteractor = grabInteractor;
+    if (_subscribedGrabInteractor == null)
+    {
+      return;
+    }
+
+    _subscribedGrabInteractor.GrabStarted += HandleGrabStarted;
+    _subscribedGrabInteractor.GrabReleased += HandleGrabReleased;
+  }
+
+  private void UnsubscribeFromGrabInteractor()
+  {
+    if (_subscribedGrabInteractor == null)
+    {
+      return;
+    }
+
+    _subscribedGrabInteractor.GrabStarted -= HandleGrabStarted;
+    _subscribedGrabInteractor.GrabReleased -= HandleGrabReleased;
+    _subscribedGrabInteractor = null;
+  }
+
+  private void HandleGrabStarted(Rigidbody grabbedBody)
+  {
+    GrabStarted?.Invoke(grabbedBody);
+  }
+
+  private void HandleGrabReleased(Rigidbody releasedBody)
+  {
+    GrabReleased?.Invoke(releasedBody);
   }
 
   private void NormalizeSerializedValues()
