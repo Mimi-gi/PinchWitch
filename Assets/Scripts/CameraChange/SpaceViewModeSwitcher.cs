@@ -316,6 +316,12 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
       handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
     }
 
+    if (handPinchController != null && handPinchController.IsKachinkoGestureDetected())
+    {
+      StartRealTimeGameplay(playGoodReaction: true);
+      return;
+    }
+
     if (handPinchController != null && handPinchController.IsLeftGoodGestureDetected())
     {
       _goodGestureHeldSeconds += Time.unscaledDeltaTime;
@@ -346,7 +352,7 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
     _startReactionEndTime = 0f;
     _waitForStartInputRelease = false;
     _goodGestureMovementToggleHeldSeconds = 0f;
-    _waitForGoodGestureMovementToggleRelease = IsGoodGestureInputPressed();
+    _waitForGoodGestureMovementToggleRelease = IsMovementToggleGesturePressed();
 
     if (playGoodReaction)
     {
@@ -379,7 +385,7 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
       handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
     }
 
-    return handPinchController != null && handPinchController.IsLeftGoodGestureDetected();
+    return handPinchController != null && handPinchController.IsRealTimeStartGestureDetected();
   }
 
   private void UpdateGoodGestureMovementToggle()
@@ -390,10 +396,10 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
       return;
     }
 
-    bool isGoodGesturePressed = IsGoodGestureInputPressed();
+    var isMovementToggleGesturePressed = IsMovementToggleGesturePressed();
     if (_waitForGoodGestureMovementToggleRelease)
     {
-      if (!isGoodGesturePressed)
+      if (!isMovementToggleGesturePressed)
       {
         _waitForGoodGestureMovementToggleRelease = false;
       }
@@ -402,7 +408,15 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
       return;
     }
 
-    if (!isGoodGesturePressed)
+    if (handPinchController != null && handPinchController.IsKachinkoGestureDetected())
+    {
+      TogglePlayerMovementFromGoodGesture();
+      _goodGestureMovementToggleHeldSeconds = 0f;
+      _waitForGoodGestureMovementToggleRelease = true;
+      return;
+    }
+
+    if (handPinchController == null || !handPinchController.IsLeftGoodGestureDetected())
     {
       _goodGestureMovementToggleHeldSeconds = 0f;
       return;
@@ -427,14 +441,14 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
       && !_isPlayerGameplayLockedExternally;
   }
 
-  private bool IsGoodGestureInputPressed()
+  private bool IsMovementToggleGesturePressed()
   {
     if (handPinchController == null)
     {
       handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
     }
 
-    return handPinchController != null && handPinchController.IsLeftGoodGestureDetected();
+    return handPinchController != null && handPinchController.IsRealTimeStartGestureDetected();
   }
 
   private void TogglePlayerMovementFromGoodGesture()
