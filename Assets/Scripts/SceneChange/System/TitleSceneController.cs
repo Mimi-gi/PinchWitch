@@ -16,6 +16,7 @@ using UnityEngine;
 public class TitleSceneController : MonoBehaviour
 {
   private const string _KeyHasLaunched = "HasLaunchedBefore";
+  private const int FirstStageNum = 1;
 
   [SerializeField] private HandPinchController _handPinchController;
   [SerializeField] private bool _startWhenHandDetected = true;
@@ -62,8 +63,8 @@ public class TitleSceneController : MonoBehaviour
   {
     _isStarting = true;
     yield return new WaitForSecondsRealtime(_handDetectedStartDelaySeconds);
-    AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Title);
-    GameSceneManager.GoStageSelect();
+    PlayTitleSe();
+    StartGame();
   }
 
   private void StartGame()
@@ -76,7 +77,26 @@ public class TitleSceneController : MonoBehaviour
     }
     else
     {
+      if (ShouldStartFirstStageDirectly())
+      {
+        GameSceneManager.GoStage(FirstStageNum);
+        return;
+      }
+
       GameSceneManager.GoStageSelect();
+    }
+  }
+
+  private static bool ShouldStartFirstStageDirectly()
+  {
+    return StageProgressManager.NextPlayableStageNum == FirstStageNum;
+  }
+
+  private static void PlayTitleSe()
+  {
+    if (AudioManager.Instance != null)
+    {
+      AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Title);
     }
   }
 
