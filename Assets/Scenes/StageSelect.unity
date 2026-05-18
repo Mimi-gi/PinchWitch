@@ -2997,7 +2997,7 @@ MonoBehaviour:
   loadingCanvas: {fileID: 669156453}
   loadingRoot: {fileID: 745748811}
   loadingTrump: {fileID: 1522993611}
-  loadingTrumpImage: {fileID: 0}
+  loadingTrumpImage: {fileID: 1522993612}
   loadingTrumpSprites:
   - {fileID: 21300000, guid: 14127f26d5f8b3f4482c0407bf17958d, type: 3}
   - {fileID: 21300000, guid: 350b8df3474ca10479a1fa3263a4033c, type: 3}
@@ -6678,7 +6678,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &1522993611
 RectTransform:
   m_ObjectHideFlags: 0
@@ -6718,7 +6718,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 350b8df3474ca10479a1fa3263a4033c, type: 3}
+  m_Sprite: {fileID: 0}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
