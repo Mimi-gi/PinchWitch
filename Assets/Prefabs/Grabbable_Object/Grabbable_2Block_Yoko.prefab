@@ -354,7 +354,7 @@ GameObject:
   - component: {fileID: 4997574218467937093}
   - component: {fileID: 8214913180354397325}
   m_Layer: 3
-  m_Name: Grabbable_2Block
+  m_Name: Grabbable_2Block_Yoko
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
