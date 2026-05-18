@@ -190,8 +190,8 @@ MonoBehaviour:
   fallGravityScale: 1
   autoFindWorldBounds: 1
   worldBoundsSource: {fileID: 0}
-  worldBoundsMin: {x: -10, y: -10}
-  worldBoundsMax: {x: 10, y: 10}
+  worldBoundsMin: {x: -12.36, y: -12.360953}
+  worldBoundsMax: {x: 12.36, y: 12.818353}
   collisionDetectionMode: 1
   interpolationMode: 1
   movementStallRespawnDelay: 2
@@ -279,6 +279,7 @@ MonoBehaviour:
   climbStateName: Climb
   fallStateName: Fall
   goodReactionDuration: 1
+  goalReactionDuration: 1
   walkSpeedThreshold: 0.05
   flipSpriteWithMovement: 1
   spriteDefaultFacesLeft: 1
