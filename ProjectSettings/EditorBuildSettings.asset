@@ -39,7 +39,7 @@ EditorBuildSettings:
     path: Assets/Scenes/Stage_6_old.unity
     guid: b835bdbee4e14469f82964cbc0fd9f40
   - enabled: 1
-    path: Assets/Scenes/Stage_7.unity
+    path: Assets/Scenes/Stage_7_old.unity
     guid: 039f50cc5cd5ded49abb217f3d6d9852
   - enabled: 1
     path: Assets/Scenes/bStage_1.unity
