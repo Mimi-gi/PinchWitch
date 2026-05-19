@@ -41,6 +41,7 @@ public sealed class Wall2DPlayerAnimator : MonoBehaviour
   private SpriteRenderer _spriteRenderer;
   private Rigidbody2D _rigidbody2D;
   private AnimatorUpdateMode _defaultUpdateMode;
+  private PlayerAnimationState? _forcedState;
 
   private int _idleStateHash;
   private int _walkStateHash;
@@ -142,6 +143,22 @@ public sealed class Wall2DPlayerAnimator : MonoBehaviour
     PlayState(PlayerAnimationState.Goal, restart: true);
   }
 
+  public void SetForcedFallState(bool isForced)
+  {
+    _forcedState = isForced ? PlayerAnimationState.Fall : null;
+
+    if (_forcedState.HasValue)
+    {
+      PlayState(_forcedState.Value, restart: false);
+      UpdateStateAudio(_forcedState.Value);
+      return;
+    }
+
+    var resolvedState = ResolveState();
+    PlayState(resolvedState, restart: false);
+    UpdateStateAudio(resolvedState);
+  }
+
   private void CacheStateHashes()
   {
     _idleStateHash = CreateStateHash(idleStateName);
@@ -157,6 +174,7 @@ public sealed class Wall2DPlayerAnimator : MonoBehaviour
     _currentState = null;
     _goodReactionEndTime = 0f;
     _isGoalStateLocked = false;
+    _forcedState = null;
 
     if (_animator != null)
     {
@@ -166,6 +184,11 @@ public sealed class Wall2DPlayerAnimator : MonoBehaviour
 
   private PlayerAnimationState ResolveState()
   {
+    if (_forcedState.HasValue)
+    {
+      return _forcedState.Value;
+    }
+
     if (_isGoalStateLocked)
     {
       return PlayerAnimationState.Goal;
