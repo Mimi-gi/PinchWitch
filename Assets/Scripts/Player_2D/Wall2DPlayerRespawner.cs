@@ -20,11 +20,13 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   [SerializeField] private float respawnCooldownSeconds = 0.5f;
   [Header("Game Over")]
   [SerializeField] private bool reloadSceneOnGameOver;
+  [SerializeField] private bool reloadSceneOnShadowCrush = false;
   [SerializeField] private float gameOverReloadDelay = 0.15f;
 
   private GameObject _spawnedPlayerInstance;
   private Wall2DPlayerController _spawnedPlayerController;
   private Wall2DPlayerCrushDetector _spawnedPlayerCrushDetector;
+  private Wall2DPlayerAnimator _spawnedPlayerAnimator;
   private Rigidbody2D _spawnedPlayerRigidbody2D;
   private Collider2D _spawnedPlayerCollider2D;
   private bool _hasSavedSpawnState;
@@ -38,7 +40,10 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   private bool _isRespawning;
   private float _respawnBlockedUntilTime;
   private bool _isPlayerDead;
+  private bool _isShadowCrushPaused;
   private bool _hasRequestedGameOverReload;
+  private RigidbodyConstraints2D _savedConstraintsBeforeShadowCrushPause;
+  private bool _hasSavedConstraintsBeforeShadowCrushPause;
 
   public int ResetOrder => 0;
 
@@ -99,7 +104,16 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   /// </summary>
   public void SetPlayerGameplayEnabled(bool isEnabled)
   {
-    SetSpawnedPlayer2DGameplayEnabled(isEnabled && !_isPlayerDead, keepPhysicsSimulationWhenDisabled: false, preserveCurrentMotion: false);
+    if (_isShadowCrushPaused)
+    {
+      PauseSpawnedPlayerForShadowCrush();
+      return;
+    }
+
+    SetSpawnedPlayer2DGameplayEnabled(
+      isEnabled && !_isPlayerDead,
+      keepPhysicsSimulationWhenDisabled: false,
+      preserveCurrentMotion: false);
   }
 
   [ContextMenu("Respawn 2D Player At Initial Point")]
@@ -112,6 +126,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
     BeginRespawnGuard();
     _isPlayerDead = false;
+    ClearShadowCrushPauseState();
     _hasRequestedGameOverReload = false;
 
     try
@@ -215,6 +230,12 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
       return;
     }
 
+    if (_isShadowCrushPaused)
+    {
+      PauseSpawnedPlayerForShadowCrush();
+      return;
+    }
+
     // 生成・配置直後の物理状態を、現在の視点モード設定に合わせる。
     var switcher = FindFirstObjectByType<SpaceViewModeSwitcher>();
     if (switcher != null)
@@ -272,7 +293,8 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   private void SetSpawnedPlayer2DGameplayEnabled(
     bool isEnabled,
     bool keepPhysicsSimulationWhenDisabled = false,
-    bool preserveCurrentMotion = false)
+    bool preserveCurrentMotion = false,
+    bool keepCrushDetectorEnabledWhenDisabled = false)
   {
     if (_spawnedPlayerInstance == null)
     {
@@ -288,7 +310,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     if (_spawnedPlayerCrushDetector != null)
     {
       // 圧死検知も同時に止めて、余計な再リスポーンを防ぐ。
-      _spawnedPlayerCrushDetector.enabled = isEnabled;
+      _spawnedPlayerCrushDetector.enabled = isEnabled || keepCrushDetectorEnabledWhenDisabled;
     }
 
     if (_spawnedPlayerRigidbody2D != null)
@@ -383,6 +405,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
     _spawnedPlayerController = spawnedPlayer.GetComponent<Wall2DPlayerController>();
     _spawnedPlayerCrushDetector = spawnedPlayer.GetComponent<Wall2DPlayerCrushDetector>();
+    _spawnedPlayerAnimator = spawnedPlayer.GetComponent<Wall2DPlayerAnimator>();
     _spawnedPlayerRigidbody2D = spawnedPlayer.GetComponent<Rigidbody2D>();
     _spawnedPlayerCollider2D = spawnedPlayer.GetComponent<Collider2D>();
   }
@@ -399,7 +422,8 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
     if (_spawnedPlayerCrushDetector != null)
     {
-      _spawnedPlayerCrushDetector.Crushed += OnSpawnedPlayerCrushed;
+      _spawnedPlayerCrushDetector.Crushed += OnSpawnedPlayerShadowCrushed;
+      _spawnedPlayerCrushDetector.ReleasedFromCrush += OnSpawnedPlayerReleasedFromCrush;
     }
     else
     {
@@ -416,7 +440,8 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
     if (_spawnedPlayerCrushDetector != null)
     {
-      _spawnedPlayerCrushDetector.Crushed -= OnSpawnedPlayerCrushed;
+      _spawnedPlayerCrushDetector.Crushed -= OnSpawnedPlayerShadowCrushed;
+      _spawnedPlayerCrushDetector.ReleasedFromCrush -= OnSpawnedPlayerReleasedFromCrush;
     }
   }
 
@@ -424,6 +449,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   {
     _spawnedPlayerController = null;
     _spawnedPlayerCrushDetector = null;
+    _spawnedPlayerAnimator = null;
     _spawnedPlayerRigidbody2D = null;
     _spawnedPlayerCollider2D = null;
   }
@@ -447,6 +473,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
       return;
     }
 
+    ClearShadowCrushPauseState();
     _isPlayerDead = true;
     StopOverlapRecoveryCoroutine();
     SetSpawnedPlayer2DGameplayEnabled(false, keepPhysicsSimulationWhenDisabled: false, preserveCurrentMotion: false);
@@ -457,6 +484,11 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   private void RequestGameOverReloadIfNeeded(GameOverCause cause)
   {
     if (!reloadSceneOnGameOver || _hasRequestedGameOverReload)
+    {
+      return;
+    }
+
+    if (cause == GameOverCause.Crush && !reloadSceneOnShadowCrush)
     {
       return;
     }
@@ -563,6 +595,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     _isRespawning = false;
     _respawnBlockedUntilTime = 0f;
     _isPlayerDead = false;
+    ClearShadowCrushPauseState();
     _hasRequestedGameOverReload = false;
 
     if (_spawnedPlayerInstance != null)
@@ -639,6 +672,118 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
     var respawnTransform = spawnPoint != null ? spawnPoint : transform;
     return respawnTransform.rotation;
+  }
+
+  private void OnSpawnedPlayerShadowCrushed()
+  {
+    if (reloadSceneOnShadowCrush)
+    {
+      KillSpawnedPlayerAtCurrentPosition(GameOverCause.Crush);
+      return;
+    }
+
+    PauseSpawnedPlayerForShadowCrush();
+  }
+
+  private void OnSpawnedPlayerReleasedFromCrush()
+  {
+    ResumeSpawnedPlayerFromShadowCrush();
+  }
+
+  private void PauseSpawnedPlayerForShadowCrush()
+  {
+    if (_spawnedPlayerInstance == null || _isPlayerDead)
+    {
+      return;
+    }
+
+    _isShadowCrushPaused = true;
+    StopOverlapRecoveryCoroutine();
+    CacheConstraintsBeforeShadowCrushPause();
+    SetSpawnedPlayer2DGameplayEnabled(
+      false,
+      keepPhysicsSimulationWhenDisabled: true,
+      preserveCurrentMotion: false,
+      keepCrushDetectorEnabledWhenDisabled: true);
+
+    if (_spawnedPlayerAnimator != null)
+    {
+      _spawnedPlayerAnimator.SetForcedFallState(true);
+    }
+
+    if (_spawnedPlayerRigidbody2D != null)
+    {
+      _spawnedPlayerRigidbody2D.constraints = RigidbodyConstraints2D.FreezeAll;
+    }
+
+    SetSpawnedPlayerVisible(true);
+  }
+
+  private void ResumeSpawnedPlayerFromShadowCrush()
+  {
+    if (_spawnedPlayerInstance == null || _isPlayerDead || !_isShadowCrushPaused)
+    {
+      return;
+    }
+
+    RestoreConstraintsAfterShadowCrushPause();
+    _isShadowCrushPaused = false;
+
+    var switcher = FindFirstObjectByType<SpaceViewModeSwitcher>();
+    var shouldEnableGameplay = switcher == null || switcher.ShouldEnablePlayerGameplay;
+    SetSpawnedPlayer2DGameplayEnabled(
+      shouldEnableGameplay,
+      keepPhysicsSimulationWhenDisabled: false,
+      preserveCurrentMotion: false);
+
+    if (_spawnedPlayerAnimator != null)
+    {
+      _spawnedPlayerAnimator.SetForcedFallState(false);
+    }
+
+    if (_spawnedPlayerController != null)
+    {
+      _spawnedPlayerController.ResetMovementDirection();
+    }
+
+    if (_spawnedPlayerRigidbody2D != null)
+    {
+      _spawnedPlayerRigidbody2D.WakeUp();
+    }
+
+    SetSpawnedPlayerVisible(true);
+  }
+
+  private void CacheConstraintsBeforeShadowCrushPause()
+  {
+    if (_spawnedPlayerRigidbody2D == null || _hasSavedConstraintsBeforeShadowCrushPause)
+    {
+      return;
+    }
+
+    _savedConstraintsBeforeShadowCrushPause = _spawnedPlayerRigidbody2D.constraints;
+    _hasSavedConstraintsBeforeShadowCrushPause = true;
+  }
+
+  private void RestoreConstraintsAfterShadowCrushPause()
+  {
+    if (_spawnedPlayerRigidbody2D != null && _hasSavedConstraintsBeforeShadowCrushPause)
+    {
+      _spawnedPlayerRigidbody2D.constraints = _savedConstraintsBeforeShadowCrushPause;
+    }
+
+    _hasSavedConstraintsBeforeShadowCrushPause = false;
+  }
+
+  private void ClearShadowCrushPauseState()
+  {
+    if (_spawnedPlayerAnimator != null)
+    {
+      _spawnedPlayerAnimator.SetForcedFallState(false);
+    }
+
+    RestoreConstraintsAfterShadowCrushPause();
+    _isShadowCrushPaused = false;
   }
 
   private enum PlayerPlacementTarget

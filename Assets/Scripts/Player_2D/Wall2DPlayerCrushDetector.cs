@@ -14,6 +14,7 @@ public sealed class Wall2DPlayerCrushDetector : MonoBehaviour
   private static readonly List<Wall2DPlayerCrushDetector> DetectorSnapshot = new List<Wall2DPlayerCrushDetector>();
 
   public event Action Crushed;
+  public event Action ReleasedFromCrush;
 
   [Header("Shadow Crush Check")]
   [SerializeField] private LayerMask crushLayers = ~0;
@@ -92,6 +93,13 @@ public sealed class Wall2DPlayerCrushDetector : MonoBehaviour
       // 挟まれ始めた瞬間だけイベントを送る。
       _isCrushed = true;
       Crushed?.Invoke();
+      return;
+    }
+
+    if (!isCrushedNow && _isCrushed)
+    {
+      _isCrushed = false;
+      ReleasedFromCrush?.Invoke();
       return;
     }
 
