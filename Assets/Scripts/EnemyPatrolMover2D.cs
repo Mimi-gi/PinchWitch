@@ -9,7 +9,15 @@ public sealed class EnemyPatrolMover2D : MonoBehaviour, IRuntimeResettable
     Vertical,
   }
 
+  public enum InitialPositionReference
+  {
+    Center,
+    LowerOrLeftEnd,
+    UpperOrRightEnd,
+  }
+
   [SerializeField] private PatrolAxis patrolAxis = PatrolAxis.Horizontal;
+  [SerializeField] private InitialPositionReference initialPositionReference = InitialPositionReference.Center;
   [SerializeField] private float speed = 2f;
   [SerializeField] private float moveRange = 3f;
 
@@ -49,8 +57,8 @@ public sealed class EnemyPatrolMover2D : MonoBehaviour, IRuntimeResettable
 
   private void ApplyPatrolPosition()
   {
-    var offset = Mathf.Sin(_elapsedTime * speed) * moveRange;
-    var localPosition = _initialLocalPosition;
+    var localPosition = GetPatrolCenterLocalPosition();
+    var offset = GetPatrolOffset();
 
     switch (patrolAxis)
     {
@@ -63,6 +71,52 @@ public sealed class EnemyPatrolMover2D : MonoBehaviour, IRuntimeResettable
     }
 
     transform.localPosition = localPosition;
+  }
+
+  private Vector3 GetPatrolCenterLocalPosition()
+  {
+    var localPosition = _initialLocalPosition;
+
+    switch (initialPositionReference)
+    {
+      case InitialPositionReference.LowerOrLeftEnd:
+        if (patrolAxis == PatrolAxis.Horizontal)
+        {
+          localPosition.x += moveRange;
+        }
+        else
+        {
+          localPosition.y += moveRange;
+        }
+        break;
+      case InitialPositionReference.UpperOrRightEnd:
+        if (patrolAxis == PatrolAxis.Horizontal)
+        {
+          localPosition.x -= moveRange;
+        }
+        else
+        {
+          localPosition.y -= moveRange;
+        }
+        break;
+    }
+
+    return localPosition;
+  }
+
+  private float GetPatrolOffset()
+  {
+    switch (initialPositionReference)
+    {
+      case InitialPositionReference.Center:
+        return Mathf.Sin(_elapsedTime * speed) * moveRange;
+      case InitialPositionReference.LowerOrLeftEnd:
+        return Mathf.Cos(_elapsedTime * speed) * moveRange;
+      case InitialPositionReference.UpperOrRightEnd:
+        return Mathf.Cos(_elapsedTime * speed) * moveRange;
+      default:
+        return 0f;
+    }
   }
 
   private void ClampSerializedValues()
