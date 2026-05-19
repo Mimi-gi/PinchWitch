@@ -18,6 +18,15 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   [SerializeField] private float fallRespawnYThreshold = -10f;
   [SerializeField] private LayerMask overlapRecoveryLayers = ~0;
   [SerializeField] private float respawnCooldownSeconds = 0.5f;
+  [Header("Initial Gameplay")]
+  [SerializeField] private bool initialGameplayEnabled;
+  [Header("Start/Stop Input")]
+  [SerializeField] private bool enableStartStopInput;
+  [SerializeField] private KeyCode startStopGameplayKey = KeyCode.Space;
+  [SerializeField] private HandPinchController handPinchController;
+  [SerializeField] private float goodGestureStartHoldSeconds = 2f;
+  [SerializeField] private float goodGestureMovementToggleHoldSeconds = 0.35f;
+  [SerializeField] private bool playGoodReactionOnStart = true;
   [Header("Game Over")]
   [SerializeField] private bool reloadSceneOnGameOver;
   [SerializeField] private bool reloadSceneOnShadowCrush = false;
@@ -44,6 +53,13 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   private bool _hasRequestedGameOverReload;
   private RigidbodyConstraints2D _savedConstraintsBeforeShadowCrushPause;
   private bool _hasSavedConstraintsBeforeShadowCrushPause;
+  private bool _requestedPlayerGameplayEnabled;
+  private bool _hasReceivedGameplayRequest;
+  private float _startStopGoodGestureHeldSeconds;
+  private bool _waitForStartStopInputRelease;
+  private bool _isStartReactionPlaying;
+  private float _startReactionEndTime;
+  private bool _hasPlayedGameplayStartSE;
 
   public int ResetOrder => 0;
 
@@ -57,11 +73,14 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   private void Reset()
   {
     AutoAssignMissingReferences();
+    ClampSerializedValues();
   }
 
   private void Awake()
   {
+    ClampSerializedValues();
     AutoAssignMissingReferences();
+    InitializeRequestedGameplayStateIfNeeded();
     RegisterScenePlacedPlayerIfAvailable();
   }
 
@@ -78,6 +97,9 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
   private void Update()
   {
+    UpdateGameplayStartReactionPlayback();
+    UpdateGameplayStartStopInput();
+
     // 落下死は常時監視する。2D/3D 切り替え前提のゲートは持たない。
     if (!respawnAtInitialPointWhenFallen
         || _spawnedPlayerInstance == null
@@ -104,16 +126,19 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   /// </summary>
   public void SetPlayerGameplayEnabled(bool isEnabled)
   {
-    if (_isShadowCrushPaused)
+    _hasReceivedGameplayRequest = true;
+    _requestedPlayerGameplayEnabled = isEnabled;
+    if (!isEnabled)
     {
-      PauseSpawnedPlayerForShadowCrush();
-      return;
+      ResetGameplayStartReactionState();
     }
 
-    SetSpawnedPlayer2DGameplayEnabled(
-      isEnabled && !_isPlayerDead,
-      keepPhysicsSimulationWhenDisabled: false,
-      preserveCurrentMotion: false);
+    ApplyInitialGameplayState();
+  }
+
+  private void OnValidate()
+  {
+    ClampSerializedValues();
   }
 
   [ContextMenu("Respawn 2D Player At Initial Point")]
@@ -224,6 +249,8 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
   private void ApplyInitialGameplayState()
   {
+    InitializeRequestedGameplayStateIfNeeded();
+
     if (_isPlayerDead)
     {
       SetSpawnedPlayer2DGameplayEnabled(false);
@@ -236,16 +263,211 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
       return;
     }
 
+    SetSpawnedPlayer2DGameplayEnabled(ShouldEnableSpawnedPlayerGameplay());
+  }
+
+  private void InitializeRequestedGameplayStateIfNeeded()
+  {
+    if (_hasReceivedGameplayRequest)
+    {
+      return;
+    }
+
     // 生成・配置直後の物理状態を、現在の視点モード設定に合わせる。
     var switcher = FindFirstObjectByType<SpaceViewModeSwitcher>();
-    if (switcher != null)
+    _requestedPlayerGameplayEnabled = switcher != null
+      ? switcher.ShouldEnablePlayerGameplay
+      : initialGameplayEnabled;
+  }
+
+  private bool ShouldEnableSpawnedPlayerGameplay()
+  {
+    return _requestedPlayerGameplayEnabled && !_isPlayerDead && !_isStartReactionPlaying;
+  }
+
+  private void UpdateGameplayStartStopInput()
+  {
+    if (!enableStartStopInput)
     {
-      SetSpawnedPlayer2DGameplayEnabled(switcher.ShouldEnablePlayerGameplay);
+      _startStopGoodGestureHeldSeconds = 0f;
+      return;
     }
-    else
+
+    if (_isStartReactionPlaying)
     {
-      SetSpawnedPlayer2DGameplayEnabled(true);
+      return;
     }
+
+    if (_waitForStartStopInputRelease)
+    {
+      _waitForStartStopInputRelease = IsStartStopInputPressed();
+      _startStopGoodGestureHeldSeconds = 0f;
+      return;
+    }
+
+    if (Input.GetKeyDown(startStopGameplayKey))
+    {
+      TogglePlayerGameplayFromStartStopInput();
+      _waitForStartStopInputRelease = Input.GetKey(startStopGameplayKey);
+      return;
+    }
+
+    if (handPinchController == null)
+    {
+      handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
+    }
+
+    if (handPinchController != null && handPinchController.IsKachinkoGestureDetected())
+    {
+      TogglePlayerGameplayFromStartStopInput();
+      _startStopGoodGestureHeldSeconds = 0f;
+      _waitForStartStopInputRelease = true;
+      return;
+    }
+
+    if (handPinchController == null || !handPinchController.IsLeftGoodGestureDetected())
+    {
+      _startStopGoodGestureHeldSeconds = 0f;
+      return;
+    }
+
+    _startStopGoodGestureHeldSeconds += Time.unscaledDeltaTime;
+    if (_startStopGoodGestureHeldSeconds < GetCurrentGoodGestureHoldSeconds())
+    {
+      return;
+    }
+
+    TogglePlayerGameplayFromStartStopInput();
+    _startStopGoodGestureHeldSeconds = 0f;
+    _waitForStartStopInputRelease = true;
+  }
+
+  private bool IsStartStopInputPressed()
+  {
+    if (Input.GetKey(startStopGameplayKey))
+    {
+      return true;
+    }
+
+    if (handPinchController == null)
+    {
+      handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
+    }
+
+    return handPinchController != null && handPinchController.IsRealTimeStartGestureDetected();
+  }
+
+  private float GetCurrentGoodGestureHoldSeconds()
+  {
+    return _requestedPlayerGameplayEnabled && _spawnedPlayerController != null && _spawnedPlayerController.isActiveAndEnabled
+      ? goodGestureMovementToggleHoldSeconds
+      : goodGestureStartHoldSeconds;
+  }
+
+  private void TogglePlayerGameplayFromStartStopInput()
+  {
+    if (!_requestedPlayerGameplayEnabled || _spawnedPlayerController == null || !_spawnedPlayerController.isActiveAndEnabled)
+    {
+      StartPlayerGameplayFromInput();
+      return;
+    }
+
+    if (_spawnedPlayerController.IsPausedByGoodGesture || _spawnedPlayerController.HasPendingGoodGesturePause)
+    {
+      _spawnedPlayerController.ResumeFromGoodGesturePause();
+      return;
+    }
+
+    if (!_spawnedPlayerController.IsMoving && !_spawnedPlayerController.IsFalling && !_spawnedPlayerController.IsClimbing)
+    {
+      return;
+    }
+
+    _spawnedPlayerController.RequestGoodGesturePause();
+  }
+
+  private void StartPlayerGameplayFromInput()
+  {
+    _hasReceivedGameplayRequest = true;
+    _requestedPlayerGameplayEnabled = true;
+    _startStopGoodGestureHeldSeconds = 0f;
+
+    if (playGoodReactionOnStart && BeginGameplayStartReactionIfPossible())
+    {
+      ApplyInitialGameplayState();
+      return;
+    }
+
+    CompleteGameplayStartFromInput();
+  }
+
+  private bool BeginGameplayStartReactionIfPossible()
+  {
+    var playerAnimator = _spawnedPlayerInstance != null
+      ? _spawnedPlayerInstance.GetComponent<Wall2DPlayerAnimator>()
+      : FindFirstObjectByType<Wall2DPlayerAnimator>(FindObjectsInactive.Include);
+    if (playerAnimator == null)
+    {
+      return false;
+    }
+
+    playerAnimator.PlayGoodReaction();
+    if (playerAnimator.GoodReactionDuration <= 0f)
+    {
+      return false;
+    }
+
+    _isStartReactionPlaying = true;
+    _startReactionEndTime = Time.unscaledTime + playerAnimator.GoodReactionDuration;
+    return true;
+  }
+
+  private void UpdateGameplayStartReactionPlayback()
+  {
+    if (!_isStartReactionPlaying)
+    {
+      return;
+    }
+
+    if (Time.unscaledTime < _startReactionEndTime)
+    {
+      return;
+    }
+
+    CompleteGameplayStartFromInput();
+  }
+
+  private void CompleteGameplayStartFromInput()
+  {
+    _isStartReactionPlaying = false;
+    _startReactionEndTime = 0f;
+    PlayGameplayStartSE();
+    ApplyInitialGameplayState();
+  }
+
+  private void PlayGameplayStartSE()
+  {
+    if (_hasPlayedGameplayStartSE || AudioManager.Instance == null)
+    {
+      return;
+    }
+
+    _hasPlayedGameplayStartSE = true;
+    AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Start);
+  }
+
+  private void ResetGameplayStartReactionState()
+  {
+    _isStartReactionPlaying = false;
+    _startReactionEndTime = 0f;
+    _hasPlayedGameplayStartSE = false;
+  }
+
+  private void ResetStartStopInputState()
+  {
+    _startStopGoodGestureHeldSeconds = 0f;
+    _waitForStartStopInputRelease = false;
+    ResetGameplayStartReactionState();
   }
 
   private void SpawnNewPlayerAtRespawnPoint()
@@ -337,6 +559,19 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
         scenePlacedPlayerInstance = playerController.gameObject;
       }
     }
+
+    if (handPinchController == null)
+    {
+      handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
+    }
+  }
+
+  private void ClampSerializedValues()
+  {
+    respawnCooldownSeconds = Mathf.Max(0f, respawnCooldownSeconds);
+    goodGestureStartHoldSeconds = Mathf.Max(0f, goodGestureStartHoldSeconds);
+    goodGestureMovementToggleHoldSeconds = Mathf.Max(0f, goodGestureMovementToggleHoldSeconds);
+    gameOverReloadDelay = Mathf.Max(0f, gameOverReloadDelay);
   }
 
   private void RegisterScenePlacedPlayerIfAvailable()
@@ -598,6 +833,13 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     ClearShadowCrushPauseState();
     _hasRequestedGameOverReload = false;
 
+    if (enableStartStopInput)
+    {
+      _hasReceivedGameplayRequest = false;
+      _requestedPlayerGameplayEnabled = initialGameplayEnabled;
+      ResetStartStopInputState();
+    }
+
     if (_spawnedPlayerInstance != null)
     {
       RepositionExistingPlayer(PlayerPlacementTarget.InitialScenePlacement);
@@ -729,10 +971,8 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     RestoreConstraintsAfterShadowCrushPause();
     _isShadowCrushPaused = false;
 
-    var switcher = FindFirstObjectByType<SpaceViewModeSwitcher>();
-    var shouldEnableGameplay = switcher == null || switcher.ShouldEnablePlayerGameplay;
     SetSpawnedPlayer2DGameplayEnabled(
-      shouldEnableGameplay,
+      ShouldEnableSpawnedPlayerGameplay(),
       keepPhysicsSimulationWhenDisabled: false,
       preserveCurrentMotion: false);
 
