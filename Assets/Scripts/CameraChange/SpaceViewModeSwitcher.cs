@@ -96,7 +96,7 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
 
     if (Input.GetKeyDown(startGameplayKey))
     {
-      StartRealTimeGameplay(playGoodReaction: true);
+      HandleStartGameplayKeyDown();
     }
   }
 
@@ -373,6 +373,22 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
     UpdatePlayerMovementState();
   }
 
+  private void HandleStartGameplayKeyDown()
+  {
+    if (!IsRealTimeGameplayStarted)
+    {
+      StartRealTimeGameplay(playGoodReaction: true);
+      return;
+    }
+
+    if (!CanUsePlayerMovementToggle())
+    {
+      return;
+    }
+
+    TogglePlayerMovement();
+  }
+
   private bool IsStartGameplayInputPressed()
   {
     if (Input.GetKey(startGameplayKey))
@@ -390,7 +406,7 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
 
   private void UpdateGoodGestureMovementToggle()
   {
-    if (!CanUseGoodGestureMovementToggle())
+    if (!CanUsePlayerMovementToggle())
     {
       _goodGestureMovementToggleHeldSeconds = 0f;
       return;
@@ -410,7 +426,7 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
 
     if (handPinchController != null && handPinchController.IsKachinkoGestureDetected())
     {
-      TogglePlayerMovementFromGoodGesture();
+      TogglePlayerMovement();
       _goodGestureMovementToggleHeldSeconds = 0f;
       _waitForGoodGestureMovementToggleRelease = true;
       return;
@@ -428,12 +444,12 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
       return;
     }
 
-    TogglePlayerMovementFromGoodGesture();
+    TogglePlayerMovement();
     _goodGestureMovementToggleHeldSeconds = 0f;
     _waitForGoodGestureMovementToggleRelease = true;
   }
 
-  private bool CanUseGoodGestureMovementToggle()
+  private bool CanUsePlayerMovementToggle()
   {
     return isRealTimeMode
       && IsRealTimeGameplayStarted
@@ -451,7 +467,7 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
     return handPinchController != null && handPinchController.IsRealTimeStartGestureDetected();
   }
 
-  private void TogglePlayerMovementFromGoodGesture()
+  private void TogglePlayerMovement()
   {
     var playerController = FindFirstObjectByType<Wall2DPlayerController>(FindObjectsInactive.Include);
     if (playerController == null)
