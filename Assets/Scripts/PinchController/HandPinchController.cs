@@ -106,6 +106,8 @@ public class HandPinchController : MonoBehaviour
   private HandInteractionProcessor _handInteractionProcessor;
   // MediaPipe ランドマークからグッドジェスチャーを判定する制御クラス。
   private GoodGestureDetector _goodGestureDetector;
+  // 左手を右手へ振り下ろすカチンコジェスチャーを判定する制御クラス。
+  private KachinkoGestureDetector _kachinkoGestureDetector;
   // 複数入力が同時に grab を操作しないようにする共有制御。
   private GrabInputCoordinator _grabInputCoordinator;
   // 前回適用済みの左右役割入れ替え設定。
@@ -286,6 +288,7 @@ public class HandPinchController : MonoBehaviour
     _rotationGestureDetector = new RotationGestureDetector(BuildRotationConfig());
     _outlineController = new OutlineController();
     _goodGestureDetector = new GoodGestureDetector();
+    _kachinkoGestureDetector = new KachinkoGestureDetector();
     _grabInputCoordinator = new GrabInputCoordinator();
     _handInteractionProcessor = new HandInteractionProcessor(_handCursorController, _grabInteractor, _rotationGestureDetector, _outlineController, BuildInteractionConfig());
     SubscribeToGrabInteractor();
@@ -374,6 +377,18 @@ public class HandPinchController : MonoBehaviour
     return isActiveAndEnabled
            && _goodGestureDetector != null
            && _goodGestureDetector.IsDetected(_mediaPipeReceiver, MediaPipeReceiver.TrackedHandType.Left);
+  }
+
+  public bool IsKachinkoGestureDetected()
+  {
+    return isActiveAndEnabled
+           && _kachinkoGestureDetector != null
+           && _kachinkoGestureDetector.IsDetected(_mediaPipeReceiver);
+  }
+
+  public bool IsRealTimeStartGestureDetected()
+  {
+    return IsLeftGoodGestureDetected() || IsKachinkoGestureDetected();
   }
 
   public bool HasAnyFreshHand()

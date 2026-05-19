@@ -118,6 +118,17 @@ public sealed class Wall2DPlayerAnimator : MonoBehaviour
     PlayState(PlayerAnimationState.Good, restart: true);
   }
 
+  public void ClearGoodReaction()
+  {
+    if (_isGoalStateLocked)
+    {
+      return;
+    }
+
+    _goodReactionEndTime = 0f;
+    PlayState(ResolveBaseState(), restart: false);
+  }
+
   public void PlayGoalReaction()
   {
     _isGoalStateLocked = true;

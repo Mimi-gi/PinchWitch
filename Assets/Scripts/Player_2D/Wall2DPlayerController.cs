@@ -69,6 +69,8 @@ public sealed class Wall2DPlayerController : MonoBehaviour
 
   /// <summary>現在、横移動する速度が設定されているか。</summary>
   public bool IsMoving => moveSpeed > Mathf.Epsilon;
+  public bool IsPausedByGoodGesture => _isPausedByGoodGesture;
+  public bool HasPendingGoodGesturePause => _pauseWhenGroundedByGoodGesture;
 
   /// <summary>
   /// 既存アニメーションとの互換用。
@@ -98,6 +100,13 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   private bool _isGrounded;
   private bool _wasFallingBeforeLanding;
   private Vector2 _currentSurfaceNormal = UpDirection;
+  private Wall2DPlayerAnimator _playerAnimator;
+  private float _resumeMoveSpeed;
+  private bool _hasResumeMoveSpeed;
+  private bool _isPausedByGoodGesture;
+  private bool _pauseWhenGroundedByGoodGesture;
+  private bool _resumeAfterGoodGestureReaction;
+  private float _goodGestureResumeAtTime;
 
   // よじ登り中は通常移動を止め、開始地点から目標地点へ補間移動する。
   private bool _isClimbing;
@@ -151,6 +160,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   private void OnDisable()
   {
     ResetClimbState();
+    ResetGoodGesturePauseState();
     _isGrounded = false;
     _wasFallingBeforeLanding = false;
     _currentSurfaceNormal = UpDirection;
@@ -167,6 +177,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   private void FixedUpdate()
   {
     UpdateMovementStallState();
+    TryCompleteGoodGestureResume();
 
     if (_isClimbing)
     {
@@ -184,6 +195,13 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     _isGrounded = hasFloorBelow;
     _currentSurfaceNormal = hasFloorBelow ? floorNormal : UpDirection;
     UpdateLandingAudioState(hasFloorBelow);
+    if (TryApplyPendingGoodGesturePause())
+    {
+      HandleWorldBoundsIfNeeded();
+      CacheObservedPosition();
+      return;
+    }
+
     if (hasFloorBelow)
     {
       HandleForwardObstacle();
@@ -205,6 +223,11 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     {
       _collider2D = GetComponent<Collider2D>();
     }
+
+    if (_playerAnimator == null)
+    {
+      _playerAnimator = GetComponent<Wall2DPlayerAnimator>();
+    }
   }
 
   private void ResetRuntimeState()
@@ -212,6 +235,8 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     ResetClimbState();
     ResetStuckTracking();
     ResetRapidReversalTracking();
+    ResetGoodGesturePauseState();
+    CacheResumeMoveSpeedIfNeeded();
     _wasFallingBeforeLanding = false;
   }
 
@@ -445,6 +470,123 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   {
     var playerHeight = _collider2D.bounds.size.y;
     return requiredClimbHeight <= playerHeight;
+  }
+
+  public bool RequestGoodGesturePause()
+  {
+    if (_isPausedByGoodGesture)
+    {
+      return false;
+    }
+
+    CacheResumeMoveSpeedIfNeeded();
+    if (CanApplyGoodGesturePauseNow())
+    {
+      ApplyGoodGesturePause();
+      return true;
+    }
+
+    _pauseWhenGroundedByGoodGesture = true;
+    return false;
+  }
+
+  public bool ResumeFromGoodGesturePause()
+  {
+    if (!_isPausedByGoodGesture && !_pauseWhenGroundedByGoodGesture)
+    {
+      return false;
+    }
+
+    _pauseWhenGroundedByGoodGesture = false;
+    if (!_isPausedByGoodGesture)
+    {
+      ResetGoodGestureResumeState();
+      return true;
+    }
+
+    BeginGoodGestureResumeReaction();
+    return true;
+  }
+
+  private void BeginGoodGestureResumeReaction()
+  {
+    _isPausedByGoodGesture = true;
+    _resumeAfterGoodGestureReaction = true;
+    PlayGoodGesturePauseAnimation();
+    StopMovement(preserveResumeSpeed: true);
+
+    var reactionDuration = GetGoodGestureReactionDuration();
+    if (reactionDuration <= Mathf.Epsilon)
+    {
+      CompleteGoodGestureResume();
+      return;
+    }
+
+    _goodGestureResumeAtTime = Time.unscaledTime + reactionDuration;
+  }
+
+  private void TryCompleteGoodGestureResume()
+  {
+    if (!_resumeAfterGoodGestureReaction || Time.unscaledTime < _goodGestureResumeAtTime)
+    {
+      return;
+    }
+
+    CompleteGoodGestureResume();
+  }
+
+  private void CompleteGoodGestureResume()
+  {
+    _isPausedByGoodGesture = false;
+    ResetGoodGestureResumeState();
+
+    if (moveSpeed <= Mathf.Epsilon)
+    {
+      moveSpeed = ResolveResumeMoveSpeed();
+    }
+
+    ResetStuckTracking();
+    ApplyImmediateMovementState();
+
+    if (_rigidbody2D == null)
+    {
+      ClearGoodGesturePauseAnimation();
+      return;
+    }
+
+    var velocity = _rigidbody2D.linearVelocity;
+    velocity.x = moveSpeed * _moveDirectionX;
+    if (_isGrounded && !useGravityWhileMoving)
+    {
+      velocity.y = 0f;
+    }
+
+    _rigidbody2D.linearVelocity = velocity;
+    ClearGoodGesturePauseAnimation();
+  }
+
+  private bool TryApplyPendingGoodGesturePause()
+  {
+    if (!_pauseWhenGroundedByGoodGesture || !CanApplyGoodGesturePauseNow())
+    {
+      return false;
+    }
+
+    ApplyGoodGesturePause();
+    return true;
+  }
+
+  private bool CanApplyGoodGesturePauseNow()
+  {
+    return _isGrounded && !_isClimbing;
+  }
+
+  private void ApplyGoodGesturePause()
+  {
+    _pauseWhenGroundedByGoodGesture = false;
+    _isPausedByGoodGesture = true;
+    PlayGoodGesturePauseAnimation();
+    StopMovement(preserveResumeSpeed: true);
   }
 
   private bool TryStartClimb(float climbHeight, Vector2 wallNormal)
@@ -862,6 +1004,78 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     ResetObservedPositionOnly();
   }
 
+  private void ResetGoodGesturePauseState()
+  {
+    _isPausedByGoodGesture = false;
+    _pauseWhenGroundedByGoodGesture = false;
+    ResetGoodGestureResumeState();
+  }
+
+  private void ResetGoodGestureResumeState()
+  {
+    _resumeAfterGoodGestureReaction = false;
+    _goodGestureResumeAtTime = 0f;
+  }
+
+  private void CacheResumeMoveSpeedIfNeeded()
+  {
+    if (moveSpeed <= Mathf.Epsilon)
+    {
+      return;
+    }
+
+    _resumeMoveSpeed = moveSpeed;
+    _hasResumeMoveSpeed = true;
+  }
+
+  private float ResolveResumeMoveSpeed()
+  {
+    if (_hasResumeMoveSpeed && _resumeMoveSpeed > Mathf.Epsilon)
+    {
+      return _resumeMoveSpeed;
+    }
+
+    return Mathf.Max(0f, moveSpeed);
+  }
+
+  private void PlayGoodGesturePauseAnimation()
+  {
+    if (_playerAnimator == null)
+    {
+      _playerAnimator = GetComponent<Wall2DPlayerAnimator>();
+    }
+
+    if (_playerAnimator != null)
+    {
+      _playerAnimator.PlayGoodReaction();
+    }
+  }
+
+  private float GetGoodGestureReactionDuration()
+  {
+    if (_playerAnimator == null)
+    {
+      _playerAnimator = GetComponent<Wall2DPlayerAnimator>();
+    }
+
+    return _playerAnimator != null
+      ? Mathf.Max(0f, _playerAnimator.GoodReactionDuration)
+      : 0f;
+  }
+
+  private void ClearGoodGesturePauseAnimation()
+  {
+    if (_playerAnimator == null)
+    {
+      _playerAnimator = GetComponent<Wall2DPlayerAnimator>();
+    }
+
+    if (_playerAnimator != null)
+    {
+      _playerAnimator.ClearGoodReaction();
+    }
+  }
+
   private void ClampSerializedValues()
   {
     moveSpeed = Mathf.Max(0f, moveSpeed);
@@ -907,6 +1121,17 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   /// </summary>
   public void MoveStop()
   {
+    ResetGoodGesturePauseState();
+    StopMovement(preserveResumeSpeed: true);
+  }
+
+  private void StopMovement(bool preserveResumeSpeed)
+  {
+    if (preserveResumeSpeed)
+    {
+      CacheResumeMoveSpeedIfNeeded();
+    }
+
     ResetClimbState();
     ResetRapidReversalTracking();
     moveSpeed = 0f;
@@ -934,6 +1159,12 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   {
     ResetClimbState();
     ResetRapidReversalTracking();
+    ResetGoodGesturePauseState();
+    if (moveSpeed <= Mathf.Epsilon)
+    {
+      moveSpeed = ResolveResumeMoveSpeed();
+    }
+
     _moveDirectionX = 1f;
 
     if (_rigidbody2D == null)
