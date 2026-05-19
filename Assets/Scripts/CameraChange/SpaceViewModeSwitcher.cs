@@ -93,11 +93,24 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
 
     UpdateRealTimeStartGesture();
     UpdateGoodGestureMovementToggle();
+    UpdateStartGameplayKey();
+  }
 
-    if (Input.GetKeyDown(startGameplayKey))
+  private void UpdateStartGameplayKey()
+  {
+    if (!Input.GetKeyDown(startGameplayKey))
     {
-      StartRealTimeGameplay(playGoodReaction: true);
+      return;
     }
+
+    if (CanUseGoodGestureMovementToggle())
+    {
+      TogglePlayerMovementFromGoodGesture();
+      _goodGestureMovementToggleHeldSeconds = 0f;
+      return;
+    }
+
+    StartRealTimeGameplay(playGoodReaction: true);
   }
 
   public void ToggleView()

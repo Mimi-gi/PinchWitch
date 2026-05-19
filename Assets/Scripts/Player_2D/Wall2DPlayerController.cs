@@ -71,6 +71,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   public bool IsMoving => moveSpeed > Mathf.Epsilon;
   public bool IsPausedByGoodGesture => _isPausedByGoodGesture;
   public bool HasPendingGoodGesturePause => _pauseWhenGroundedByGoodGesture;
+  public bool IsStoppedByStartStopInput => _isStoppedByStartStopInput;
 
   /// <summary>
   /// 既存アニメーションとの互換用。
@@ -107,6 +108,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
   private bool _pauseWhenGroundedByGoodGesture;
   private bool _resumeAfterGoodGestureReaction;
   private float _goodGestureResumeAtTime;
+  private bool _isStoppedByStartStopInput;
 
   // よじ登り中は通常移動を止め、開始地点から目標地点へ補間移動する。
   private bool _isClimbing;
@@ -236,6 +238,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     ResetStuckTracking();
     ResetRapidReversalTracking();
     ResetGoodGesturePauseState();
+    _isStoppedByStartStopInput = false;
     CacheResumeMoveSpeedIfNeeded();
     _wasFallingBeforeLanding = false;
   }
@@ -1125,6 +1128,47 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     StopMovement(preserveResumeSpeed: true);
   }
 
+  public void StopFromStartStopInput()
+  {
+    CacheRequiredComponents();
+    ResetGoodGesturePauseState();
+    _isStoppedByStartStopInput = true;
+    StopMovement(preserveResumeSpeed: true);
+    ApplyImmediateMovementState();
+    ClearGoodGesturePauseAnimation();
+  }
+
+  public void StartFromStartStopInput()
+  {
+    CacheRequiredComponents();
+    ResetGoodGesturePauseState();
+    _isStoppedByStartStopInput = false;
+
+    if (moveSpeed <= Mathf.Epsilon)
+    {
+      moveSpeed = ResolveResumeMoveSpeed();
+    }
+
+    ResetStuckTracking();
+    ApplyPhysicsConfiguration();
+    ApplyImmediateMovementState();
+    ClearGoodGesturePauseAnimation();
+
+    if (_rigidbody2D == null || moveSpeed <= Mathf.Epsilon)
+    {
+      return;
+    }
+
+    var velocity = _rigidbody2D.linearVelocity;
+    velocity.x = moveSpeed * _moveDirectionX;
+    if (_isGrounded && !useGravityWhileMoving)
+    {
+      velocity.y = 0f;
+    }
+
+    _rigidbody2D.linearVelocity = velocity;
+  }
+
   private void StopMovement(bool preserveResumeSpeed)
   {
     if (preserveResumeSpeed)
@@ -1160,6 +1204,7 @@ public sealed class Wall2DPlayerController : MonoBehaviour
     ResetClimbState();
     ResetRapidReversalTracking();
     ResetGoodGesturePauseState();
+    _isStoppedByStartStopInput = false;
     if (moveSpeed <= Mathf.Epsilon)
     {
       moveSpeed = ResolveResumeMoveSpeed();
