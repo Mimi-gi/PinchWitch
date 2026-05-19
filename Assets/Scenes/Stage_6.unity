@@ -249,13 +249,28 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 4688714040016289090, guid: 6cf051071d79c445c8947cb555a7d619,
         type: 3}
+      propertyPath: m_LocalScale.x
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 4688714040016289090, guid: 6cf051071d79c445c8947cb555a7d619,
+        type: 3}
+      propertyPath: m_LocalScale.y
+      value: 1.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 4688714040016289090, guid: 6cf051071d79c445c8947cb555a7d619,
+        type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 4688714040016289090, guid: 6cf051071d79c445c8947cb555a7d619,
+        type: 3}
       propertyPath: m_LocalPosition.x
-      value: 1.91
+      value: 2.48
       objectReference: {fileID: 0}
     - target: {fileID: 4688714040016289090, guid: 6cf051071d79c445c8947cb555a7d619,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: 3
+      value: 2.8
       objectReference: {fileID: 0}
     - target: {fileID: 4688714040016289090, guid: 6cf051071d79c445c8947cb555a7d619,
         type: 3}
@@ -297,6 +312,11 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 4688714040016289090, guid: 6cf051071d79c445c8947cb555a7d619,
+        type: 3}
+      propertyPath: m_ConstrainProportionsScale
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 4997574218467937093, guid: 6cf051071d79c445c8947cb555a7d619,
         type: 3}
       propertyPath: output
@@ -307,6 +327,11 @@ PrefabInstance:
       propertyPath: shadowRealmCollider
       value: 
       objectReference: {fileID: 1495510476}
+    - target: {fileID: 8214913180354397325, guid: 6cf051071d79c445c8947cb555a7d619,
+        type: 3}
+      propertyPath: m_Constraints
+      value: 112
+      objectReference: {fileID: 0}
     - target: {fileID: 9072919593738918452, guid: 6cf051071d79c445c8947cb555a7d619,
         type: 3}
       propertyPath: m_Name
@@ -4401,8 +4426,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: af033022b72664d00b94d1b523644082, type: 2}
-  - {fileID: 2100000, guid: ec160306277f4423cabfe39867c2fe39, type: 2}
+  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
