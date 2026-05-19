@@ -46,6 +46,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   {
     Fall,
     Crush,
+    EnemyContact,
   }
 
   private void Reset()
@@ -134,6 +135,12 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
     {
       EndRespawnGuard();
     }
+  }
+
+  [ContextMenu("Trigger Game Over From Enemy Contact")]
+  public void TriggerGameOverFromEnemyContact()
+  {
+    KillSpawnedPlayerAtCurrentPosition(GameOverCause.EnemyContact);
   }
 
   [ContextMenu("Destroy Spawned 2D Player")]
