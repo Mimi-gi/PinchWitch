@@ -5,6 +5,7 @@ public sealed class Wall2DPlayerStartStopInput : MonoBehaviour
 {
   [Header("Target")]
   [SerializeField] private Wall2DPlayerController playerController;
+  [SerializeField] private Wall2DPlayerRespawner playerRespawner;
   [SerializeField] private HandPinchController handPinchController;
 
   [Header("Input")]
@@ -51,6 +52,13 @@ public sealed class Wall2DPlayerStartStopInput : MonoBehaviour
   private void Update()
   {
     AutoAssignMissingReferences();
+    if (IsPlayerLockedByRespawner())
+    {
+      ResetPendingInputState();
+      _hasAppliedStateToCurrentPlayer = false;
+      return;
+    }
+
     ApplyCurrentStateToPlayerIfAvailable();
 
     if (UpdateTransitionReaction())
@@ -66,6 +74,11 @@ public sealed class Wall2DPlayerStartStopInput : MonoBehaviour
     if (playerController == null)
     {
       playerController = FindFirstObjectByType<Wall2DPlayerController>(FindObjectsInactive.Include);
+    }
+
+    if (playerRespawner == null)
+    {
+      playerRespawner = FindFirstObjectByType<Wall2DPlayerRespawner>(FindObjectsInactive.Include);
     }
 
     if (handPinchController == null)
@@ -97,6 +110,12 @@ public sealed class Wall2DPlayerStartStopInput : MonoBehaviour
       return;
     }
 
+    if (IsPlayerLockedByRespawner())
+    {
+      _hasAppliedStateToCurrentPlayer = false;
+      return;
+    }
+
     if (_hasAppliedStateToCurrentPlayer && !ShouldReapplyCurrentState())
     {
       return;
@@ -109,6 +128,11 @@ public sealed class Wall2DPlayerStartStopInput : MonoBehaviour
   private bool ShouldReapplyCurrentState()
   {
     if (playerController == null)
+    {
+      return false;
+    }
+
+    if (IsPlayerLockedByRespawner())
     {
       return false;
     }
@@ -178,6 +202,19 @@ public sealed class Wall2DPlayerStartStopInput : MonoBehaviour
     return handPinchController != null
            && (handPinchController.IsLeftGoodGestureDetected()
                || handPinchController.IsKachinkoGestureDetected());
+  }
+
+  private bool IsPlayerLockedByRespawner()
+  {
+    return playerRespawner != null && playerRespawner.IsShadowCrushPausedFor(playerController);
+  }
+
+  private void ResetPendingInputState()
+  {
+    _goodGestureHeldSeconds = 0f;
+    _waitForGestureRelease = IsAnyGesturePressed();
+    _isTransitionReactionPlaying = false;
+    _transitionReactionEndTime = 0f;
   }
 
   private void RequestMovementToggle()

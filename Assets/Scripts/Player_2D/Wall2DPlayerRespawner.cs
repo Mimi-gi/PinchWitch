@@ -62,6 +62,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   private bool _hasPlayedGameplayStartSE;
 
   public int ResetOrder => 0;
+  public bool IsShadowCrushPaused => _isShadowCrushPaused;
 
   private enum GameOverCause
   {
@@ -288,6 +289,12 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   private void UpdateGameplayStartStopInput()
   {
     if (!enableStartStopInput)
+    {
+      _startStopGoodGestureHeldSeconds = 0f;
+      return;
+    }
+
+    if (_isShadowCrushPaused)
     {
       _startStopGoodGestureHeldSeconds = 0f;
       return;
@@ -697,8 +704,36 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
   private void OnSpawnedPlayerMovementStalled()
   {
+    if (TryHandleShadowCrushBeforeStallRespawn())
+    {
+      return;
+    }
+
     // 移動停止が続いた場合も、壁詰まりや引っ掛かりとみなして復帰する。
     RespawnPlayerAtInitialPoint();
+  }
+
+  private bool TryHandleShadowCrushBeforeStallRespawn()
+  {
+    if (_isShadowCrushPaused || _isPlayerDead)
+    {
+      return true;
+    }
+
+    if (_spawnedPlayerCrushDetector == null || !_spawnedPlayerCrushDetector.isActiveAndEnabled)
+    {
+      return false;
+    }
+
+    _spawnedPlayerCrushDetector.EvaluateCrushImmediately();
+    return _isShadowCrushPaused || _isPlayerDead;
+  }
+
+  public bool IsShadowCrushPausedFor(Wall2DPlayerController playerController)
+  {
+    return _isShadowCrushPaused
+           && playerController != null
+           && _spawnedPlayerController == playerController;
   }
 
   private void KillSpawnedPlayerAtCurrentPosition(GameOverCause cause)
