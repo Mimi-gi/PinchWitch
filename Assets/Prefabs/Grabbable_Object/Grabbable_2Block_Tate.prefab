@@ -533,6 +533,9 @@ MonoBehaviour:
   targetRigidbody: {fileID: 8137880771485409852}
   registry: {fileID: 0}
   disableOutputWhileDirty: 1
+  rebuildAfterMotion: 1
+  motionPositionThreshold: 0.002
+  motionRotationThresholdDegrees: 0.2
   settleVelocityThreshold: 0.02
   settleAngularVelocityThreshold: 1
   settleDuration: 0.15
