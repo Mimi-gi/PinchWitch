@@ -245,6 +245,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4939709069544376614}
   - component: {fileID: 3370391816586059772}
+  - component: {fileID: 1128406784049987300}
   - component: {fileID: 3144679010252584525}
   - component: {fileID: 1490678915622852805}
   - component: {fileID: 7914165727145019685}
@@ -329,6 +330,27 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
+--- !u!114 &1128406784049987300
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8455678841335083124}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8fd6179b9ac21944f83dcff17c269daa, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::Wall2DPlayerCrushDetector
+  crushLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  crushCheckDistance: 0.04
+  minimumCrushContactAlignment: 0.65
+  fullCoverSampleRatio: 0.9
+  fullCoverSampleColumns: 3
+  fullCoverSampleRows: 5
+  fullCoverSampleInset: 0.02
 --- !u!114 &3144679010252584525
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -345,6 +367,9 @@ MonoBehaviour:
   initialPositionReference: 2
   speed: 2
   moveRange: 8
+  stopWhileShadowCrushed: 1
+  reverseWhenTouchingShadowEdge: 1
+  shadowCrushDetector: {fileID: 1128406784049987300}
 --- !u!114 &1490678915622852805
 MonoBehaviour:
   m_ObjectHideFlags: 0
