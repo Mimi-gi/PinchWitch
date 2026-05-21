@@ -8,7 +8,7 @@ public class HandPinchController : MonoBehaviour
 {
   private const string GrabbableLayerName = "Grabbable";
   private const string GlassLayerName = "Glass";
-  private const string CursorLayerName = "World3D";
+  private const string CursorLayerName = "handCursor";
 
   public event Action<Rigidbody> GrabStarted;
   public event Action<Rigidbody> GrabReleased;

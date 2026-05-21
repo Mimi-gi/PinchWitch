@@ -2,7 +2,7 @@ using UnityEngine;
 
 public sealed class HandCursorController
 {
-  private const string CursorLayerName = "World3D";
+  private const string CursorLayerName = "handCursor";
 
   // depth 未確定時に使うカーソル色。
   private static readonly Color UncalibratedCursorColor = Color.red;
