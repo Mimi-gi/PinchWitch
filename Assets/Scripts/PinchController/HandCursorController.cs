@@ -2,7 +2,7 @@ using UnityEngine;
 
 public sealed class HandCursorController
 {
-  private const string PlaneLayerName = "Plane";
+  private const string CursorLayerName = "World3D";
 
   // depth 未確定時に使うカーソル色。
   private static readonly Color UncalibratedCursorColor = Color.red;
@@ -316,7 +316,7 @@ public sealed class HandCursorController
     backWorldZ = _zRange.x;
   }
 
-  // カーソルを Plane レイヤーに揃える。
+  // カーソルを描画対象の 3D ワールドレイヤーに揃える。
   private void ApplyCursorLayer()
   {
     if (_cursorSphere == null)
@@ -324,13 +324,13 @@ public sealed class HandCursorController
       return;
     }
 
-    var planeLayer = LayerMask.NameToLayer(PlaneLayerName);
-    if (planeLayer < 0)
+    var cursorLayer = LayerMask.NameToLayer(CursorLayerName);
+    if (cursorLayer < 0)
     {
       return;
     }
 
-    SetLayerRecursively(_cursorSphere, planeLayer);
+    SetLayerRecursively(_cursorSphere, cursorLayer);
   }
 
   private static void SetLayerRecursively(Transform target, int layer)
