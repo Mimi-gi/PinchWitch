@@ -31,6 +31,19 @@ public sealed class Wall2DPlayerCrushDetector : MonoBehaviour
   private Collider2D _collider2D;
   private bool _isCrushed;
 
+  public bool IsCrushed => _isCrushed;
+
+  public bool IsShadowBlockingDirection(Vector2 direction)
+  {
+    if (_collider2D == null || direction.sqrMagnitude <= Mathf.Epsilon)
+    {
+      return false;
+    }
+
+    var contactFilter = Wall2DContactCastUtility.CreateContactFilter(crushLayers);
+    return HasShadowBlockingHit(direction.normalized, contactFilter);
+  }
+
   private void Reset()
   {
     ClampSerializedValues();
