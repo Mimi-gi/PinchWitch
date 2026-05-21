@@ -15,7 +15,7 @@ GameObject:
   - component: {fileID: 6366986472787756893}
   - component: {fileID: 2625326601827704127}
   - component: {fileID: 4113359618184724247}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Enemy_MovingLeftRight
   m_TagString: Untagged
   m_Icon: {fileID: 0}
