@@ -8,7 +8,7 @@ public class HandPinchController : MonoBehaviour
 {
   private const string GrabbableLayerName = "Grabbable";
   private const string GlassLayerName = "Glass";
-  private const string PlaneLayerName = "Plane";
+  private const string CursorLayerName = "handCursor";
 
   public event Action<Rigidbody> GrabStarted;
   public event Action<Rigidbody> GrabReleased;
@@ -224,9 +224,9 @@ public class HandPinchController : MonoBehaviour
 
   private static Camera FindWorldCameraForCursor()
   {
-    var planeLayer = LayerMask.NameToLayer(PlaneLayerName);
+    var cursorLayer = LayerMask.NameToLayer(CursorLayerName);
     var mainCamera = Camera.main;
-    if (CanCameraRenderLayer(mainCamera, planeLayer))
+    if (CanCameraRenderLayer(mainCamera, cursorLayer))
     {
       return mainCamera;
     }
@@ -234,7 +234,7 @@ public class HandPinchController : MonoBehaviour
     var cameras = FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None);
     foreach (var candidate in cameras)
     {
-      if (candidate != null && candidate.isActiveAndEnabled && CanCameraRenderLayer(candidate, planeLayer))
+      if (candidate != null && candidate.isActiveAndEnabled && CanCameraRenderLayer(candidate, cursorLayer))
       {
         return candidate;
       }
@@ -242,7 +242,7 @@ public class HandPinchController : MonoBehaviour
 
     foreach (var candidate in cameras)
     {
-      if (CanCameraRenderLayer(candidate, planeLayer))
+      if (CanCameraRenderLayer(candidate, cursorLayer))
       {
         return candidate;
       }
