@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 774741895628215112}
   - component: {fileID: 5145742312237073888}
+  - component: {fileID: 7136457054918892664}
   m_Layer: 0
   m_Name: Audio
   m_TagString: Untagged
@@ -69,6 +70,47 @@ MonoBehaviour:
   SE_Turn: {fileID: 8300000, guid: 84a72ffcc837b624899ce164723b3aef, type: 3}
   SE_Tutorial: {fileID: 8300000, guid: ae158305d2866db449a7858805a36be9, type: 3}
   SE_Walk: {fileID: 8300000, guid: 490ac0a30965d2a438e43566dc613f9f, type: 3}
+--- !u!114 &7136457054918892664
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 850822117290817037}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0a96b238cf54e6bb6e72aeb7f382af1, type: 3}
+  m_Name: ""
+  m_EditorClassIdentifier: Assembly-CSharp::BGMController
+  bgmSource: {fileID: 4312643198815492640}
+  sceneBGMEntries:
+  - sceneName: Title
+    matchType: 0
+    clip: {fileID: 8300000, guid: e08f54a696d262048aab558b07d01de1, type: 3}
+    volume: 1
+  - sceneName: Opening
+    matchType: 0
+    clip: {fileID: 8300000, guid: e08f54a696d262048aab558b07d01de1, type: 3}
+    volume: 1
+  - sceneName: Ending
+    matchType: 0
+    clip: {fileID: 8300000, guid: e08f54a696d262048aab558b07d01de1, type: 3}
+    volume: 1
+  - sceneName: StageSelect
+    matchType: 0
+    clip: {fileID: 8300000, guid: a99e522ad15cc9f4eb097c7d4427b822, type: 3}
+    volume: 1
+  - sceneName: Tutorial
+    matchType: 0
+    clip: {fileID: 8300000, guid: e686dc26480e36b4cb9f90a00fb5c4b5, type: 3}
+    volume: 1
+  - sceneName: Stage_
+    matchType: 1
+    clip: {fileID: 8300000, guid: e686dc26480e36b4cb9f90a00fb5c4b5, type: 3}
+    volume: 1
+  defaultClip: {fileID: 0}
+  defaultVolume: 1
+  stopWhenSceneHasNoBGM: 0
 --- !u!1 &1053422553157014515
 GameObject:
   m_ObjectHideFlags: 0
@@ -117,7 +159,7 @@ AudioSource:
   m_PlayOnAwake: 0
   m_Volume: 1
   m_Pitch: 1
-  Loop: 0
+  Loop: 1
   Mute: 0
   Spatialize: 0
   SpatializePostEffects: 0
