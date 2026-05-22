@@ -260,6 +260,7 @@ MonoBehaviour:
   _handPinchController: {fileID: 0}
   _startWhenHandDetected: 1
   _handDetectedStartDelaySeconds: 1
+  _startKey: 32
 --- !u!4 &79659016
 Transform:
   m_ObjectHideFlags: 0
@@ -1040,6 +1041,11 @@ PrefabInstance:
       propertyPath: m_Name
       value: Audio
       objectReference: {fileID: 0}
+    - target: {fileID: 7136457054918892664, guid: ea9cde5f4718e478995e3a717967b864,
+        type: 3}
+      propertyPath: sceneBGMEntries.Array.data[2].clip
+      value: 
+      objectReference: {fileID: 8300000, guid: 06854059e2d1a4ed2bc5b1327bb3313f, type: 3}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
