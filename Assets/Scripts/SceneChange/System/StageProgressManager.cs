@@ -99,6 +99,17 @@ public static class StageProgressManager
     return stageNum;
   }
 
+  public static void DeleteSaveData()
+  {
+    _clearStageCount = 0;
+    _lastNewlyClearedStageNum = 0;
+    _isLoaded = true;
+    GameSceneManager.ClearStageCount = 0;
+    GameSceneManager.CurrentStageNum = 1;
+    PlayerPrefs.DeleteKey(ClearStageCountKey);
+    PlayerPrefs.Save();
+  }
+
   public static bool TryGetCurrentStageNum(out int stageNum)
   {
     if (TryParseStageSceneName(SceneManager.GetActiveScene().name, out stageNum))

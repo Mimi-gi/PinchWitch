@@ -68,6 +68,9 @@ public class GameSceneManager : MonoBehaviour
   [SerializeField] private bool _isDebug = false;
   [SerializeField] private int _debugStartStage = 1;
 
+  [Header("展示会リセット")]
+  [SerializeField] private KeyCode _deleteSaveAndReturnTitleKey = KeyCode.P;
+
   //=========================================================
   // フェード設定
   //=========================================================
@@ -109,6 +112,16 @@ public class GameSceneManager : MonoBehaviour
     }
   }
 
+  private void Update()
+  {
+    if (_deleteSaveAndReturnTitleKey == KeyCode.None || !Input.GetKeyDown(_deleteSaveAndReturnTitleKey))
+    {
+      return;
+    }
+
+    DeleteSaveDataAndGoTitle();
+  }
+
   [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
   private static void BootstrapIfNeeded()
   {
@@ -131,6 +144,17 @@ public class GameSceneManager : MonoBehaviour
       return;
     }
 
+    LoadDirect(_instance._titleSceneName);
+  }
+
+  public static void DeleteSaveDataAndGoTitle()
+  {
+    if (!EnsureInstance())
+    {
+      return;
+    }
+
+    StageProgressManager.DeleteSaveData();
     LoadDirect(_instance._titleSceneName);
   }
 
