@@ -20,6 +20,7 @@ public class TitleSceneController : MonoBehaviour
   [SerializeField] private HandPinchController _handPinchController;
   [SerializeField] private bool _startWhenHandDetected = true;
   [SerializeField] private float _handDetectedStartDelaySeconds = 1f;
+  [SerializeField] private KeyCode _startKey = KeyCode.Space;
 
   private bool _isStarting;
 
@@ -35,7 +36,18 @@ public class TitleSceneController : MonoBehaviour
 
   private void Update()
   {
-    if (!_startWhenHandDetected || _isStarting || !IsAnyHandDetected())
+    if (_isStarting)
+    {
+      return;
+    }
+
+    if (Input.GetKeyDown(_startKey))
+    {
+      StartFromTitleInput();
+      return;
+    }
+
+    if (!_startWhenHandDetected || !IsAnyHandDetected())
     {
       return;
     }
@@ -54,6 +66,11 @@ public class TitleSceneController : MonoBehaviour
       return;
     }
 
+    StartFromTitleInput();
+  }
+
+  private void StartFromTitleInput()
+  {
     _isStarting = true;
     StartGame();
   }
