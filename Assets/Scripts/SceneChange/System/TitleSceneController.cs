@@ -3,7 +3,7 @@
 // 作成者     : 彩乃
 // 作成日     : 2025/04/10
 // 説明       : Titleシーン専用。ボタンイベントと初回起動判定を担当。
-//              初回起動時はTutorialへ、2回目以降はStageSelectへ遷移する。
+//              stage_1クリア前はOpeningへ、クリア後はStageSelectへ遷移する。
 //              終了ボタンはQuitHandlerを使わない場合の代替として保持。
 //=============================================================
 
@@ -15,7 +15,6 @@ using UnityEngine;
 /// </summary>
 public class TitleSceneController : MonoBehaviour
 {
-  private const string _KeyHasLaunched = "HasLaunchedBefore";
   private const int FirstStageNum = 1;
 
   [SerializeField] private HandPinchController _handPinchController;
@@ -46,7 +45,7 @@ public class TitleSceneController : MonoBehaviour
 
   /// <summary>
   /// Startボタンに繋ぐ。
-  /// 初回起動はTutorialへ、2回目以降はStageSelectへ。
+  /// stage_1クリア前はOpeningへ、クリア後はStageSelectへ。
   /// </summary>
   public void OnStartButtonPressed()
   {
@@ -69,27 +68,13 @@ public class TitleSceneController : MonoBehaviour
 
   private void StartGame()
   {
-    if (PlayerPrefs.GetInt(_KeyHasLaunched, 0) == 0)
+    if (!StageProgressManager.IsCleared(FirstStageNum))
     {
-      PlayerPrefs.SetInt(_KeyHasLaunched, 1);
-      PlayerPrefs.Save();
-      GameSceneManager.GoTutorial();
+      GameSceneManager.GoOpening();
+      return;
     }
-    else
-    {
-      if (ShouldStartFirstStageDirectly())
-      {
-        GameSceneManager.GoStage(FirstStageNum);
-        return;
-      }
 
-      GameSceneManager.GoStageSelect();
-    }
-  }
-
-  private static bool ShouldStartFirstStageDirectly()
-  {
-    return StageProgressManager.NextPlayableStageNum == FirstStageNum;
+    GameSceneManager.GoStageSelect();
   }
 
   private static void PlayTitleSe()

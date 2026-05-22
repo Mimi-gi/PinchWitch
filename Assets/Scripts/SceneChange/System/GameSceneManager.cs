@@ -19,6 +19,8 @@ using UnityEngine.UI;
 public enum GameScene
 {
   Title,
+  Opening,
+  Ending,
   StageSelect,
   Tutorial,
 }
@@ -39,6 +41,8 @@ public class GameSceneManager : MonoBehaviour
   //=========================================================
   [Header("シーン名設定")]
   [SerializeField] private string _titleSceneName = "Title";
+  [SerializeField] private string _openingSceneName = "Opening";
+  [SerializeField] private string _endingSceneName = "Ending";
   [SerializeField] private string _selectSceneName = "StageSelect";
   [SerializeField] private string _tutorialSceneName = "stage_1";
 
@@ -140,6 +144,28 @@ public class GameSceneManager : MonoBehaviour
 
     UpdateStageSelectTutorialNarrationRequest();
     LoadDirect(_instance._selectSceneName);
+  }
+
+  /// <summary>オープニングシーンへ遷移する。</summary>
+  public static void GoOpening()
+  {
+    if (!EnsureInstance())
+    {
+      return;
+    }
+
+    LoadDirect(_instance._openingSceneName);
+  }
+
+  /// <summary>エンディングシーンへ遷移する。</summary>
+  public static void GoEnding()
+  {
+    if (!EnsureInstance())
+    {
+      return;
+    }
+
+    LoadDirect(_instance._endingSceneName);
   }
 
   public static bool ConsumeStageSelectTutorialNarrationRequest()

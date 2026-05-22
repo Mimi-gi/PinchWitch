@@ -27,6 +27,11 @@ public sealed class TrumpController : MonoBehaviour
   [SerializeField] private AnimationCurve moveCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
   [SerializeField] private AnimationCurve rotationCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
 
+  [Header("Ending")]
+  [SerializeField] private bool goEndingAfterFinalStageClear = true;
+  [SerializeField] private int endingStageNum = 10;
+  [SerializeField] private float endingTransitionDelay = 0.2f;
+
   private Coroutine clearAnimationCoroutine;
 
   private void Start()
@@ -40,7 +45,7 @@ public sealed class TrumpController : MonoBehaviour
 
     if (shouldAnimate)
     {
-      clearAnimationCoroutine = StartCoroutine(PlayClearAnimation(GetTrump(newlyClearedStageNum)));
+      clearAnimationCoroutine = StartCoroutine(PlayClearAnimation(GetTrump(newlyClearedStageNum), newlyClearedStageNum));
     }
   }
 
@@ -70,7 +75,7 @@ public sealed class TrumpController : MonoBehaviour
     }
   }
 
-  private IEnumerator PlayClearAnimation(Transform trump)
+  private IEnumerator PlayClearAnimation(Transform trump, int stageNum)
   {
     Vector3 originalPosition = trump.localPosition;
     Vector3 liftedPosition = originalPosition + Vector3.up * liftHeight;
@@ -83,6 +88,16 @@ public sealed class TrumpController : MonoBehaviour
     trump.localPosition = originalPosition;
     SetFace(trump, true);
     clearAnimationCoroutine = null;
+
+    if (ShouldGoEndingAfterClear(stageNum))
+    {
+      if (endingTransitionDelay > 0f)
+      {
+        yield return new WaitForSeconds(endingTransitionDelay);
+      }
+
+      GameSceneManager.GoEnding();
+    }
   }
 
   private IEnumerator AnimateLocalPosition(Transform trump, Vector3 from, Vector3 to, float duration)
@@ -177,11 +192,20 @@ public sealed class TrumpController : MonoBehaviour
     return stageNum >= 1 && stageNum <= 10;
   }
 
+  private bool ShouldGoEndingAfterClear(int stageNum)
+  {
+    return goEndingAfterFinalStageClear
+      && stageNum == endingStageNum
+      && StageProgressManager.IsCleared(stageNum);
+  }
+
   private void OnValidate()
   {
     liftHeight = Mathf.Max(0f, liftHeight);
     liftDuration = Mathf.Max(0f, liftDuration);
     flipDuration = Mathf.Max(0f, flipDuration);
     returnDuration = Mathf.Max(0f, returnDuration);
+    endingStageNum = Mathf.Clamp(endingStageNum, 1, 10);
+    endingTransitionDelay = Mathf.Max(0f, endingTransitionDelay);
   }
 }

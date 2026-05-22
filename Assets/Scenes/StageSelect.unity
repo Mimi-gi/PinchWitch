@@ -7677,6 +7677,9 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  goEndingAfterFinalStageClear: 1
+  endingStageNum: 10
+  endingTransitionDelay: 0.2
 --- !u!4 &1803084408
 Transform:
   m_ObjectHideFlags: 0
