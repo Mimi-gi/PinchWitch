@@ -40,6 +40,8 @@ public class HandPinchController : MonoBehaviour
   [SerializeField] private LayerMask grabbableLayerMask;
   // 手元から掴み判定を行う半径。
   [SerializeField] private float reach = 2.3f;
+  // ハンドトラッキングで掴んだときにオブジェクトを持ち上げる高さ。
+  [SerializeField] private float handLiftHeight = 4f;
   // 掴みを離した直後に再掴みを禁止する時間。
   [SerializeField] private float grabReacquireCooldownSeconds = 0.12f;
   // 再掴み前に、指を開いたまま確認する時間。
@@ -424,6 +426,7 @@ public class HandPinchController : MonoBehaviour
       cursorIdleColor = cursorIdleColor,
       cursorPinchColor = cursorPinchColor,
       cursorPlaneY = cursorPlaneY,
+      grabLiftHeight = handLiftHeight,
       xRange = xRange,
       yRange = yRange,
       zRange = zRange,
@@ -494,6 +497,7 @@ public class HandPinchController : MonoBehaviour
     NormalizeRange(ref zRange);
     cursorSphereDiameter = Mathf.Max(0.01f, cursorSphereDiameter);
     reach = Mathf.Max(0f, reach);
+    handLiftHeight = Mathf.Max(0f, handLiftHeight);
     grabReacquireCooldownSeconds = Mathf.Clamp(grabReacquireCooldownSeconds, 0f, 0.5f);
     grabReopenConfirmSeconds = Mathf.Clamp(grabReopenConfirmSeconds, 0f, 0.5f);
     pinchReleaseGraceSeconds = Mathf.Clamp(pinchReleaseGraceSeconds, 0f, 0.5f);
