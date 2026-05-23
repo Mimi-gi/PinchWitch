@@ -21,6 +21,8 @@ public sealed class HandCursorController
     public Color cursorPinchColor;
     // カーソルを置く平面の Y 座標。
     public float cursorPlaneY;
+    // 掴み中オブジェクトの固定 Y 座標。
+    public float grabLiftHeight;
     // カーソルが動ける X 範囲。
     public Vector2 xRange;
     // 掴み対象に渡す Y 範囲。
@@ -47,6 +49,8 @@ public sealed class HandCursorController
   private Color _cursorPinchColor;
   // カーソルを動かす平面の Y 座標設定。
   private float _cursorPlaneY;
+  // 掴み中オブジェクトの固定 Y 座標設定。
+  private float _grabLiftHeight;
   // カーソルの X 可動範囲設定。
   private Vector2 _xRange;
   // 手ターゲットの Y 可動範囲設定。
@@ -79,6 +83,7 @@ public sealed class HandCursorController
     _cursorIdleColor = config.cursorIdleColor;
     _cursorPinchColor = config.cursorPinchColor;
     _cursorPlaneY = config.cursorPlaneY;
+    _grabLiftHeight = config.grabLiftHeight;
     _xRange = config.xRange;
     _yRange = config.yRange;
     _zRange = config.zRange;
@@ -101,7 +106,7 @@ public sealed class HandCursorController
 
     var cursorPoint = GetCursorPointOnPlane(handState);
     ShowCursor(cursorPoint, handState.pinch, handState.depthReady);
-    handTarget = GetHandTargetPoint(handState, cursorPoint);
+    handTarget = GetHandTargetPoint(cursorPoint);
     return true;
   }
 
@@ -230,12 +235,10 @@ public sealed class HandCursorController
     return new Vector3(Mathf.Lerp(_xRange.x, _xRange.y, xNorm), _cursorPlaneY, depthZ);
   }
 
-  // カーソル位置と手の高さから 3D 追従位置を作る。
-  // カーソル表示と同じ X/Z を使い、プレイヤーの手の動きとリンクさせる。
-  private Vector3 GetHandTargetPoint(HandState handState, Vector3 cursorPoint)
+  // カーソル表示と同じ X/Z、固定の持ち上げ高さ Y から 3D 追従位置を作る。
+  private Vector3 GetHandTargetPoint(Vector3 cursorPoint)
   {
-    var handY = Mathf.Lerp(_yRange.x, _yRange.y, 1f - Mathf.Clamp01(handState.y));
-    return new Vector3(cursorPoint.x, Mathf.Clamp(handY, _yRange.x, _yRange.y), cursorPoint.z);
+    return new Vector3(cursorPoint.x, Mathf.Clamp(_grabLiftHeight, _yRange.x, _yRange.y), cursorPoint.z);
   }
 
   // 正規化 depth をワールド座標の Z に変換する。
