@@ -461,7 +461,7 @@ public sealed class GrabInteractor
     return false;
   }
 
-  // 真下落下中は X/Z を固定し、横方向の速度を打ち消す。
+  // 真下落下中は X/Z を固定し、接触反発で跳ねる上向き速度も打ち消す。
   private void ConstrainVerticalDrop(VerticalDropState dropState)
   {
     if (dropState.body == null)
@@ -470,10 +470,22 @@ public sealed class GrabInteractor
     }
 
     var velocity = dropState.body.linearVelocity;
+    var changedVelocity = false;
     if (!Mathf.Approximately(velocity.x, 0f) || !Mathf.Approximately(velocity.z, 0f))
     {
       velocity.x = 0f;
       velocity.z = 0f;
+      changedVelocity = true;
+    }
+
+    if (velocity.y > 0f)
+    {
+      velocity.y = 0f;
+      changedVelocity = true;
+    }
+
+    if (changedVelocity)
+    {
       dropState.body.linearVelocity = velocity;
     }
   }
