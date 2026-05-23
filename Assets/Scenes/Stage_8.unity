@@ -933,6 +933,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4104
   reach: 2.3
+  handLiftHeight: 4
   grabReacquireCooldownSeconds: 0.12
   grabReopenConfirmSeconds: 0.08
   pinchReleaseGraceSeconds: 0.12
@@ -1080,7 +1081,7 @@ PrefabInstance:
     - target: {fileID: 6615784403733946940, guid: 2e3762ae9ffa04328b4f64988d26669e,
         type: 3}
       propertyPath: m_Tiles.Array.size
-      value: 28
+      value: 27
       objectReference: {fileID: 0}
     - target: {fileID: 6615784403733946940, guid: 2e3762ae9ffa04328b4f64988d26669e,
         type: 3}
@@ -2351,7 +2352,7 @@ PrefabInstance:
     - target: {fileID: 6615784403733946940, guid: 2e3762ae9ffa04328b4f64988d26669e,
         type: 3}
       propertyPath: m_TileColorArray.Array.data[0].m_RefCount
-      value: 28
+      value: 27
       objectReference: {fileID: 0}
     - target: {fileID: 6615784403733946940, guid: 2e3762ae9ffa04328b4f64988d26669e,
         type: 3}
@@ -2806,7 +2807,7 @@ PrefabInstance:
     - target: {fileID: 6615784403733946940, guid: 2e3762ae9ffa04328b4f64988d26669e,
         type: 3}
       propertyPath: m_TileAssetArray.Array.data[11].m_RefCount
-      value: 26
+      value: 25
       objectReference: {fileID: 0}
     - target: {fileID: 6615784403733946940, guid: 2e3762ae9ffa04328b4f64988d26669e,
         type: 3}
@@ -2831,7 +2832,7 @@ PrefabInstance:
     - target: {fileID: 6615784403733946940, guid: 2e3762ae9ffa04328b4f64988d26669e,
         type: 3}
       propertyPath: m_TileMatrixArray.Array.data[0].m_RefCount
-      value: 28
+      value: 27
       objectReference: {fileID: 0}
     - target: {fileID: 6615784403733946940, guid: 2e3762ae9ffa04328b4f64988d26669e,
         type: 3}
@@ -2906,7 +2907,7 @@ PrefabInstance:
     - target: {fileID: 6615784403733946940, guid: 2e3762ae9ffa04328b4f64988d26669e,
         type: 3}
       propertyPath: m_TileSpriteArray.Array.data[14].m_RefCount
-      value: 26
+      value: 25
       objectReference: {fileID: 0}
     - target: {fileID: 6615784403733946940, guid: 2e3762ae9ffa04328b4f64988d26669e,
         type: 3}
