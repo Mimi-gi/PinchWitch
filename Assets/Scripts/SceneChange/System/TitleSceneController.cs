@@ -4,7 +4,7 @@
 // 作成日     : 2025/04/10
 // 説明       : Titleシーン専用。ボタンイベントと初回起動判定を担当。
 //              stage_1クリア前はOpeningへ、クリア後はStageSelectへ遷移する。
-//              終了ボタンはQuitHandlerを使わない場合の代替として保持。
+//              終了ボタンから直接アプリを終了できる。
 //=============================================================
 
 using System.Collections;
@@ -119,7 +119,7 @@ public class TitleSceneController : MonoBehaviour
   }
 
   /// <summary>
-  /// 終了ボタンに繋ぐ（QuitHandlerを使わない場合の代替）。
+  /// 終了ボタンに繋ぐ。
   /// </summary>
   public void OnQuitButtonPressed()
   {
