@@ -1,6 +1,7 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
@@ -150,7 +151,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
     }
   }
 
-  private Coroutine _activeStepCoroutine;
+  private CancellationTokenSource _activeStepCts;
   private int _currentStepIndex = -1;
   private int _currentPageIndex = -1;
   private int _visibleCharacterCount;
@@ -166,7 +167,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
   private float _advanceInputBlockedUntilUnscaledTime;
   private bool _waitForAdvanceInputRelease;
   private float _autoAdvanceNarrationAtUnscaledTime = -1f;
-  private Coroutine _pendingGoalAdvanceCoroutine;
+  private CancellationTokenSource _pendingGoalAdvanceCts;
 
   private void Reset()
   {
@@ -506,7 +507,8 @@ public sealed class TutorialSequenceController : MonoBehaviour
   private void StartWaitForSeconds(TutorialStep step)
   {
     LogDebug($"Waiting for seconds: {step.waitSeconds:0.###} (unscaled={step.useUnscaledTime})");
-    _activeStepCoroutine = StartCoroutine(WaitForSecondsStep(step.waitSeconds, step.useUnscaledTime));
+    _activeStepCts = new CancellationTokenSource();
+    WaitForSecondsStepAsync(step.waitSeconds, step.useUnscaledTime, _activeStepCts.Token).Forget();
   }
 
   private void StartFadeScreen(TutorialStep step)
@@ -522,28 +524,22 @@ public sealed class TutorialSequenceController : MonoBehaviour
 
     LogDebug(
       $"Fade screen: color={step.fadeColor}, from={step.fadeFromAlpha:0.##}, to={step.fadeToAlpha:0.##}, duration={step.fadeDuration:0.###}, unscaled={step.fadeUseUnscaledTime}");
-    _activeStepCoroutine = StartCoroutine(FadeScreenStep(step));
+    _activeStepCts = new CancellationTokenSource();
+    FadeScreenStepAsync(step, _activeStepCts.Token).Forget();
   }
 
-  private IEnumerator WaitForSecondsStep(float waitSeconds, bool useUnscaledTime)
+  private async UniTaskVoid WaitForSecondsStepAsync(float waitSeconds, bool useUnscaledTime, CancellationToken ct)
   {
     if (waitSeconds > 0f)
     {
-      if (useUnscaledTime)
-      {
-        yield return new WaitForSecondsRealtime(waitSeconds);
-      }
-      else
-      {
-        yield return new WaitForSeconds(waitSeconds);
-      }
+      await UniTask.Delay(TimeSpan.FromSeconds(waitSeconds), ignoreTimeScale: useUnscaledTime, cancellationToken: ct);
     }
 
-    _activeStepCoroutine = null;
+    _activeStepCts = null;
     CompleteCurrentStep();
   }
 
-  private IEnumerator FadeScreenStep(TutorialStep step)
+  private async UniTaskVoid FadeScreenStepAsync(TutorialStep step, CancellationToken ct)
   {
     SetScreenFadeImmediate(step.fadeColor, step.fadeFromAlpha);
 
@@ -555,13 +551,13 @@ public sealed class TutorialSequenceController : MonoBehaviour
         elapsed += step.fadeUseUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
         var t = Mathf.Clamp01(elapsed / step.fadeDuration);
         ApplyScreenFadeAlpha(Mathf.Lerp(step.fadeFromAlpha, step.fadeToAlpha, t));
-        yield return null;
+        await UniTask.Yield(ct);
       }
     }
 
     ApplyScreenFadeAlpha(step.fadeToAlpha);
 
-    _activeStepCoroutine = null;
+    _activeStepCts = null;
     CompleteCurrentStep();
   }
 
@@ -804,58 +800,61 @@ public sealed class TutorialSequenceController : MonoBehaviour
     }
 
     StopPendingGoalAdvanceCoroutine();
+    _pendingGoalAdvanceCts = new CancellationTokenSource();
 
     if (_isWaitingForTrigger && string.Equals(_expectedTriggerId, goalTriggerId, StringComparison.OrdinalIgnoreCase))
     {
-      _pendingGoalAdvanceCoroutine = StartCoroutine(HandleGoalReachedAfterDelay(_, completeSequenceDirectly: false));
+      HandleGoalReachedAfterDelayAsync(_, completeSequenceDirectly: false, _pendingGoalAdvanceCts.Token).Forget();
       return;
     }
 
-    _pendingGoalAdvanceCoroutine = StartCoroutine(HandleGoalReachedAfterDelay(_, completeSequenceDirectly: true));
+    HandleGoalReachedAfterDelayAsync(_, completeSequenceDirectly: true, _pendingGoalAdvanceCts.Token).Forget();
   }
 
   private void StopActiveStepCoroutine()
   {
-    if (_activeStepCoroutine == null)
+    if (_activeStepCts == null)
     {
       return;
     }
 
-    StopCoroutine(_activeStepCoroutine);
-    _activeStepCoroutine = null;
+    _activeStepCts.Cancel();
+    _activeStepCts.Dispose();
+    _activeStepCts = null;
   }
 
   private void StopPendingGoalAdvanceCoroutine()
   {
-    if (_pendingGoalAdvanceCoroutine == null)
+    if (_pendingGoalAdvanceCts == null)
     {
       return;
     }
 
-    StopCoroutine(_pendingGoalAdvanceCoroutine);
-    _pendingGoalAdvanceCoroutine = null;
+    _pendingGoalAdvanceCts.Cancel();
+    _pendingGoalAdvanceCts.Dispose();
+    _pendingGoalAdvanceCts = null;
   }
 
-  private IEnumerator HandleGoalReachedAfterDelay(Collider2D playerCollider, bool completeSequenceDirectly)
+  private async UniTaskVoid HandleGoalReachedAfterDelayAsync(Collider2D playerCollider, bool completeSequenceDirectly, CancellationToken ct)
   {
     var waitSeconds = ResolveGoalAdvanceDelaySeconds(playerCollider);
     if (waitSeconds > 0f)
     {
       LogDebug($"Waiting for goal reaction: {waitSeconds:0.###} seconds");
-      yield return new WaitForSecondsRealtime(waitSeconds);
+      await UniTask.Delay(TimeSpan.FromSeconds(waitSeconds), ignoreTimeScale: true, cancellationToken: ct);
     }
 
-    _pendingGoalAdvanceCoroutine = null;
+    _pendingGoalAdvanceCts = null;
 
     if (!_isSequenceRunning || _isSequenceCompleted)
     {
-      yield break;
+      return;
     }
 
     if (completeSequenceDirectly)
     {
       CompleteSequence();
-      yield break;
+      return;
     }
 
     NotifyTriggerReached(goalTriggerId);

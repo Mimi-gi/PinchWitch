@@ -7,7 +7,6 @@
 //              終了ボタンから直接アプリを終了できる。
 //=============================================================
 
-using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -17,22 +16,9 @@ public class TitleSceneController : MonoBehaviour
 {
   private const int FirstStageNum = 1;
 
-  [SerializeField] private HandPinchController _handPinchController;
-  [SerializeField] private bool _startWhenHandDetected = true;
-  [SerializeField] private float _handDetectedStartDelaySeconds = 1f;
   [SerializeField] private KeyCode _startKey = KeyCode.Space;
 
   private bool _isStarting;
-
-  private void Awake()
-  {
-    ResolveHandPinchController();
-  }
-
-  private void OnValidate()
-  {
-    _handDetectedStartDelaySeconds = Mathf.Max(0f, _handDetectedStartDelaySeconds);
-  }
 
   private void Update()
   {
@@ -44,15 +30,7 @@ public class TitleSceneController : MonoBehaviour
     if (Input.GetKeyDown(_startKey))
     {
       StartFromTitleInput();
-      return;
     }
-
-    if (!_startWhenHandDetected || !IsAnyHandDetected())
-    {
-      return;
-    }
-
-    StartCoroutine(StartAfterHandDetectedRoutine());
   }
 
   /// <summary>
@@ -75,14 +53,6 @@ public class TitleSceneController : MonoBehaviour
     StartGame();
   }
 
-  private IEnumerator StartAfterHandDetectedRoutine()
-  {
-    _isStarting = true;
-    yield return new WaitForSecondsRealtime(_handDetectedStartDelaySeconds);
-    PlayTitleSe();
-    StartGame();
-  }
-
   private void StartGame()
   {
     if (!StageProgressManager.IsCleared(FirstStageNum))
@@ -92,30 +62,6 @@ public class TitleSceneController : MonoBehaviour
     }
 
     GameSceneManager.GoStageSelect();
-  }
-
-  private static void PlayTitleSe()
-  {
-    if (AudioManager.Instance != null)
-    {
-      AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Title);
-    }
-  }
-
-  private bool IsAnyHandDetected()
-  {
-    ResolveHandPinchController();
-    return _handPinchController != null && _handPinchController.HasAnyFreshHand();
-  }
-
-  private void ResolveHandPinchController()
-  {
-    if (_handPinchController != null)
-    {
-      return;
-    }
-
-    _handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
   }
 
   /// <summary>

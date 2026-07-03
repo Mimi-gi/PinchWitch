@@ -1,4 +1,6 @@
-using System.Collections;
+using System;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 /// <summary>
@@ -23,9 +25,6 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   [Header("Start/Stop Input")]
   [SerializeField] private bool enableStartStopInput;
   [SerializeField] private KeyCode startStopGameplayKey = KeyCode.Space;
-  [SerializeField] private HandPinchController handPinchController;
-  [SerializeField] private float goodGestureStartHoldSeconds = 2f;
-  [SerializeField] private float goodGestureMovementToggleHoldSeconds = 0.35f;
   [SerializeField] private bool playGoodReactionOnStart = true;
   [Header("Game Over")]
   [SerializeField] private bool reloadSceneOnGameOver;
@@ -45,7 +44,7 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   private Vector3 _initialPlacedPlayerPosition;
   private Quaternion _initialPlacedPlayerRotation;
   private readonly Collider2D[] _overlapResults = new Collider2D[8];
-  private Coroutine _overlapRecoveryCoroutine;
+  private CancellationTokenSource _overlapRecoveryCts;
   private bool _isRespawning;
   private float _respawnBlockedUntilTime;
   private bool _isPlayerDead;
@@ -55,7 +54,6 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   private bool _hasSavedConstraintsBeforeShadowCrushPause;
   private bool _requestedPlayerGameplayEnabled;
   private bool _hasReceivedGameplayRequest;
-  private float _startStopGoodGestureHeldSeconds;
   private bool _waitForStartStopInputRelease;
   private bool _isStartReactionPlaying;
   private float _startReactionEndTime;
@@ -288,87 +286,24 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
   private void UpdateGameplayStartStopInput()
   {
-    if (!enableStartStopInput)
-    {
-      _startStopGoodGestureHeldSeconds = 0f;
-      return;
-    }
-
-    if (_isShadowCrushPaused)
-    {
-      _startStopGoodGestureHeldSeconds = 0f;
-      return;
-    }
-
-    if (_isStartReactionPlaying)
+    if (!enableStartStopInput || _isShadowCrushPaused || _isStartReactionPlaying)
     {
       return;
     }
 
     if (_waitForStartStopInputRelease)
     {
-      _waitForStartStopInputRelease = IsStartStopInputPressed();
-      _startStopGoodGestureHeldSeconds = 0f;
-      return;
-    }
-
-    if (Input.GetKeyDown(startStopGameplayKey))
-    {
-      TogglePlayerGameplayFromStartStopInput();
       _waitForStartStopInputRelease = Input.GetKey(startStopGameplayKey);
       return;
     }
 
-    if (handPinchController == null)
-    {
-      handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
-    }
-
-    if (handPinchController != null && handPinchController.IsKachinkoGestureDetected())
-    {
-      TogglePlayerGameplayFromStartStopInput();
-      _startStopGoodGestureHeldSeconds = 0f;
-      _waitForStartStopInputRelease = true;
-      return;
-    }
-
-    if (handPinchController == null || !handPinchController.IsLeftGoodGestureDetected())
-    {
-      _startStopGoodGestureHeldSeconds = 0f;
-      return;
-    }
-
-    _startStopGoodGestureHeldSeconds += Time.unscaledDeltaTime;
-    if (_startStopGoodGestureHeldSeconds < GetCurrentGoodGestureHoldSeconds())
+    if (!Input.GetKeyDown(startStopGameplayKey))
     {
       return;
     }
 
     TogglePlayerGameplayFromStartStopInput();
-    _startStopGoodGestureHeldSeconds = 0f;
-    _waitForStartStopInputRelease = true;
-  }
-
-  private bool IsStartStopInputPressed()
-  {
-    if (Input.GetKey(startStopGameplayKey))
-    {
-      return true;
-    }
-
-    if (handPinchController == null)
-    {
-      handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
-    }
-
-    return handPinchController != null && handPinchController.IsRealTimeStartGestureDetected();
-  }
-
-  private float GetCurrentGoodGestureHoldSeconds()
-  {
-    return _requestedPlayerGameplayEnabled && _spawnedPlayerController != null && _spawnedPlayerController.isActiveAndEnabled
-      ? goodGestureMovementToggleHoldSeconds
-      : goodGestureStartHoldSeconds;
+    _waitForStartStopInputRelease = Input.GetKey(startStopGameplayKey);
   }
 
   private void TogglePlayerGameplayFromStartStopInput()
@@ -397,7 +332,6 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   {
     _hasReceivedGameplayRequest = true;
     _requestedPlayerGameplayEnabled = true;
-    _startStopGoodGestureHeldSeconds = 0f;
 
     if (playGoodReactionOnStart && BeginGameplayStartReactionIfPossible())
     {
@@ -472,7 +406,6 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
 
   private void ResetStartStopInputState()
   {
-    _startStopGoodGestureHeldSeconds = 0f;
     _waitForStartStopInputRelease = false;
     ResetGameplayStartReactionState();
   }
@@ -567,17 +500,11 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
       }
     }
 
-    if (handPinchController == null)
-    {
-      handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
-    }
   }
 
   private void ClampSerializedValues()
   {
     respawnCooldownSeconds = Mathf.Max(0f, respawnCooldownSeconds);
-    goodGestureStartHoldSeconds = Mathf.Max(0f, goodGestureStartHoldSeconds);
-    goodGestureMovementToggleHoldSeconds = Mathf.Max(0f, goodGestureMovementToggleHoldSeconds);
     gameOverReloadDelay = Mathf.Max(0f, gameOverReloadDelay);
   }
 
@@ -792,27 +719,29 @@ public sealed class Wall2DPlayerRespawner : MonoBehaviour, IRuntimeResettable
   {
     // 1 フレーム遅らせてから再判定し、物理更新が終わってから安全に押し戻す。
     StopOverlapRecoveryCoroutine();
-    _overlapRecoveryCoroutine = StartCoroutine(RecoverOverlapAfter2DEnter());
+    _overlapRecoveryCts = new CancellationTokenSource();
+    RecoverOverlapAfter2DEnterAsync(_overlapRecoveryCts.Token).Forget();
   }
 
-  private IEnumerator RecoverOverlapAfter2DEnter()
+  private async UniTaskVoid RecoverOverlapAfter2DEnterAsync(CancellationToken ct)
   {
-    yield return null;
+    await UniTask.Yield(ct);
     ResolveOverlapIfNeeded();
-    yield return new WaitForFixedUpdate();
+    await UniTask.WaitForFixedUpdate(ct);
     ResolveOverlapIfNeeded();
-    _overlapRecoveryCoroutine = null;
+    _overlapRecoveryCts = null;
   }
 
   private void StopOverlapRecoveryCoroutine()
   {
-    if (_overlapRecoveryCoroutine == null)
+    if (_overlapRecoveryCts == null)
     {
       return;
     }
 
-    StopCoroutine(_overlapRecoveryCoroutine);
-    _overlapRecoveryCoroutine = null;
+    _overlapRecoveryCts.Cancel();
+    _overlapRecoveryCts.Dispose();
+    _overlapRecoveryCts = null;
   }
 
   private bool IsSpawnedPlayerOverlappingSolid()

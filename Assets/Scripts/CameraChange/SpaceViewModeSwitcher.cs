@@ -24,29 +24,23 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
   [SerializeField] private bool switchAudioListeners = true;
   [SerializeField] private bool isRealTimeMode = true;
 
-  [Header("Realtime Start Gesture")]
-  [SerializeField] private bool requireGoodGestureToStartRealTime = true;
-  [SerializeField] private HandPinchController handPinchController;
-  [SerializeField] private float goodGestureHoldSeconds = 2f;
-  [SerializeField] private float goodGestureMovementToggleHoldSeconds = 0.35f;
+  [Header("Realtime Start")]
+  [SerializeField] private bool requireInputToStartRealTime = true;
 
   public event Action<SpaceViewMode> ModeChanged;
   public SpaceViewMode CurrentMode { get; private set; } = SpaceViewMode.World3D;
   public bool IsRealTimeMode => isRealTimeMode;
-  public bool IsRealTimeGameplayStarted => !IsRealTimeStartGestureRequired() || _realTimeGameplayStarted;
+  public bool IsRealTimeGameplayStarted => !IsRealTimeStartRequired() || _realTimeGameplayStarted;
   public bool ShouldEnablePlayerGameplay => ResolveBasePlayerGameplayEnabled() && !_isPlayerGameplayLockedExternally;
   public int ResetOrder => -100;
 
   private bool _realTimeGameplayStarted;
-  private float _goodGestureHeldSeconds;
   private bool _isStartReactionPlaying;
   private float _startReactionEndTime;
   private bool _hasPlayedGameplayStartSE;
   private bool _isPlayerGameplayLockedExternally;
   private bool _unlockPlayerGameplayWhenRealtimeStarts;
   private bool _waitForStartInputRelease;
-  private float _goodGestureMovementToggleHeldSeconds;
-  private bool _waitForGoodGestureMovementToggleRelease;
 
   private void Reset()
   {
@@ -84,15 +78,13 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
 
     if (_waitForStartInputRelease)
     {
-      _waitForStartInputRelease = IsStartGameplayInputPressed();
+      _waitForStartInputRelease = Input.GetKey(startGameplayKey);
       if (_waitForStartInputRelease)
       {
         return;
       }
     }
 
-    UpdateRealTimeStartGesture();
-    UpdateGoodGestureMovementToggle();
     UpdateStartGameplayKey();
   }
 
@@ -177,14 +169,13 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
       return;
     }
 
-    if (IsRealTimeStartGestureRequired())
+    if (IsRealTimeStartRequired())
     {
       _realTimeGameplayStarted = false;
     }
 
     _unlockPlayerGameplayWhenRealtimeStarts = true;
-    _goodGestureHeldSeconds = 0f;
-    _waitForStartInputRelease = IsStartGameplayInputPressed();
+    _waitForStartInputRelease = Input.GetKey(startGameplayKey);
 
     if (_isPlayerGameplayLockedExternally)
     {
@@ -235,10 +226,6 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
       }
     }
 
-    if (handPinchController == null)
-    {
-      handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
-    }
   }
 
   private bool HasRequiredReferences()
@@ -279,14 +266,11 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
     {
       wall2DCamera = null;
     }
-
-    goodGestureHoldSeconds = Mathf.Max(0f, goodGestureHoldSeconds);
-    goodGestureMovementToggleHoldSeconds = Mathf.Max(0f, goodGestureMovementToggleHoldSeconds);
   }
 
-  private bool IsRealTimeStartGestureRequired()
+  private bool IsRealTimeStartRequired()
   {
-    return isRealTimeMode && requireGoodGestureToStartRealTime;
+    return isRealTimeMode && requireInputToStartRealTime;
   }
 
   private bool ResolveBasePlayerGameplayEnabled()
@@ -298,51 +282,13 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
 
   private void ResetRealTimeStartGate()
   {
-    _realTimeGameplayStarted = !IsRealTimeStartGestureRequired();
-    _goodGestureHeldSeconds = 0f;
+    _realTimeGameplayStarted = !IsRealTimeStartRequired();
     _isStartReactionPlaying = false;
     _startReactionEndTime = 0f;
     _hasPlayedGameplayStartSE = false;
     _isPlayerGameplayLockedExternally = false;
     _unlockPlayerGameplayWhenRealtimeStarts = false;
     _waitForStartInputRelease = false;
-    _goodGestureMovementToggleHeldSeconds = 0f;
-    _waitForGoodGestureMovementToggleRelease = false;
-  }
-
-  private void UpdateRealTimeStartGesture()
-  {
-    if (IsRealTimeGameplayStarted || !IsRealTimeStartGestureRequired())
-    {
-      return;
-    }
-
-    if (handPinchController == null)
-    {
-      handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
-    }
-
-    if (handPinchController != null && handPinchController.IsKachinkoGestureDetected())
-    {
-      StartRealTimeGameplay(playGoodReaction: true);
-      return;
-    }
-
-    if (handPinchController != null && handPinchController.IsLeftGoodGestureDetected())
-    {
-      _goodGestureHeldSeconds += Time.unscaledDeltaTime;
-    }
-    else
-    {
-      _goodGestureHeldSeconds = 0f;
-    }
-
-    if (_goodGestureHeldSeconds < goodGestureHoldSeconds)
-    {
-      return;
-    }
-
-    StartRealTimeGameplay(playGoodReaction: true);
   }
 
   private void StartRealTimeGameplay(bool playGoodReaction)
@@ -353,12 +299,9 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
     }
 
     _realTimeGameplayStarted = true;
-    _goodGestureHeldSeconds = 0f;
     _isStartReactionPlaying = false;
     _startReactionEndTime = 0f;
     _waitForStartInputRelease = false;
-    _goodGestureMovementToggleHeldSeconds = 0f;
-    _waitForGoodGestureMovementToggleRelease = IsMovementToggleGesturePressed();
 
     if (playGoodReaction)
     {
@@ -395,82 +338,12 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
     TogglePlayerMovement();
   }
 
-  private bool IsStartGameplayInputPressed()
-  {
-    if (Input.GetKey(startGameplayKey))
-    {
-      return true;
-    }
-
-    if (handPinchController == null)
-    {
-      handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
-    }
-
-    return handPinchController != null && handPinchController.IsRealTimeStartGestureDetected();
-  }
-
-  private void UpdateGoodGestureMovementToggle()
-  {
-    if (!CanUsePlayerMovementToggle())
-    {
-      _goodGestureMovementToggleHeldSeconds = 0f;
-      return;
-    }
-
-    var isMovementToggleGesturePressed = IsMovementToggleGesturePressed();
-    if (_waitForGoodGestureMovementToggleRelease)
-    {
-      if (!isMovementToggleGesturePressed)
-      {
-        _waitForGoodGestureMovementToggleRelease = false;
-      }
-
-      _goodGestureMovementToggleHeldSeconds = 0f;
-      return;
-    }
-
-    if (handPinchController != null && handPinchController.IsKachinkoGestureDetected())
-    {
-      TogglePlayerMovement();
-      _goodGestureMovementToggleHeldSeconds = 0f;
-      _waitForGoodGestureMovementToggleRelease = true;
-      return;
-    }
-
-    if (handPinchController == null || !handPinchController.IsLeftGoodGestureDetected())
-    {
-      _goodGestureMovementToggleHeldSeconds = 0f;
-      return;
-    }
-
-    _goodGestureMovementToggleHeldSeconds += Time.unscaledDeltaTime;
-    if (_goodGestureMovementToggleHeldSeconds < goodGestureMovementToggleHoldSeconds)
-    {
-      return;
-    }
-
-    TogglePlayerMovement();
-    _goodGestureMovementToggleHeldSeconds = 0f;
-    _waitForGoodGestureMovementToggleRelease = true;
-  }
-
   private bool CanUsePlayerMovementToggle()
   {
     return isRealTimeMode
       && IsRealTimeGameplayStarted
       && !_isStartReactionPlaying
       && !_isPlayerGameplayLockedExternally;
-  }
-
-  private bool IsMovementToggleGesturePressed()
-  {
-    if (handPinchController == null)
-    {
-      handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
-    }
-
-    return handPinchController != null && handPinchController.IsRealTimeStartGestureDetected();
   }
 
   private void TogglePlayerMovement()

@@ -7,7 +7,7 @@
 //              _isDebug にチェックを入れると数秒後に自動表示される。
 //=============================================================
 
-using System.Collections;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 public class ResultPanelController : MonoBehaviour
@@ -66,7 +66,7 @@ public class ResultPanelController : MonoBehaviour
 #if UNITY_EDITOR
     if (_isDebug)
     {
-      StartCoroutine(DebugAutoShowCoroutine());
+      DebugAutoShowAsync().Forget();
     }
 #endif
   }
@@ -79,9 +79,9 @@ public class ResultPanelController : MonoBehaviour
   /// <summary>
   /// デバッグ用。数秒後にクリアパネルを自動表示するコルーチン。
   /// </summary>
-  private IEnumerator DebugAutoShowCoroutine()
+  private async UniTaskVoid DebugAutoShowAsync()
   {
-    yield return new WaitForSeconds(_debugDisplayDelay);
+    await UniTask.Delay(TimeSpan.FromSeconds(_debugDisplayDelay), cancellationToken: destroyCancellationToken);
     Show();
   }
 #endif

@@ -1,5 +1,6 @@
 using System;
-using System.Collections;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -48,7 +49,7 @@ public sealed class OpeningManager : MonoBehaviour
   [SerializeField] private bool autoResolveReferences = true;
   [SerializeField] private bool enableDebugLogging;
 
-  private Coroutine _sequenceCoroutine;
+  private CancellationTokenSource _sequenceCts;
   private string _currentFullText = string.Empty;
   private int _visibleCharacterCount;
   private float _typewriterProgress;
@@ -77,7 +78,7 @@ public sealed class OpeningManager : MonoBehaviour
 
   private void OnDisable()
   {
-    StopSequenceCoroutine();
+    StopSequence();
   }
 
   private void OnValidate()
@@ -87,17 +88,18 @@ public sealed class OpeningManager : MonoBehaviour
 
   public void BeginOpening()
   {
-    StopSequenceCoroutine();
-    _sequenceCoroutine = StartCoroutine(OpeningSequence());
+    StopSequence();
+    _sequenceCts = new CancellationTokenSource();
+    OpeningSequenceAsync(_sequenceCts.Token).Forget();
   }
 
   public void SkipToNextScene()
   {
-    StopSequenceCoroutine();
+    StopSequence();
     LoadNextScene();
   }
 
-  private IEnumerator OpeningSequence()
+  private async UniTask OpeningSequenceAsync(CancellationToken ct)
   {
     InitializeVisualState();
 
@@ -105,7 +107,7 @@ public sealed class OpeningManager : MonoBehaviour
     {
       LogDebug("Opening pages are empty. Loading next scene.");
       LoadNextScene();
-      yield break;
+      return;
     }
 
     for (var i = 0; i < pages.Length; i++)
@@ -121,34 +123,34 @@ public sealed class OpeningManager : MonoBehaviour
       ApplyOpeningImage(page.image);
 
       var fadeDuration = i == 0 ? initialImageFadeDuration : transitionFadeDuration;
-      yield return FadeOpeningImage(0f, 1f, fadeDuration);
+      await FadeOpeningImageAsync(0f, 1f, fadeDuration, ct);
 
       if (i == 0 && firstMessageWindowDelay > 0f)
       {
-        yield return Wait(firstMessageWindowDelay);
+        await WaitAsync(firstMessageWindowDelay, ct);
       }
 
       ShowNarrationWindow();
-      yield return RevealMessage(page);
+      await RevealMessageAsync(page, ct);
 
       if (lineCompleteDelay > 0f)
       {
-        yield return Wait(lineCompleteDelay);
+        await WaitAsync(lineCompleteDelay, ct);
       }
 
       if (i < pages.Length - 1)
       {
         HideNarrationWindow();
         ClearNarrationText();
-        yield return FadeOpeningImage(1f, 0f, transitionFadeDuration);
+        await FadeOpeningImageAsync(1f, 0f, transitionFadeDuration, ct);
       }
     }
 
-    _sequenceCoroutine = null;
+    _sequenceCts = null;
     LoadNextScene();
   }
 
-  private IEnumerator RevealMessage(OpeningPage page)
+  private async UniTask RevealMessageAsync(OpeningPage page, CancellationToken ct)
   {
     _currentFullText = page.message ?? string.Empty;
     _visibleCharacterCount = 0;
@@ -161,7 +163,7 @@ public sealed class OpeningManager : MonoBehaviour
     if (typewriterCharactersPerSecond <= 0f || string.IsNullOrEmpty(_currentFullText))
     {
       RevealCurrentMessageImmediately();
-      yield break;
+      return;
     }
 
     while (_visibleCharacterCount < _currentFullText.Length)
@@ -174,7 +176,7 @@ public sealed class OpeningManager : MonoBehaviour
         ApplyDisplayedText();
       }
 
-      yield return null;
+      await UniTask.Yield(ct);
     }
 
     ApplyPrompt(isFullyRevealed: true);
@@ -188,14 +190,14 @@ public sealed class OpeningManager : MonoBehaviour
     ApplyPrompt(isFullyRevealed: true);
   }
 
-  private IEnumerator FadeOpeningImage(float fromAlpha, float toAlpha, float duration)
+  private async UniTask FadeOpeningImageAsync(float fromAlpha, float toAlpha, float duration, CancellationToken ct)
   {
     SetOpeningImageAlpha(fromAlpha);
 
     if (duration <= 0f)
     {
       SetOpeningImageAlpha(toAlpha);
-      yield break;
+      return;
     }
 
     var elapsed = 0f;
@@ -204,27 +206,20 @@ public sealed class OpeningManager : MonoBehaviour
       elapsed += DeltaTime;
       var t = Mathf.Clamp01(elapsed / duration);
       SetOpeningImageAlpha(Mathf.Lerp(fromAlpha, toAlpha, t));
-      yield return null;
+      await UniTask.Yield(ct);
     }
 
     SetOpeningImageAlpha(toAlpha);
   }
 
-  private IEnumerator Wait(float seconds)
+  private async UniTask WaitAsync(float seconds, CancellationToken ct)
   {
     if (seconds <= 0f)
     {
-      yield break;
+      return;
     }
 
-    if (useUnscaledTime)
-    {
-      yield return new WaitForSecondsRealtime(seconds);
-    }
-    else
-    {
-      yield return new WaitForSeconds(seconds);
-    }
+    await UniTask.Delay(TimeSpan.FromSeconds(seconds), ignoreTimeScale: useUnscaledTime, cancellationToken: ct);
   }
 
   private void InitializeVisualState()
@@ -357,15 +352,16 @@ public sealed class OpeningManager : MonoBehaviour
     SceneManager.LoadScene(fallbackNextSceneName, LoadSceneMode.Single);
   }
 
-  private void StopSequenceCoroutine()
+  private void StopSequence()
   {
-    if (_sequenceCoroutine == null)
+    if (_sequenceCts == null)
     {
       return;
     }
 
-    StopCoroutine(_sequenceCoroutine);
-    _sequenceCoroutine = null;
+    _sequenceCts.Cancel();
+    _sequenceCts.Dispose();
+    _sequenceCts = null;
   }
 
   private void AutoResolveReferences()

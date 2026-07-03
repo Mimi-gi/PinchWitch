@@ -1,4 +1,6 @@
-using System.Collections;
+using System;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 public sealed class TrumpController : MonoBehaviour
@@ -32,7 +34,7 @@ public sealed class TrumpController : MonoBehaviour
   [SerializeField] private int endingStageNum = 10;
   [SerializeField] private float endingTransitionDelay = 0.2f;
 
-  private Coroutine clearAnimationCoroutine;
+  private CancellationTokenSource _clearAnimationCts;
 
   private void Start()
   {
@@ -45,16 +47,18 @@ public sealed class TrumpController : MonoBehaviour
 
     if (shouldAnimate)
     {
-      clearAnimationCoroutine = StartCoroutine(PlayClearAnimation(GetTrump(newlyClearedStageNum), newlyClearedStageNum));
+      _clearAnimationCts = new CancellationTokenSource();
+      PlayClearAnimationAsync(GetTrump(newlyClearedStageNum), newlyClearedStageNum, _clearAnimationCts.Token).Forget();
     }
   }
 
   public void Refresh()
   {
-    if (clearAnimationCoroutine != null)
+    if (_clearAnimationCts != null)
     {
-      StopCoroutine(clearAnimationCoroutine);
-      clearAnimationCoroutine = null;
+      _clearAnimationCts.Cancel();
+      _clearAnimationCts.Dispose();
+      _clearAnimationCts = null;
     }
 
     ApplyCurrentProgress(0);
@@ -75,37 +79,37 @@ public sealed class TrumpController : MonoBehaviour
     }
   }
 
-  private IEnumerator PlayClearAnimation(Transform trump, int stageNum)
+  private async UniTaskVoid PlayClearAnimationAsync(Transform trump, int stageNum, CancellationToken ct)
   {
     Vector3 originalPosition = trump.localPosition;
     Vector3 liftedPosition = originalPosition + Vector3.up * liftHeight;
 
     SetFace(trump, false);
-    yield return AnimateLocalPosition(trump, originalPosition, liftedPosition, liftDuration);
-    yield return AnimateLocalZRotation(trump, backZRotation, frontZRotation, flipDuration);
-    yield return AnimateLocalPosition(trump, liftedPosition, originalPosition, returnDuration);
+    await AnimateLocalPositionAsync(trump, originalPosition, liftedPosition, liftDuration, ct);
+    await AnimateLocalZRotationAsync(trump, backZRotation, frontZRotation, flipDuration, ct);
+    await AnimateLocalPositionAsync(trump, liftedPosition, originalPosition, returnDuration, ct);
 
     trump.localPosition = originalPosition;
     SetFace(trump, true);
-    clearAnimationCoroutine = null;
+    _clearAnimationCts = null;
 
     if (ShouldGoEndingAfterClear(stageNum))
     {
       if (endingTransitionDelay > 0f)
       {
-        yield return new WaitForSeconds(endingTransitionDelay);
+        await UniTask.Delay(TimeSpan.FromSeconds(endingTransitionDelay), cancellationToken: ct);
       }
 
       GameSceneManager.GoEnding();
     }
   }
 
-  private IEnumerator AnimateLocalPosition(Transform trump, Vector3 from, Vector3 to, float duration)
+  private async UniTask AnimateLocalPositionAsync(Transform trump, Vector3 from, Vector3 to, float duration, CancellationToken ct)
   {
     if (duration <= 0f)
     {
       trump.localPosition = to;
-      yield break;
+      return;
     }
 
     float elapsed = 0f;
@@ -114,18 +118,18 @@ public sealed class TrumpController : MonoBehaviour
       elapsed += Time.deltaTime;
       float t = Mathf.Clamp01(elapsed / duration);
       trump.localPosition = Vector3.LerpUnclamped(from, to, Evaluate(moveCurve, t));
-      yield return null;
+      await UniTask.Yield(ct);
     }
 
     trump.localPosition = to;
   }
 
-  private IEnumerator AnimateLocalZRotation(Transform trump, float fromZ, float toZ, float duration)
+  private async UniTask AnimateLocalZRotationAsync(Transform trump, float fromZ, float toZ, float duration, CancellationToken ct)
   {
     if (duration <= 0f)
     {
       SetLocalZRotation(trump, toZ);
-      yield break;
+      return;
     }
 
     float elapsed = 0f;
@@ -135,7 +139,7 @@ public sealed class TrumpController : MonoBehaviour
       float t = Mathf.Clamp01(elapsed / duration);
       float z = Mathf.LerpAngle(fromZ, toZ, Evaluate(rotationCurve, t));
       SetLocalZRotation(trump, z);
-      yield return null;
+      await UniTask.Yield(ct);
     }
 
     SetLocalZRotation(trump, toZ);

@@ -6,11 +6,9 @@ public sealed class Wall2DPlayerStartStopInput : MonoBehaviour
   [Header("Target")]
   [SerializeField] private Wall2DPlayerController playerController;
   [SerializeField] private Wall2DPlayerRespawner playerRespawner;
-  [SerializeField] private HandPinchController handPinchController;
 
   [Header("Input")]
   [SerializeField] private KeyCode toggleKey = KeyCode.Space;
-  [SerializeField] private float goodGestureHoldSeconds = 0.8f;
   [SerializeField] private bool startStopped = true;
   [SerializeField] private bool disablePhysicsWhileStopped = true;
 
@@ -20,8 +18,6 @@ public sealed class Wall2DPlayerStartStopInput : MonoBehaviour
   private Wall2DPlayerAnimator _playerAnimator;
   private bool _isMovementActive;
   private bool _hasAppliedStateToCurrentPlayer;
-  private float _goodGestureHeldSeconds;
-  private bool _waitForGestureRelease;
   private bool _isTransitionReactionPlaying;
   private bool _pendingMovementActive;
   private float _transitionReactionEndTime;
@@ -29,24 +25,17 @@ public sealed class Wall2DPlayerStartStopInput : MonoBehaviour
   private void Reset()
   {
     AutoAssignMissingReferences();
-    ClampSerializedValues();
   }
 
   private void Awake()
   {
     AutoAssignMissingReferences();
-    ClampSerializedValues();
     _isMovementActive = !startStopped;
   }
 
   private void Start()
   {
     ApplyCurrentStateToPlayerIfAvailable();
-  }
-
-  private void OnValidate()
-  {
-    ClampSerializedValues();
   }
 
   private void Update()
@@ -79,11 +68,6 @@ public sealed class Wall2DPlayerStartStopInput : MonoBehaviour
     if (playerRespawner == null)
     {
       playerRespawner = FindFirstObjectByType<Wall2DPlayerRespawner>(FindObjectsInactive.Include);
-    }
-
-    if (handPinchController == null)
-    {
-      handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
     }
 
     RefreshCachedPlayerComponents();
@@ -151,57 +135,12 @@ public sealed class Wall2DPlayerStartStopInput : MonoBehaviour
 
   private void UpdateStartStopInput()
   {
-    if (Input.GetKeyDown(toggleKey))
-    {
-      RequestMovementToggle();
-      _goodGestureHeldSeconds = 0f;
-      return;
-    }
-
-    if (handPinchController == null)
-    {
-      _goodGestureHeldSeconds = 0f;
-      _waitForGestureRelease = false;
-      return;
-    }
-
-    if (_waitForGestureRelease)
-    {
-      _waitForGestureRelease = IsAnyGesturePressed();
-      _goodGestureHeldSeconds = 0f;
-      return;
-    }
-
-    if (handPinchController.IsKachinkoGestureDetected())
-    {
-      RequestMovementToggle();
-      _goodGestureHeldSeconds = 0f;
-      _waitForGestureRelease = true;
-      return;
-    }
-
-    if (!handPinchController.IsLeftGoodGestureDetected())
-    {
-      _goodGestureHeldSeconds = 0f;
-      return;
-    }
-
-    _goodGestureHeldSeconds += Time.unscaledDeltaTime;
-    if (_goodGestureHeldSeconds < goodGestureHoldSeconds)
+    if (!Input.GetKeyDown(toggleKey))
     {
       return;
     }
 
     RequestMovementToggle();
-    _goodGestureHeldSeconds = 0f;
-    _waitForGestureRelease = true;
-  }
-
-  private bool IsAnyGesturePressed()
-  {
-    return handPinchController != null
-           && (handPinchController.IsLeftGoodGestureDetected()
-               || handPinchController.IsKachinkoGestureDetected());
   }
 
   private bool IsPlayerLockedByRespawner()
@@ -211,8 +150,6 @@ public sealed class Wall2DPlayerStartStopInput : MonoBehaviour
 
   private void ResetPendingInputState()
   {
-    _goodGestureHeldSeconds = 0f;
-    _waitForGestureRelease = IsAnyGesturePressed();
     _isTransitionReactionPlaying = false;
     _transitionReactionEndTime = 0f;
   }
@@ -358,10 +295,5 @@ public sealed class Wall2DPlayerStartStopInput : MonoBehaviour
     _playerRigidbody2D.linearVelocity = Vector2.zero;
     _playerRigidbody2D.angularVelocity = 0f;
     _playerRigidbody2D.simulated = false;
-  }
-
-  private void ClampSerializedValues()
-  {
-    goodGestureHoldSeconds = Mathf.Max(0f, goodGestureHoldSeconds);
   }
 }

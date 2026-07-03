@@ -24,8 +24,6 @@ public sealed class GrabInteractor
   {
     // 掴める対象を検索するレイヤーマスク。
     public LayerMask grabbableLayerMask;
-    // 掴み判定に使う半径。
-    public float reach;
     // 掴み対象の X 可動範囲。
     public Vector2 xRange;
     // 掴み対象の Y 可動範囲。
@@ -40,8 +38,6 @@ public sealed class GrabInteractor
     public bool restoreUseGravityOnRelease;
   }
 
-  // OverlapCapsuleNonAlloc の結果を受ける使い回しバッファ。
-  private readonly Collider[] _overlapColliders = new Collider[64];
   // 真下に落とす途中の Rigidbody を保持するリスト。
   private readonly List<VerticalDropState> _verticalDropStates = new List<VerticalDropState>(4);
 
@@ -120,63 +116,6 @@ public sealed class GrabInteractor
     }
 
     return !IsInVerticalDrop(targetBody);
-  }
-
-  // 指定した手元の XZ 位置に最も近い、掴める Rigidbody を検索して取得する。
-  public bool TryGetNearestGrabbableBody(Vector3 handTarget, out Rigidbody nearestBody)
-  {
-    var capsuleBottom = new Vector3(handTarget.x, -1000f, handTarget.z);
-    var capsuleTop = new Vector3(handTarget.x, 1000f, handTarget.z);
-    var hitCount = Physics.OverlapCapsuleNonAlloc(capsuleBottom, capsuleTop, _config.reach, _overlapColliders, _config.grabbableLayerMask, QueryTriggerInteraction.Ignore);
-
-    nearestBody = null;
-    var nearestHorizontalDistanceSq = float.MaxValue;
-    var maxHorizontalDistanceSq = _config.reach * _config.reach;
-
-    for (var i = 0; i < hitCount; i++)
-    {
-      var collider = _overlapColliders[i];
-      if (collider == null)
-      {
-        continue;
-      }
-
-      var body = collider.attachedRigidbody;
-      if (!CanGrabBody(body))
-      {
-        continue;
-      }
-
-      var closestPoint = collider.ClosestPoint(handTarget);
-      var horizontalDistanceX = closestPoint.x - handTarget.x;
-      var horizontalDistanceZ = closestPoint.z - handTarget.z;
-      var horizontalDistanceSq = horizontalDistanceX * horizontalDistanceX + horizontalDistanceZ * horizontalDistanceZ;
-      if (horizontalDistanceSq > maxHorizontalDistanceSq || horizontalDistanceSq >= nearestHorizontalDistanceSq)
-      {
-        continue;
-      }
-
-      nearestHorizontalDistanceSq = horizontalDistanceSq;
-      nearestBody = body;
-    }
-
-    return nearestBody != null;
-  }
-
-  // 手元の XZ 位置に最も近い掴める Rigidbody を見つけて grab を開始する。
-  public void TryBeginGrab(Vector3 handTarget)
-  {
-    if (_grabbedBody != null)
-    {
-      return;
-    }
-
-    if (!TryGetNearestGrabbableBody(handTarget, out var nearestBody))
-    {
-      return;
-    }
-
-    BeginGrab(nearestBody, handTarget, keepHorizontalOffset: false);
   }
 
   // 指定した Rigidbody を指定位置基準で grab する。

@@ -1,5 +1,5 @@
-using System.Collections;
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -42,15 +42,15 @@ public sealed class SceneResetOnKeyPress : MonoBehaviour
     }
 
     _isResetting = true;
-    StartCoroutine(ResetSceneObjectsSafely(activeScene));
+    ResetSceneObjectsSafelyAsync(activeScene).Forget();
   }
 
   /// <summary>
   /// 1 フレーム待ってから対象を初期状態へ戻し、途中の相互干渉を減らす。
   /// </summary>
-  private IEnumerator ResetSceneObjectsSafely(Scene activeScene)
+  private async UniTaskVoid ResetSceneObjectsSafelyAsync(Scene activeScene)
   {
-    yield return null;
+    await UniTask.Yield();
     ResetRegisteredObjects(activeScene);
     _isResetting = false;
   }

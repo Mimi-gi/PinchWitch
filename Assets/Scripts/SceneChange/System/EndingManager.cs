@@ -1,6 +1,7 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -62,7 +63,7 @@ public sealed class EndingManager : MonoBehaviour
   [SerializeField] private bool autoResolveReferences = true;
   [SerializeField] private bool enableDebugLogging;
 
-  private Coroutine _sequenceCoroutine;
+  private CancellationTokenSource _sequenceCts;
   private string _currentFullText = string.Empty;
   private int _visibleCharacterCount;
   private float _typewriterProgress;
@@ -91,7 +92,7 @@ public sealed class EndingManager : MonoBehaviour
 
   private void OnDisable()
   {
-    StopSequenceCoroutine();
+    StopSequence();
   }
 
   private void OnValidate()
@@ -101,17 +102,18 @@ public sealed class EndingManager : MonoBehaviour
 
   public void BeginEnding()
   {
-    StopSequenceCoroutine();
-    _sequenceCoroutine = StartCoroutine(EndingSequence());
+    StopSequence();
+    _sequenceCts = new CancellationTokenSource();
+    EndingSequenceAsync(_sequenceCts.Token).Forget();
   }
 
   public void SkipToTitle()
   {
-    StopSequenceCoroutine();
+    StopSequence();
     LoadTitleScene();
   }
 
-  private IEnumerator EndingSequence()
+  private async UniTask EndingSequenceAsync(CancellationToken ct)
   {
     InitializeVisualState();
 
@@ -119,7 +121,7 @@ public sealed class EndingManager : MonoBehaviour
     {
       LogDebug("Ending pages are empty. Loading title scene.");
       LoadTitleScene();
-      yield break;
+      return;
     }
 
     for (var i = 0; i < pages.Length; i++)
@@ -135,11 +137,11 @@ public sealed class EndingManager : MonoBehaviour
       ApplyEndingImage(page.image);
 
       var fadeDuration = i == 0 ? initialImageFadeDuration : transitionFadeDuration;
-      yield return FadeEndingImage(0f, 1f, fadeDuration);
+      await FadeEndingImageAsync(0f, 1f, fadeDuration, ct);
 
       if (i == 0 && firstMessageWindowDelay > 0f)
       {
-        yield return Wait(firstMessageWindowDelay);
+        await WaitAsync(firstMessageWindowDelay, ct);
       }
 
       var messages = BuildMessages(page);
@@ -149,11 +151,11 @@ public sealed class EndingManager : MonoBehaviour
 
         for (var messageIndex = 0; messageIndex < messages.Count; messageIndex++)
         {
-          yield return RevealMessage(messages[messageIndex]);
+          await RevealMessageAsync(messages[messageIndex], ct);
 
           if (lineCompleteDelay > 0f)
           {
-            yield return Wait(lineCompleteDelay);
+            await WaitAsync(lineCompleteDelay, ct);
           }
         }
       }
@@ -161,22 +163,22 @@ public sealed class EndingManager : MonoBehaviour
       {
         HideNarrationWindow();
         ClearNarrationText();
-        yield return Wait(imageOnlyDisplayDuration);
+        await WaitAsync(imageOnlyDisplayDuration, ct);
       }
 
       if (i < pages.Length - 1)
       {
         HideNarrationWindow();
         ClearNarrationText();
-        yield return FadeEndingImage(1f, 0f, transitionFadeDuration);
+        await FadeEndingImageAsync(1f, 0f, transitionFadeDuration, ct);
       }
     }
 
-    _sequenceCoroutine = null;
+    _sequenceCts = null;
     LoadTitleScene();
   }
 
-  private IEnumerator RevealMessage(ResolvedEndingMessage message)
+  private async UniTask RevealMessageAsync(ResolvedEndingMessage message, CancellationToken ct)
   {
     _currentFullText = message != null ? message.text ?? string.Empty : string.Empty;
     _visibleCharacterCount = 0;
@@ -189,7 +191,7 @@ public sealed class EndingManager : MonoBehaviour
     if (typewriterCharactersPerSecond <= 0f || string.IsNullOrEmpty(_currentFullText))
     {
       RevealCurrentMessageImmediately();
-      yield break;
+      return;
     }
 
     while (_visibleCharacterCount < _currentFullText.Length)
@@ -202,7 +204,7 @@ public sealed class EndingManager : MonoBehaviour
         ApplyDisplayedText();
       }
 
-      yield return null;
+      await UniTask.Yield(ct);
     }
 
     ApplyPrompt(isFullyRevealed: true);
@@ -242,14 +244,14 @@ public sealed class EndingManager : MonoBehaviour
     ApplyPrompt(isFullyRevealed: true);
   }
 
-  private IEnumerator FadeEndingImage(float fromAlpha, float toAlpha, float duration)
+  private async UniTask FadeEndingImageAsync(float fromAlpha, float toAlpha, float duration, CancellationToken ct)
   {
     SetEndingImageAlpha(fromAlpha);
 
     if (duration <= 0f)
     {
       SetEndingImageAlpha(toAlpha);
-      yield break;
+      return;
     }
 
     var elapsed = 0f;
@@ -258,27 +260,20 @@ public sealed class EndingManager : MonoBehaviour
       elapsed += DeltaTime;
       var t = Mathf.Clamp01(elapsed / duration);
       SetEndingImageAlpha(Mathf.Lerp(fromAlpha, toAlpha, t));
-      yield return null;
+      await UniTask.Yield(ct);
     }
 
     SetEndingImageAlpha(toAlpha);
   }
 
-  private IEnumerator Wait(float seconds)
+  private async UniTask WaitAsync(float seconds, CancellationToken ct)
   {
     if (seconds <= 0f)
     {
-      yield break;
+      return;
     }
 
-    if (useUnscaledTime)
-    {
-      yield return new WaitForSecondsRealtime(seconds);
-    }
-    else
-    {
-      yield return new WaitForSeconds(seconds);
-    }
+    await UniTask.Delay(TimeSpan.FromSeconds(seconds), ignoreTimeScale: useUnscaledTime, cancellationToken: ct);
   }
 
   private void InitializeVisualState()
@@ -411,15 +406,16 @@ public sealed class EndingManager : MonoBehaviour
     SceneManager.LoadScene(fallbackTitleSceneName, LoadSceneMode.Single);
   }
 
-  private void StopSequenceCoroutine()
+  private void StopSequence()
   {
-    if (_sequenceCoroutine == null)
+    if (_sequenceCts == null)
     {
       return;
     }
 
-    StopCoroutine(_sequenceCoroutine);
-    _sequenceCoroutine = null;
+    _sequenceCts.Cancel();
+    _sequenceCts.Dispose();
+    _sequenceCts = null;
   }
 
   private void AutoResolveReferences()

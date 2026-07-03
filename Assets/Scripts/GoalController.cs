@@ -1,5 +1,6 @@
 using System;
-using System.Collections;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 public class GoalController : MonoBehaviour
@@ -46,14 +47,14 @@ public class GoalController : MonoBehaviour
       return;
     }
 
-    StartCoroutine(ReturnStageSelectAfterDelay());
+    ReturnStageSelectAfterDelayAsync(destroyCancellationToken).Forget();
   }
 
-  private IEnumerator ReturnStageSelectAfterDelay()
+  private async UniTask ReturnStageSelectAfterDelayAsync(CancellationToken ct)
   {
     if (_stageSelectDelaySeconds > 0f)
     {
-      yield return new WaitForSeconds(_stageSelectDelaySeconds);
+      await UniTask.Delay(TimeSpan.FromSeconds(_stageSelectDelaySeconds), cancellationToken: ct);
     }
 
     GameSceneManager.GoStageSelect();
