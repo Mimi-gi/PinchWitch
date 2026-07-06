@@ -8,14 +8,10 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Kirtain
-  m_Shader: {fileID: 4800000, guid: be891319084e9d147b09d89e80ce60e0, type: 3}
+  m_Shader: {fileID: 4800000, guid: 2e098d648285460c95334af96faa4e4e, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
-  m_ValidKeywords:
-  - _EMISSIVE_SIMPLE
-  - _IS_CLIPPING_OFF
-  - _IS_OUTLINE_CLIPPING_NO
-  - _OUTLINE_NML
+  m_ValidKeywords: []
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
@@ -23,7 +19,6 @@ Material:
   m_CustomRenderQueue: -1
   stringTagMap:
     IgnoreProjection: False
-    RenderType: Opaque
   disabledShaderPasses:
   - MOTIONVECTORS
   m_LockedProperties: 
@@ -258,7 +253,7 @@ Material:
     - _1st2nd_Shades_Feather: 0.0001
     - _1stTo2nd_ShadeFeather: 0.1
     - _1stTo2nd_ShadeStart: 0.25
-    - _1st_ShadeColor_Feather: 0.0001
+    - _1st_ShadeColor_Feather: 0.38
     - _1st_ShadeColor_Step: 0.5
     - _2DLightStrength: 1
     - _2nd_ShadeColor_Feather: 0.0001
@@ -502,12 +497,12 @@ Material:
     - _simpleUI: 0
     - _utsTechnique: 0
     m_Colors:
-    - _1st_ShadeColor: {r: 0.7735849, g: 0.18609823, b: 0.18609823, a: 1}
+    - _1st_ShadeColor: {r: 0.01886791, g: 0, b: 0, a: 1}
     - _2nd_ShadeColor: {r: 0.1, g: 0.1, b: 0.1, a: 1}
     - _AngelRingMaskColor: {r: 0, g: 1, b: 0, a: 1}
     - _AngelRing_Color: {r: 1, g: 1, b: 1, a: 1}
     - _Ap_RimLightColor: {r: 1, g: 1, b: 1, a: 1}
-    - _BaseColor: {r: 0.92549026, g: 0.25882354, b: 0.25882354, a: 1}
+    - _BaseColor: {r: 0.5698112, g: 0.19674611, b: 0.19674611, a: 1}
     - _BaseColorMap_MipInfo: {r: 0, g: 0, b: 0, a: 0}
     - _BaseColorMaskColor: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 0.92549026, g: 0.25882354, b: 0.25882354, a: 1}

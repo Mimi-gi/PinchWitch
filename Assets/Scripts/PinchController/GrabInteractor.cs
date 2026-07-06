@@ -204,8 +204,8 @@ public sealed class GrabInteractor
     {
       _grabbedBody.MovePosition(_desiredGrabPosition);
       _grabbedBody.MoveRotation(ResolveNextRotation(fixedDeltaTime));
-      _grabbedBody.linearVelocity = Vector3.zero;
-      _grabbedBody.angularVelocity = Vector3.zero;
+      //_grabbedBody.linearVelocity = Vector3.zero;
+      //_grabbedBody.angularVelocity = Vector3.zero;
     }
 
     UpdateVerticalDropStates(fixedDeltaTime);

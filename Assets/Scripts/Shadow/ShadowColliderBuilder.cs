@@ -535,7 +535,7 @@ public class ShadowColliderBuilder : MonoBehaviour
                     return existingOutput;
                 }
 
-                outputName = $"{outputName}_{GetInstanceID()}";
+                outputName = $"{outputName}_{GetEntityId()}";
             }
         }
 
@@ -596,7 +596,7 @@ public class ShadowColliderBuilder : MonoBehaviour
                 continue;
             }
 
-            return $"{baseName}_{GetInstanceID()}";
+            return $"{baseName}_{GetEntityId()}";
         }
 
         return baseName;
@@ -808,7 +808,7 @@ public class ShadowColliderBuilder : MonoBehaviour
                 }
 
                 hash = hash * 31 + GetTransformHash(meshFilter.transform);
-                hash = hash * 31 + (meshFilter.sharedMesh != null ? meshFilter.sharedMesh.GetInstanceID() : 0);
+                hash = hash * 31 + (meshFilter.sharedMesh != null ? meshFilter.sharedMesh.GetEntityId().GetHashCode() : 0);
             }
 
             return hash;

@@ -35,7 +35,8 @@ MonoBehaviour:
       type: 3}
   m_RendererFeatures:
   - {fileID: 7833122117494664109}
-  m_RendererFeatureMap: ad6b866f10d7b46c
+  - {fileID: 900000000000000101}
+  m_RendererFeatureMap: ad6b866f10d7b46c6500da493b717d0c
   m_UseNativeRenderPass: 1
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   m_AssetVersion: 2
@@ -93,3 +94,32 @@ MonoBehaviour:
   - {fileID: 2800000, guid: 3302065f671a8450b82c9ddf07426f3a, type: 3}
   - {fileID: 2800000, guid: 56a77a3e8d64f47b6afe9e3c95cb57d5, type: 3}
   m_Shader: {fileID: 4800000, guid: 0849e84e3d62649e8882e9d6f056a017, type: 3}
+--- !u!114 &900000000000000101
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ee9ce9b505b24a7abf3b8cd3c6e46f26, type: 3}
+  m_Name: OutlineSDFFeature
+  m_EditorClassIdentifier: 
+  m_Active: 1
+  settings:
+    targetLayers:
+      serializedVersion: 2
+      m_Bits: 8
+    outlineWidthPx: 48
+    jfaMaxRadiusPx: 64
+    noiseScale: 12
+    noiseSpeed: 1
+    baseDissolve: 0.35
+    fogOpacity: 0.9
+    playerFadeStart: 0.1
+    playerFadeEnd: 0.8
+    playerFadeStrength: 0.5
+    skipBaseCameraWithStack: 1
+  _silhouetteShader: {fileID: 4800000, guid: 0ace605dbafb4f8c87da9fbd913a687d, type: 3}
+  _sdfShader: {fileID: 4800000, guid: 70ce108b2a9f44fcaaa5f3e8edca8412, type: 3}

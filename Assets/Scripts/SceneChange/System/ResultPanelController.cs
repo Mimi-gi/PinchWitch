@@ -9,6 +9,7 @@
 
 using Cysharp.Threading.Tasks;
 using UnityEngine;
+using System;
 
 public class ResultPanelController : MonoBehaviour
 {

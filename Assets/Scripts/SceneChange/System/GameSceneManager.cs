@@ -49,6 +49,8 @@ public class GameSceneManager : MonoBehaviour
 
   /// <summary>ステージシーンの命名プレフィックス。Stage_1, Stage_2 ...の形式。</summary>
   [SerializeField] private string _stageScenePrefix = "Stage_";
+ 
+   
 
   //=========================================================
   // ステージ情報
@@ -83,6 +85,7 @@ public class GameSceneManager : MonoBehaviour
   private CancellationTokenSource _fadeCts;
   private string _lastSceneStartFadeScenePath;
   private static bool _shouldShowStageSelectTutorialNarration;
+  private static FXManager _persistedFxManager;
 
   //=========================================================
   // Unity イベント
@@ -99,6 +102,9 @@ public class GameSceneManager : MonoBehaviour
 
       ClearStageCount = StageProgressManager.LoadClearStageCount(TotalStageCount);
 
+      PersistFxManagerIfNeeded();
+      SceneManager.sceneLoaded += OnSceneLoadedPersistFxManager;
+
       if (_isDebug)
       {
         CurrentStageNum = _debugStartStage;
@@ -108,6 +114,41 @@ public class GameSceneManager : MonoBehaviour
     {
       Destroy(gameObject);
     }
+  }
+
+  private void OnDestroy()
+  {
+    if (_instance == this)
+    {
+      SceneManager.sceneLoaded -= OnSceneLoadedPersistFxManager;
+    }
+  }
+
+  private void OnSceneLoadedPersistFxManager(Scene scene, LoadSceneMode mode)
+  {
+    PersistFxManagerIfNeeded();
+  }
+
+  /// <summary>
+  /// シーン内のFXManagerを見つけてDontDestroyOnLoad化する。
+  /// 常駐済みならなにもしない（後から読まれたシーンのFXManagerはシーンと共に破棄される）。
+  /// </summary>
+  private static void PersistFxManagerIfNeeded()
+  {
+    if (_persistedFxManager != null)
+    {
+      return;
+    }
+
+    FXManager fxManager = FindFirstObjectByType<FXManager>(FindObjectsInactive.Include);
+    if (fxManager == null)
+    {
+      return;
+    }
+
+    fxManager.transform.SetParent(null);
+    DontDestroyOnLoad(fxManager.gameObject);
+    _persistedFxManager = fxManager;
   }
 
   private void Update()
