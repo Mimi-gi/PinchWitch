@@ -156,7 +156,16 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
       return;
     }
 
+    var wasLocked = _isPlayerGameplayLockedExternally;
     _isPlayerGameplayLockedExternally = isLocked;
+
+    if (wasLocked && !isLocked)
+    {
+      // ロック解除に使われたキー入力が同じフレームで
+      // 移動トグル（一時停止）としても処理されてしまうのを防ぐ。
+      _waitForStartInputRelease = Input.GetKey(startGameplayKey);
+    }
+
     UpdatePlayerMovementState();
   }
 
@@ -312,6 +321,7 @@ public sealed class SpaceViewModeSwitcher : MonoBehaviour, IRuntimeResettable
     {
       _unlockPlayerGameplayWhenRealtimeStarts = false;
       _isPlayerGameplayLockedExternally = false;
+      _waitForStartInputRelease = Input.GetKey(startGameplayKey);
     }
 
     if (!_isStartReactionPlaying)

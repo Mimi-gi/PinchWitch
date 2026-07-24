@@ -1028,11 +1028,19 @@ MonoBehaviour:
       illustration: {fileID: 0}
     - pageId: 2
       speakerName: "\u30A2\u30EA\u30B9"
-      message: "\u300C\u3053\u306E\u307E\u307E\u884C\u304F\u3068\u3001\u6B7B\u3093\u3067\u3057\u307E\u3046\u3002\u300D"
+      message: "\u300C\u3053\u306E\u307E\u307E\u9032\u3080\u3068\u3001\u30B7\u30A2\u30BF\u30FC\u306E\u79C1\u304C\u7A74\u306B\u843D\u3061\u3061\u3083\u3046\uFF01\u300D"
       illustration: {fileID: 0}
     - pageId: 3
       speakerName: "\u30A2\u30EA\u30B9"
-      message: "\u300C\u4F55\u304B\u52D5\u304B\u305B\u308B\u3082\u306E\u304C\u306A\u3044\u304B\u306A\u3002\u300D"
+      message: "\u300C\u3069\u3046\u3057\u3088\u3046...\u300D"
+      illustration: {fileID: 0}
+    - pageId: 3
+      speakerName: "\u30A2\u30EA\u30B9"
+      message: "\u300C\u3042\u308C...\u30D6\u30ED\u30C3\u30AF\u306E\u5F71\u304C\u3001\u8DB3\u5834\u307F\u305F\u3044\u306B\u306A\u3063\u3066\u308B...\uFF1F\u300D"
+      illustration: {fileID: 0}
+    - pageId: 3
+      speakerName: "\u30A2\u30EA\u30B9"
+      message: "\u300C\u3082\u3057\u304B\u3057\u3066\u3001\u5F71\u3092\u8DB3\u5834\u306B\u3067\u304D\u308B\u3093\u3058\u3083\u306A\u3044\u304B\u3057\u3089\uFF1F\u300D"
       illustration: {fileID: 0}
     triggerId: 
     waitSeconds: 0
@@ -1124,15 +1132,11 @@ MonoBehaviour:
     pages:
     - pageId: 1
       speakerName: "\u30CA\u30EC\u30FC\u30B7\u30E7\u30F3"
-      message: "\u3053\u306E\u307E\u307E\u3067\u306F\u3001\u30A2\u30EA\u30B9\u304C\u843D\u3061\u3066\u3057\u307E\u3046\u3002"
-      illustration: {fileID: 0}
-    - pageId: 2
-      speakerName: "\u30CA\u30EC\u30FC\u30B7\u30E7\u30F3"
-      message: "\u76E4\u4E0A\u306B\u3042\u308B\u30D6\u30ED\u30C3\u30AF\u3092\u300C\u53F3\u624B\u300D\u3067\u3064\u307E\u3093\u3067\u3001\u30A2\u30EA\u30B9\u304C\u901A\u308B\u3068\u3053\u308D\u306B\u6A4B\u3092\u67B6\u3051\u3088\u3046\u3002"
+      message: "\u30D6\u30ED\u30C3\u30AF\u3092\u30AF\u30EA\u30C3\u30AF\u3067\u63B4\u307F\u3001\u3082\u3046\u4E00\u5EA6\u30AF\u30EA\u30C3\u30AF\u3067\u96E2\u305D\u3046"
       illustration: {fileID: 0}
     - pageId: 3
       speakerName: "\u30CA\u30EC\u30FC\u30B7\u30E7\u30F3"
-      message: "\u30A2\u30EA\u30B9\u306F\u81EA\u5206\u306E\u9AD8\u3055\u307E\u3067\u306A\u3089\u3001\u58C1\u3092\u4E0A\u304C\u308B\u3053\u3068\u304C\u3067\u304D\u308B\u3002"
+      message: "\u5F71\u3067\u7A74\u304C\u57CB\u307E\u308B\u3088\u3046\u306B\u30D6\u30ED\u30C3\u30AF\u3092\u914D\u7F6E\u3057\u3088\u3046"
       illustration: {fileID: 0}
     triggerId: 
     waitSeconds: 0
@@ -1258,7 +1262,7 @@ MonoBehaviour:
     pages:
     - pageId: 
       speakerName: "\u30CA\u30EC\u30FC\u30B7\u30E7\u30F3"
-      message: "\u300C\u5DE6\u624B\u300D\u3067\u30B0\u30C3\u30C9\u306E\u30DD\u30FC\u30BA\u304B\u30B9\u30DA\u30FC\u30B9\u3092\u62BC\u3057\u3066\u30A2\u30EA\u30B9\u3092\u9032\u3081\u3088\u3046\u3002"
+      message: "\u30B9\u30DA\u30FC\u30B9\u30AD\u30FC\u3092\u62BC\u3059\u3068\u3001\u30A2\u30EA\u30B9\u306F\u518D\u3073\u52D5\u304D\u51FA\u3059\n"
       illustration: {fileID: 0}
     triggerId: 
     waitSeconds: 0
@@ -1326,10 +1330,10 @@ MonoBehaviour:
   initial2DGameplayEnabled: 0
   initial3DInteractionEnabled: 0
   typewriterCharactersPerSecond: 10
-  acceptAdvanceInput: 0
-  autoAdvanceNarration: 1
+  acceptAdvanceInput: 1
+  autoAdvanceNarration: 0
   autoAdvanceNarrationDelay: 1.25
-  advanceKeys: 
+  advanceKeys: 200000000d00000043010000
   advanceInputGracePeriod: 0.1
   autoResolveSceneReferences: 1
   spaceViewModeSwitcher: {fileID: 222675968}
@@ -2980,6 +2984,7 @@ GameObject:
   - component: {fileID: 1094016895}
   - component: {fileID: 1094016892}
   - component: {fileID: 1094016893}
+  - component: {fileID: 1094016896}
   m_Layer: 0
   m_Name: Grabbable_2Block_Yoko_Shadow2DOutput
   m_TagString: Untagged
@@ -3004,6 +3009,7 @@ MonoBehaviour:
   outputBody: {fileID: 1094016892}
   ownerBuilder: {fileID: 1118308906}
   useCompositeCollider: 1
+  lightPassablePlatform: {fileID: 1094016896}
 --- !u!50 &1094016892
 Rigidbody2D:
   serializedVersion: 5
@@ -3160,6 +3166,20 @@ PolygonCollider2D:
       - {x: 0.58778536, y: -0.80901694}
       - {x: 0.9510565, y: 0.30901712}
   m_UseDelaunayMesh: 1
+--- !u!114 &1094016896
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1094016890}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: da6bbde9cd8f2174ba93934fd3f1e66f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LightPassablePlatform2D
+  holeCollider: {fileID: 0}
+  holeCompositeOrder: 100
 --- !u!1 &1099959919
 GameObject:
   m_ObjectHideFlags: 0

@@ -9,6 +9,15 @@ public sealed class EnemyTouchRespawn2D : MonoBehaviour
   [SerializeField] private float retriggerCooldownSeconds = 0.1f;
 
   private float _nextAllowedTriggerTime;
+  private bool _isLethal = true;
+
+  /// <summary>
+  /// 接触死の有効/無効。光ギミックで HP0 になった敵は無効化される。
+  /// </summary>
+  public void SetLethal(bool isLethal)
+  {
+    _isLethal = isLethal;
+  }
 
   private void Reset()
   {
@@ -39,7 +48,8 @@ public sealed class EnemyTouchRespawn2D : MonoBehaviour
 
   private void TryRespawnPlayer(Collider2D other)
   {
-    if (other == null
+    if (!_isLethal
+        || other == null
         || !other.CompareTag(playerTag)
         || Time.time < _nextAllowedTriggerTime)
     {

@@ -2063,8 +2063,8 @@ MonoBehaviour:
   initial2DGameplayEnabled: 0
   initial3DInteractionEnabled: 0
   typewriterCharactersPerSecond: 10
-  acceptAdvanceInput: 0
-  autoAdvanceNarration: 1
+  acceptAdvanceInput: 1
+  autoAdvanceNarration: 0
   autoAdvanceNarrationDelay: 1.25
   advanceKeys: 
   advanceInputGracePeriod: 0.1

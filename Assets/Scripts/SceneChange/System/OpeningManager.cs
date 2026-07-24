@@ -23,7 +23,6 @@ public sealed class OpeningManager : MonoBehaviour
   [SerializeField] private float initialImageFadeDuration = 1.5f;
   [SerializeField] private float transitionFadeDuration = 0.75f;
   [SerializeField] private float firstMessageWindowDelay = 1f;
-  [SerializeField] private float lineCompleteDelay = 0f;
   [SerializeField] private bool useUnscaledTime = true;
 
   [Header("Narration")]
@@ -133,11 +132,6 @@ public sealed class OpeningManager : MonoBehaviour
       ShowNarrationWindow();
       await RevealMessageAsync(page, ct);
 
-      if (lineCompleteDelay > 0f)
-      {
-        await WaitAsync(lineCompleteDelay, ct);
-      }
-
       if (i < pages.Length - 1)
       {
         HideNarrationWindow();
@@ -163,23 +157,51 @@ public sealed class OpeningManager : MonoBehaviour
     if (typewriterCharactersPerSecond <= 0f || string.IsNullOrEmpty(_currentFullText))
     {
       RevealCurrentMessageImmediately();
-      return;
     }
-
-    while (_visibleCharacterCount < _currentFullText.Length)
+    else
     {
-      _typewriterProgress += typewriterCharactersPerSecond * DeltaTime;
-      var nextVisibleCharacterCount = Mathf.Clamp(Mathf.FloorToInt(_typewriterProgress), 0, _currentFullText.Length);
-      if (nextVisibleCharacterCount != _visibleCharacterCount)
+      while (_visibleCharacterCount < _currentFullText.Length)
       {
-        _visibleCharacterCount = nextVisibleCharacterCount;
-        ApplyDisplayedText();
+        if (HasAdvanceInputThisFrame())
+        {
+          RevealCurrentMessageImmediately();
+          break;
+        }
+
+        _typewriterProgress += typewriterCharactersPerSecond * DeltaTime;
+        var nextVisibleCharacterCount = Mathf.Clamp(Mathf.FloorToInt(_typewriterProgress), 0, _currentFullText.Length);
+        if (nextVisibleCharacterCount != _visibleCharacterCount)
+        {
+          _visibleCharacterCount = nextVisibleCharacterCount;
+          ApplyDisplayedText();
+        }
+
+        await UniTask.Yield(ct);
       }
 
+      ApplyPrompt(isFullyRevealed: true);
+    }
+
+    await WaitForAdvanceClickAsync(ct);
+  }
+
+  private static bool HasAdvanceInputThisFrame()
+  {
+    return Input.GetMouseButtonDown(0);
+  }
+
+  // 直前のクリック(全体表示スキップ)と、ここで待つ次送り用クリックが
+  // 同一フレームで二重に判定されないよう、前後に1フレームずつ挟む。
+  private async UniTask WaitForAdvanceClickAsync(CancellationToken ct)
+  {
+    await UniTask.Yield(ct);
+
+    while (!HasAdvanceInputThisFrame())
+    {
       await UniTask.Yield(ct);
     }
 
-    ApplyPrompt(isFullyRevealed: true);
+    await UniTask.Yield(ct);
   }
 
   private void RevealCurrentMessageImmediately()
@@ -408,7 +430,6 @@ public sealed class OpeningManager : MonoBehaviour
     initialImageFadeDuration = Mathf.Max(0f, initialImageFadeDuration);
     transitionFadeDuration = Mathf.Max(0f, transitionFadeDuration);
     firstMessageWindowDelay = Mathf.Max(0f, firstMessageWindowDelay);
-    lineCompleteDelay = Mathf.Max(0f, lineCompleteDelay);
     typewriterCharactersPerSecond = Mathf.Max(0f, typewriterCharactersPerSecond);
     nextStageNumber = Mathf.Max(1, nextStageNumber);
 

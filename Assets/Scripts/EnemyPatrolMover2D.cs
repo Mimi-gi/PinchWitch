@@ -28,8 +28,19 @@ public sealed class EnemyPatrolMover2D : MonoBehaviour, IRuntimeResettable
   private Vector3 _initialLocalPosition;
   private float _currentOffset;
   private float _movementDirection = 1f;
+  private float _externalSpeedMultiplier = 1f;
 
   public int ResetOrder => 100;
+
+  public PatrolAxis Axis => patrolAxis;
+
+  /// <summary>
+  /// 外部(光ギミック等)からの速度倍率。0 で移動停止、1 で通常速度。
+  /// </summary>
+  public void SetExternalSpeedMultiplier(float multiplier)
+  {
+    _externalSpeedMultiplier = Mathf.Max(0f, multiplier);
+  }
 
   private void Reset()
   {
@@ -71,6 +82,7 @@ public sealed class EnemyPatrolMover2D : MonoBehaviour, IRuntimeResettable
 
   public void ResetRuntimeState()
   {
+    _externalSpeedMultiplier = 1f;
     InitializePatrolState();
     transform.localPosition = _initialLocalPosition;
     ApplyPatrolPosition();
@@ -163,12 +175,12 @@ public sealed class EnemyPatrolMover2D : MonoBehaviour, IRuntimeResettable
 
   private void AdvancePatrol(float deltaTime)
   {
-    if (moveRange <= 0f || speed <= 0f || deltaTime <= 0f)
+    if (moveRange <= 0f || speed <= 0f || deltaTime <= 0f || _externalSpeedMultiplier <= 0f)
     {
       return;
     }
 
-    _currentOffset += _movementDirection * GetConstantSpeed() * deltaTime;
+    _currentOffset += _movementDirection * GetConstantSpeed() * _externalSpeedMultiplier * deltaTime;
 
     while (_currentOffset < -moveRange || _currentOffset > moveRange)
     {

@@ -122,6 +122,15 @@ public class GameSceneManager : MonoBehaviour
     {
       SceneManager.sceneLoaded -= OnSceneLoadedPersistFxManager;
     }
+
+    // 自身の破棄後に走り続けるとフェード対象へのアクセスで MissingReferenceException になるため止める
+    _fadeCts?.Cancel();
+    _fadeCts?.Dispose();
+    _fadeCts = null;
+
+    _transitionCts?.Cancel();
+    _transitionCts?.Dispose();
+    _transitionCts = null;
   }
 
   private void OnSceneLoadedPersistFxManager(Scene scene, LoadSceneMode mode)
@@ -355,6 +364,12 @@ public class GameSceneManager : MonoBehaviour
       elapsed += Time.unscaledDeltaTime;
       _fadeCanvasGroup.alpha = Mathf.Lerp(fromAlpha, toAlpha, Mathf.Clamp01(elapsed / _fadeDuration));
       await UniTask.Yield(ct);
+
+      // シーン遷移などでフェード中に CanvasGroup が破棄されることがある
+      if (_fadeCanvasGroup == null)
+      {
+        return;
+      }
     }
 
     _fadeCanvasGroup.alpha = toAlpha;

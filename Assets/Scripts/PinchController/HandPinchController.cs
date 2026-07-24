@@ -254,6 +254,7 @@ public class HandPinchController : MonoBehaviour
   private void ResetInteractionStateForControllerShutdown()
   {
     _grabInteractor?.ForceFinishVerticalDrops();
+    _outlineController?.Dispose();
   }
 
   // Vector2 の最小値と最大値の順序が逆なら入れ替える。

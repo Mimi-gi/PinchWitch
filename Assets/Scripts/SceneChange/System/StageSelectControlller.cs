@@ -199,6 +199,9 @@ public class StageSelectController : MonoBehaviour
     }
 
     _isTransitioning = true;
+    // トランプが画面奥へ消えていく演出の間、ハイライトが残らないよう掴み操作とアウトラインを止める
+    _handPinchController?.SetInteractionEnabled(false);
+
     if (AudioManager.Instance != null)
     {
       AudioManager.Instance.PlaySE(AudioManager.Instance.SE_Select);

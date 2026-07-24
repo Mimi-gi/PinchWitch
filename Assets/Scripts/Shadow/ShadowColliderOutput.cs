@@ -9,6 +9,7 @@ public sealed class ShadowColliderOutput : MonoBehaviour
   [SerializeField] private Rigidbody2D outputBody;
   [SerializeField] private ShadowColliderBuilder ownerBuilder;
   [SerializeField] private bool useCompositeCollider = true;
+  [SerializeField] private LightPassablePlatform2D lightPassablePlatform;
   private readonly List<PolygonCollider2D> _polygonSources = new List<PolygonCollider2D>();
 
   public PolygonCollider2D SourcePolygon => sourcePolygon;
@@ -62,6 +63,16 @@ public sealed class ShadowColliderOutput : MonoBehaviour
       if (compositeCollider == null)
       {
         compositeCollider = gameObject.AddComponent<CompositeCollider2D>();
+      }
+    }
+
+    // 影足場は光ギミックで透過できるよう、穴あけコンポーネントを自動付与する。
+    if (lightPassablePlatform == null)
+    {
+      lightPassablePlatform = GetComponent<LightPassablePlatform2D>();
+      if (lightPassablePlatform == null)
+      {
+        lightPassablePlatform = gameObject.AddComponent<LightPassablePlatform2D>();
       }
     }
 

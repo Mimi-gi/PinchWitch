@@ -134,11 +134,7 @@ public sealed class MouseGrabController
       return true;
     }
 
-    if (Input.GetMouseButtonDown(0))
-    {
-      _outlineController?.ClearCurrentOutline();
-    }
-
+    _outlineController?.ClearCurrentOutline();
     return false;
   }
 
