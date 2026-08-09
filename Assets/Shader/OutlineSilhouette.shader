@@ -20,14 +20,20 @@ Shader "Hidden/OutlineSDF/Silhouette"
             Name "Silhouette"
             Tags { "LightMode" = "UniversalForward" }
 
+            // 深度バッファを一切使わない。
+            // 求めているのは「完全な投影シルエット」なので深度テストは不要。
+            // 遮蔽は合成パスでシーン深度と比較して行う。
             Cull Off
             ZWrite Off
-            ZTest LEqual
+            ZTest Always
             Blend Off
 
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            // MRT(SV_Target0/1 同時出力)と、フラグメントでの SV_POSITION 読み取りに
+            // シェーダーモデル 3.0 以上が要る。未指定だとデフォルト 2.5 になり両方使えない。
+            #pragma target 3.5
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
@@ -64,7 +70,9 @@ Shader "Hidden/OutlineSDF/Silhouette"
                 return OUT;
             }
 
-            void frag(Varyings IN, out half4 seedOut : SV_Target0, out half4 payloadOut : SV_Target1)
+            // seed は画面ピクセル座標を保持するため half では精度が足りない(1024px を超えると
+            // 刻み幅が 1px 以上になり距離場が階段状になる)。float で出力する。
+            void frag(Varyings IN, out float4 seedOut : SV_Target0, out float4 payloadOut : SV_Target1)
             {
                 // プレイヤーが近いほどアウトラインを控えめにする
                 float distToPlayer = distance(IN.positionWS, _OutlinePlayerWorldPos);
@@ -72,18 +80,18 @@ Shader "Hidden/OutlineSDF/Silhouette"
                 float fadeT = saturate((distToPlayer - _OutlinePlayerFadeStart) / fadeRange);
                 float playerFade = lerp(1.0 - _OutlinePlayerFadeStrength, 1.0, fadeT);
 
-                // _OutlineWidth は OutlineController 側で「表示ON/OFF」の意味で使われている値
-                // (旧・頂点押し出し方式での世界単位の太さ(例: 0.08)を流用しているため、
-                // ここでpxの太さへそのまま掛け算すると極端に細くなってしまう)。
-                // 太さ自体は _OutlineWidthPx(グローバル設定)基準とし、_OutlineWidth はゲートとしてのみ使う。
-                float widthPx = _OutlineWidthPx * _OutlineWidthMultiplier * playerFade;
+                // _OutlineWidth は OutlineController がオブジェクト単位でトゥイーンする太さ倍率(0〜1)。
+                // これにより対象ごとに独立して「ニュッと」出現/消失できる。
+                // _OutlineWidthMultiplier はグローバルのマスター倍率(通常1)。
+                float widthPx = _OutlineWidthPx * _OutlineWidthMultiplier * _OutlineWidth * playerFade;
 
                 // 太さ0、または非ハイライト(_OutlineWidth<=0)のオブジェクトはマスクに書き込まない
                 clip(_OutlineWidth - 0.0001);
                 clip(widthPx - 0.001);
 
-                seedOut = half4(IN.positionHCS.xy, 0, 1);
-                payloadOut = half4(_OutlineColor.rgb, widthPx);
+                // xy = シルエット画素のスクリーン座標(2D SDF のシード)。seed は RG のみ
+                seedOut = float4(IN.positionHCS.xy, 0, 1);
+                payloadOut = float4(_OutlineColor.rgb, widthPx);
             }
             ENDHLSL
         }

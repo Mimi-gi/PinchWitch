@@ -5,6 +5,7 @@ Shader "Hidden/OutlineSDF/Composite"
     // Pass 1 (Composite): 最終SDFから距離を求め、グラディエントノイズで輪郭を溶かしながら合成する
     HLSLINCLUDE
     #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+    #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
     #include "Packages/com.unity.render-pipelines.core/Runtime/Utilities/Blit.hlsl"
 
     TEXTURE2D(_SeedTex);
@@ -16,9 +17,13 @@ Shader "Hidden/OutlineSDF/Composite"
     float _EdgeSoftnessPx;
     float _NoiseScale;
     float _NoiseSpeed;
+    float _NoiseScrollSpeed;
     float _NoiseWidthStrength;
     float _BaseDissolve;
     float _FogOpacity;
+    float _EdgeFalloffPower;
+    float _DepthOcclusionBias;
+    float _InteriorOpacity;
 
     // 無効なシード座標の目印（クリア色と一致させる）
     #define INVALID_SEED_X -1e4
@@ -42,6 +47,20 @@ Shader "Hidden/OutlineSDF/Composite"
 
         return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y);
     }
+
+    // シーン深度をアイ空間の線形距離で取得する。
+    // LinearEyeDepth は透視投影専用なので、正射影の場合は near〜far の線形補間に切り替える。
+    float SceneEyeDepth(float2 uv)
+    {
+        float raw = SampleSceneDepth(uv);
+    #if UNITY_REVERSED_Z
+        float d01 = 1.0 - raw;
+    #else
+        float d01 = raw;
+    #endif
+        float ortho = _ProjectionParams.y + d01 * (_ProjectionParams.z - _ProjectionParams.y);
+        return lerp(LinearEyeDepth(raw, _ZBufferParams), ortho, unity_OrthoParams.w);
+    }
     ENDHLSL
 
     SubShader
@@ -61,14 +80,14 @@ Shader "Hidden/OutlineSDF/Composite"
             #pragma fragment frag
             #pragma target 3.5
 
-            void frag(Varyings IN, out half4 seedOut : SV_Target0, out half4 payloadOut : SV_Target1)
+            void frag(Varyings IN, out float4 seedOut : SV_Target0, out float4 payloadOut : SV_Target1)
             {
                 float2 pixelPos = IN.texcoord * _ScreenParams.xy;
                 float2 texelStep = _JFAStepPx / _ScreenParams.xy;
 
                 float bestDistSq = 1e20;
                 float2 bestSeed = float2(INVALID_SEED_X, INVALID_SEED_X);
-                half4 bestPayload = 0;
+                float4 bestPayload = 0;
 
                 [unroll]
                 for (int y = -1; y <= 1; y++)
@@ -94,7 +113,7 @@ Shader "Hidden/OutlineSDF/Composite"
                     }
                 }
 
-                seedOut = half4(bestSeed, 0, 1);
+                seedOut = float4(bestSeed, 0, 1);
                 payloadOut = bestPayload;
             }
             ENDHLSL
@@ -123,24 +142,63 @@ Shader "Hidden/OutlineSDF/Composite"
                 if (ringWidthPx <= 0.0)
                     return half4(0, 0, 0, 0);
 
+                // (1) SDF: シルエット内部は 0、外側はシルエット縁までのピクセル距離
                 float dist = distance(pixelPos, seed);
 
-                // シード(=シルエット縁の位置)を基準にノイズを取ることで、輪郭に沿って太さが
-                // なめらかに波打つようにする(現在のピクセル座標基準だと放射状にしか揺れない)。
-                float2 seedUV = seed / _ScreenParams.xy;
-                float widthNoise = GradNoise2D(seedUV * _NoiseScale + _Time.y * _NoiseSpeed * 0.5);
-                float wobbledWidthPx = max(ringWidthPx * (1.0 + widthNoise * _NoiseWidthStrength), 0.0);
+                // (2)(3) 距離場そのものにグラディエントノイズを加算する。
+                // 太さに乗算すると輪郭全体が一様に膨らむだけ(板が呼吸して見える)なので、
+                // 距離を局所的に押し引きして等値線そのものを歪ませる。
+                //
+                // 低周波はシード基準: 同じ縁を参照する画素が同じ変位を受けるため、
+                //   炎の舌が輪郭に沿って伸び縮みする。
+                // 高周波は画素基準: 縁がちりちりと崩れる。
+                // ノイズ空間は縦解像度で正規化して正方セルにする(xyで割ると横長に歪む)。
+                float2 seedNoiseUV = seed / _ScreenParams.y;
+                float2 pixNoiseUV = pixelPos / _ScreenParams.y;
+                float2 scroll = float2(0.0, _Time.y * _NoiseScrollSpeed);
+                float phase = _Time.y * _NoiseSpeed * 0.5;
+                float nLow = GradNoise2D(seedNoiseUV * _NoiseScale + scroll + phase);
+                float nHigh = GradNoise2D(pixNoiseUV * _NoiseScale * 3.1 + scroll * 1.7 + phase * 1.3 + 17.0);
+                float noise = nLow * 0.75 + nHigh * 0.25;
 
-                float ring = 1.0 - smoothstep(max(wobbledWidthPx - _EdgeSoftnessPx, 0.0), wobbledWidthPx, dist);
-                ring *= step(0.001, dist); // オブジェクト内部(距離0)は塗らない
+                // 変位量は帯の太さに比例させる(細いアウトラインが千切れないように)
+                float distN = dist - noise * ringWidthPx * _NoiseWidthStrength;
 
-                // ノイズで輪郭を「もやもや」と溶かす。
-                // 内側(dist=0付近)は残りやすく、外側(輪の外縁)ほど閾値が上がって散りやすくする。
-                float n = GradNoise2D(IN.texcoord * _NoiseScale + _Time.y * _NoiseSpeed) * 0.5 + 0.5;
-                float edgeT = saturate(dist / max(wobbledWidthPx, 0.0001));
-                float dissolveThreshold = lerp(0.0, _BaseDissolve, edgeT);
-                float dissolve = smoothstep(dissolveThreshold - 0.15, dissolveThreshold + 0.15, n);
-                ring *= dissolve;
+                // (4) 閾値処理。内部(dist=0)も塗るので step によるマスクは掛けない
+                float ring = 1.0 - smoothstep(max(ringWidthPx - _EdgeSoftnessPx, 0.0), ringWidthPx, distN);
+
+                // 外縁ほど薄く。均一な不透明度の帯は輪郭から浮いた板に見えるため、
+                // 根元(シルエット際)から滲み出すグラデーションにする。
+                // pow(0, 0) は未定義(NaNの恐れ)のため、底を極小値でクランプする
+                float edgeT = saturate(distN / max(ringWidthPx, 1e-4));
+                ring *= pow(max(1.0 - edgeT, 1e-4), _EdgeFalloffPower);
+
+                // 外縁だけを高周波ノイズで欠けさせる(根元は欠けさせない)
+                float erode = saturate(nHigh * 0.5 + 0.5);
+                ring *= lerp(1.0, erode, saturate(_BaseDissolve * edgeT));
+
+                // (5) 元の3Dオブジェクトを手前にする。
+                // グロウの深度 = 最近傍シルエット点のアイ深度(objEye)。
+                // そこより手前にシーンが在る画素は隠す。オブジェクト自身の画素は
+                // 深度が一致するため隠れ、常に3Dオブジェクトが手前に見える。
+                // シルエットは専用深度バッファに描いているので、壁に隠れた部分も
+                // 輪郭の形としては保たれたまま、ここで初めてシーン深度に負けて消える。
+                // _InteriorOpacity を上げるとオブジェクト越しに内側の塗りが透ける。
+                // 5-a) シーンがオブジェクトより「手前」にある分だけ隠す。
+                // 背後の床や壁は sceneEye >= objEye なので occluded = 0 のまま残る。
+                // (sceneEye - objEye > bias を表示条件にすると、オブジェクトに接した床の
+                //  すぐ隣に乗る帯まで消えてアウトラインがほぼ全滅するので向きが逆)
+                // オブジェクトの深度は、最近傍シルエット点(seed)の位置でシーン深度を引いて代用する。
+                // seed 上には対象オブジェクト自身が写っているので、そこの深度がオブジェクトの深度になる。
+                float sceneEye = SceneEyeDepth(IN.texcoord);
+                float objEye = SceneEyeDepth(seed / _ScreenParams.xy);
+                float occluded = smoothstep(0.0, max(_DepthOcclusionBias, 1e-4), objEye - sceneEye);
+                ring *= 1.0 - occluded;
+
+                // 5-b) シルエット内部はオブジェクト自身が手前になる。
+                // ここは深度の一致で判定すると誤差に埋もれるため、距離場で判定する
+                // (内部は dist = 0)。_InteriorOpacity を上げると内側の塗りが透ける。
+                ring *= lerp(1.0, _InteriorOpacity, saturate(1.0 - dist));
 
                 float alpha = ring * _FogOpacity;
                 return half4(payload.rgb, saturate(alpha));

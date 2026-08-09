@@ -134,6 +134,14 @@ public sealed class MouseGrabController
       return true;
     }
 
+    // 射程外の Grabbable には「掴めないが対象ではある」ことを示す細いアウトラインだけ出す。
+    // 掴み操作は受け付けないため、入力は消費しない。
+    if (TryGetGrabbableBodyWithinDistance(Mathf.Infinity, out var outOfRangeBody, out _))
+    {
+      _outlineController?.ShowHoverOutOfRange(outOfRangeBody);
+      return false;
+    }
+
     _outlineController?.ClearCurrentOutline();
     return false;
   }
@@ -324,6 +332,11 @@ public sealed class MouseGrabController
   // マウスカーソル直下にある掴める Rigidbody を取得する。
   private bool TryGetMouseGrabbableBody(out Rigidbody targetBody, out RaycastHit targetHit)
   {
+    return TryGetGrabbableBodyWithinDistance(_config.raycastDistance, out targetBody, out targetHit);
+  }
+
+  private bool TryGetGrabbableBodyWithinDistance(float maxDistance, out Rigidbody targetBody, out RaycastHit targetHit)
+  {
     targetBody = null;
     targetHit = default;
     if (!TryGetMouseRay(out var ray))
@@ -334,7 +347,7 @@ public sealed class MouseGrabController
     var hitCount = Physics.RaycastNonAlloc(
       ray,
       _raycastHits,
-      _config.raycastDistance,
+      maxDistance,
       ~0,
       QueryTriggerInteraction.Ignore);
     var nearestDistance = float.MaxValue;

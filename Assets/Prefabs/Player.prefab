@@ -41,7 +41,7 @@ Transform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!212 &6399554211446858458
 SpriteRenderer:
-  serializedVersion: 2
+  serializedVersion: 3
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -98,6 +98,7 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
+  m_BlendShapeWeights: []
 --- !u!50 &5677837748980333306
 Rigidbody2D:
   serializedVersion: 5
@@ -219,6 +220,8 @@ MonoBehaviour:
   fullCoverSampleColumns: 3
   fullCoverSampleRows: 5
   fullCoverSampleInset: 0.02
+  ignoreLightHoles: 0
+  lightHoleProbeSamples: 5
 --- !u!114 &-6984775035002389195
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -19,8 +19,18 @@ public class OutlineSDFFeature : ScriptableRendererFeature
         public float noiseScale = 12f;
         public float noiseSpeed = 2f;
         [Range(0f, 1f)] public float noiseWidthStrength = 0.5f;
+        // ゆらゆら(炎)用: 揺れの模様が輪郭に沿って流れる速さ。符号で方向が反転する
+        public float noiseScrollSpeed = 0.6f;
         [Range(0f, 1f)] public float baseDissolve = 0.234f;
         [Range(0f, 1f)] public float fogOpacity = 0.741f;
+        // SDF距離に沿った減衰カーブ。0=減衰なし(均一な帯)、大きいほど根元だけが濃く残る
+        [Range(0f, 4f)] public float edgeFalloffPower = 1.5f;
+        // 閾値の境界をぼかす幅。帯の太さに対して小さすぎると外縁が硬くシール状に見える
+        [Range(0f, 16f)] public float edgeSoftnessPx = 6f;
+        // グロウを隠す深度差(ワールド単位)。オブジェクトより手前にシーンが在れば隠す
+        [Range(0.001f, 0.5f)] public float depthOcclusionBias = 0.02f;
+        // オブジェクト自身に重なる内側の塗りをどれだけ透かすか。0で3Dオブジェクトが完全に手前
+        [Range(0f, 1f)] public float interiorOpacity = 0f;
         public float playerFadeStart = 0.1f;
         public float playerFadeEnd = 0.8f;
         [Range(0f, 1f)] public float playerFadeStrength = 0.5f;
@@ -32,11 +42,19 @@ public class OutlineSDFFeature : ScriptableRendererFeature
     [SerializeField] private Shader _sdfShader;
 
     private static float s_widthMultiplier = 1f;
+    private static int s_activeOutlineCount;
 
-    // OutlineController がトゥイーンで呼び出す、太さ倍率(0〜1)の設定口
+    // 全体に掛かるマスター太さ倍率(通常1)。個別の太さは Renderer の _OutlineWidth 側で制御する
     public static void SetWidthMultiplier(float value)
     {
         s_widthMultiplier = value;
+    }
+
+    // OutlineController が表示中(消えかけ含む)のアウトライン数を通知する。
+    // 0の間はシルエット/JFA/合成パスを丸ごとスキップしてGPUコストを0にする。
+    public static void SetActiveOutlineCount(int count)
+    {
+        s_activeOutlineCount = count;
     }
 
     private OutlineSDFPass _pass;
@@ -58,6 +76,21 @@ public class OutlineSDFFeature : ScriptableRendererFeature
 
         if (renderingData.cameraData.cameraType != CameraType.Game &&
             renderingData.cameraData.cameraType != CameraType.SceneView)
+        {
+            return;
+        }
+
+        // 何もハイライトされていない間はパス自体を積まない
+        if (s_activeOutlineCount <= 0)
+        {
+            return;
+        }
+
+        // 対象レイヤーを1つも描画しないカメラではシルエットが空になるだけなので積まない。
+        // このプロジェクトはカメラが多く(Stage_10 では8台)、大半は Grabbable レイヤーを
+        // 描画しない。それらで合成パスまで走らせると無駄な上に、デバッグ時に
+        // 「対象を描かないカメラの出力」が最後に被さって切り分けを誤らせる。
+        if ((renderingData.cameraData.camera.cullingMask & settings.targetLayers.value) == 0)
         {
             return;
         }
@@ -91,10 +124,14 @@ public class OutlineSDFFeature : ScriptableRendererFeature
         private static readonly int JfaStepPxId = Shader.PropertyToID("_JFAStepPx");
         private static readonly int NoiseScaleId = Shader.PropertyToID("_NoiseScale");
         private static readonly int NoiseSpeedId = Shader.PropertyToID("_NoiseSpeed");
+        private static readonly int NoiseScrollSpeedId = Shader.PropertyToID("_NoiseScrollSpeed");
         private static readonly int NoiseWidthStrengthId = Shader.PropertyToID("_NoiseWidthStrength");
         private static readonly int BaseDissolveId = Shader.PropertyToID("_BaseDissolve");
         private static readonly int FogOpacityId = Shader.PropertyToID("_FogOpacity");
+        private static readonly int EdgeFalloffPowerId = Shader.PropertyToID("_EdgeFalloffPower");
         private static readonly int EdgeSoftnessId = Shader.PropertyToID("_EdgeSoftnessPx");
+        private static readonly int DepthOcclusionBiasId = Shader.PropertyToID("_DepthOcclusionBias");
+        private static readonly int InteriorOpacityId = Shader.PropertyToID("_InteriorOpacity");
 
         private static readonly Vector2 InvalidSeed = new Vector2(-1e5f, -1e5f);
 
@@ -110,6 +147,9 @@ public class OutlineSDFFeature : ScriptableRendererFeature
             _settings = settings;
             _silhouetteMaterial = silhouetteShader != null ? CoreUtils.CreateEngineMaterial(silhouetteShader) : null;
             _sdfMaterial = sdfShader != null ? CoreUtils.CreateEngineMaterial(sdfShader) : null;
+
+            // 合成時に「オブジェクトより手前のシーン」を判定するため _CameraDepthTexture を要求する
+            ConfigureInput(ScriptableRenderPassInput.Depth);
         }
 
         public void Dispose()
@@ -167,6 +207,9 @@ public class OutlineSDFFeature : ScriptableRendererFeature
             int width = cameraDesc.width;
             int height = cameraDesc.height;
 
+            // xy = シード座標(スクリーンピクセル)。
+            // payload(R16G16B16A16 = 64bpp)と MRT を組むので、ここも 64bpp に揃える。
+            // ビット幅が食い違うと Native Render Pass が成立せず描画が丸ごと落ちる。
             var seedDesc = new TextureDesc(width, height)
             {
                 colorFormat = GraphicsFormat.R32G32_SFloat,
@@ -216,7 +259,6 @@ public class OutlineSDFFeature : ScriptableRendererFeature
                 builder.UseRendererList(passData.rendererList);
                 builder.SetRenderAttachment(seedA, 0);
                 builder.SetRenderAttachment(payloadA, 1);
-                builder.SetRenderAttachmentDepth(resourceData.cameraDepth, AccessFlags.Read);
                 builder.AllowPassCulling(false);
                 builder.SetRenderFunc((MaskPassData data, RasterGraphContext ctx) =>
                 {
@@ -248,11 +290,16 @@ public class OutlineSDFFeature : ScriptableRendererFeature
                     builder.UseTexture(curPayload);
                     builder.SetRenderAttachment(nextSeed, 0);
                     builder.SetRenderAttachment(nextPayload, 1);
+
+                    // Material.SetTexture はコマンドバッファに値を焼き込まないため、
+                    // 全パスで共有している _sdfMaterial では最後の代入が全パスに適用されてしまう。
+                    // cmd.SetGlobal* は記録位置で値が確定するので、パスごとに正しい入力を渡せる。
+                    builder.AllowGlobalStateModification(true);
                     builder.SetRenderFunc((BlitPassData data, RasterGraphContext ctx) =>
                     {
-                        data.material.SetTexture(SeedTexId, data.seedSrc);
-                        data.material.SetTexture(PayloadTexId, data.payloadSrc);
-                        data.material.SetFloat(JfaStepPxId, data.jfaStepPx);
+                        ctx.cmd.SetGlobalTexture(SeedTexId, data.seedSrc);
+                        ctx.cmd.SetGlobalTexture(PayloadTexId, data.payloadSrc);
+                        ctx.cmd.SetGlobalFloat(JfaStepPxId, data.jfaStepPx);
                         Blitter.BlitTexture(ctx.cmd, data.seedSrc, new Vector4(1, 1, 0, 0), data.material, data.pass);
                     });
                 }
@@ -271,18 +318,30 @@ public class OutlineSDFFeature : ScriptableRendererFeature
 
                 _sdfMaterial.SetFloat(NoiseScaleId, _settings.noiseScale);
                 _sdfMaterial.SetFloat(NoiseSpeedId, _settings.noiseSpeed);
+                _sdfMaterial.SetFloat(NoiseScrollSpeedId, _settings.noiseScrollSpeed);
                 _sdfMaterial.SetFloat(NoiseWidthStrengthId, _settings.noiseWidthStrength);
                 _sdfMaterial.SetFloat(BaseDissolveId, _settings.baseDissolve);
                 _sdfMaterial.SetFloat(FogOpacityId, _settings.fogOpacity);
-                _sdfMaterial.SetFloat(EdgeSoftnessId, 1.5f);
+                _sdfMaterial.SetFloat(EdgeFalloffPowerId, _settings.edgeFalloffPower);
+                _sdfMaterial.SetFloat(EdgeSoftnessId, _settings.edgeSoftnessPx);
+                _sdfMaterial.SetFloat(DepthOcclusionBiasId, _settings.depthOcclusionBias);
+                _sdfMaterial.SetFloat(InteriorOpacityId, _settings.interiorOpacity);
 
                 builder.UseTexture(curSeed);
                 builder.UseTexture(curPayload);
+
+                // グローバルの _CameraDepthTexture をシェーダーで読むため依存を明示する
+                if (resourceData.cameraDepthTexture.IsValid())
+                {
+                    builder.UseTexture(resourceData.cameraDepthTexture);
+                }
+
                 builder.SetRenderAttachment(resourceData.cameraColor, 0);
+                builder.AllowGlobalStateModification(true);
                 builder.SetRenderFunc((BlitPassData data, RasterGraphContext ctx) =>
                 {
-                    data.material.SetTexture(SeedTexId, data.seedSrc);
-                    data.material.SetTexture(PayloadTexId, data.payloadSrc);
+                    ctx.cmd.SetGlobalTexture(SeedTexId, data.seedSrc);
+                    ctx.cmd.SetGlobalTexture(PayloadTexId, data.payloadSrc);
                     Blitter.BlitTexture(ctx.cmd, data.seedSrc, new Vector4(1, 1, 0, 0), data.material, data.pass);
                 });
             }
