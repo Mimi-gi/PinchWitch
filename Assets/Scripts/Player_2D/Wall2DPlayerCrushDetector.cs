@@ -25,6 +25,12 @@ public sealed class Wall2DPlayerCrushDetector : MonoBehaviour
   [SerializeField] private int fullCoverSampleRows = 5;
   [SerializeField] private float fullCoverSampleInset = 0.02f;
 
+  [Header("Light Interaction")]
+  // 有効にすると、光ギミックが影コライダーに開けた穴を無視して「本来の影形状」で判定する。
+  // 光が当たっても影としての当たり判定が変わらないため、光は挙動に影響しなくなる。
+  [SerializeField] private bool ignoreLightHoles;
+  [SerializeField, Range(1, 9)] private int lightHoleProbeSamples = 5;
+
   private readonly RaycastHit2D[] _crushHits = new RaycastHit2D[8];
   private readonly Collider2D[] _overlapHits = new Collider2D[32];
 
@@ -32,6 +38,12 @@ public sealed class Wall2DPlayerCrushDetector : MonoBehaviour
   private bool _isCrushed;
 
   public bool IsCrushed => _isCrushed;
+
+  /// <summary>
+  /// 直近の IsShadowBlockingDirection / 挟まれ判定で「影あり」と判定した根拠。デバッグ用。
+  /// cast:／overlap: は物理コライダー(穴あき影)、registry: は穴なし影キャッシュがヒットしたことを示す。
+  /// </summary>
+  public string LastBlockReason { get; private set; } = "none";
 
   public bool IsShadowBlockingDirection(Vector2 direction)
   {
@@ -126,12 +138,47 @@ public sealed class Wall2DPlayerCrushDetector : MonoBehaviour
       return false;
     }
 
+    LastBlockReason = "none";
+
     if (HasShadowCastHit(direction, contactFilter))
     {
       return true;
     }
 
-    return HasShadowOverlapNearSide(direction, contactFilter);
+    if (HasShadowOverlapNearSide(direction, contactFilter))
+    {
+      return true;
+    }
+
+    return ignoreLightHoles && HasUnholedShadowNearSide(direction);
+  }
+
+  // 光の穴で影コライダーが消えている場所も、本来の影形状に含まれるなら影として扱う。
+  private bool HasUnholedShadowNearSide(Vector2 direction)
+  {
+    GetSideProbeRect(direction, out var probeCenter, out var probeSize);
+
+    var isHorizontalProbe = probeSize.y > probeSize.x;
+    var probeLength = isHorizontalProbe ? probeSize.y : probeSize.x;
+
+    for (var i = 0; i < lightHoleProbeSamples; i++)
+    {
+      var t = lightHoleProbeSamples <= 1
+        ? 0.5f
+        : i / (float)(lightHoleProbeSamples - 1);
+      var offset = (t - 0.5f) * probeLength;
+      var samplePoint = isHorizontalProbe
+        ? new Vector2(probeCenter.x, probeCenter.y + offset)
+        : new Vector2(probeCenter.x + offset, probeCenter.y);
+
+      if (ShadowGeometryRegistry.ContainsWorldPoint(samplePoint))
+      {
+        LastBlockReason = $"registry@{samplePoint:F2}";
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private bool HasShadowCastHit(Vector2 direction, ContactFilter2D contactFilter)
@@ -148,6 +195,7 @@ public sealed class Wall2DPlayerCrushDetector : MonoBehaviour
 
       if (Vector2.Dot(hit.normal, expectedNormal) >= minimumCrushContactAlignment)
       {
+        LastBlockReason = $"cast:{hit.collider.name}@{hit.point:F2}";
         return true;
       }
     }
@@ -155,13 +203,12 @@ public sealed class Wall2DPlayerCrushDetector : MonoBehaviour
     return false;
   }
 
-  private bool HasShadowOverlapNearSide(Vector2 direction, ContactFilter2D contactFilter)
+  // 進行方向側の面のすぐ外側を覆う細長い矩形を求める。
+  private void GetSideProbeRect(Vector2 direction, out Vector2 probeCenter, out Vector2 probeSize)
   {
     var bounds = _collider2D.bounds;
     var normalizedDirection = direction.normalized;
     var probeThickness = Mathf.Max(0.01f, crushCheckDistance * 2f);
-    Vector2 probeCenter;
-    Vector2 probeSize;
 
     if (Mathf.Abs(normalizedDirection.x) >= Mathf.Abs(normalizedDirection.y))
     {
@@ -170,21 +217,26 @@ public sealed class Wall2DPlayerCrushDetector : MonoBehaviour
         : bounds.max.x + (probeThickness * 0.5f);
       probeCenter = new Vector2(x, bounds.center.y);
       probeSize = new Vector2(probeThickness, Mathf.Max(0.01f, bounds.size.y - (fullCoverSampleInset * 2f)));
+      return;
     }
-    else
-    {
-      var y = normalizedDirection.y < 0f
-        ? bounds.min.y - (probeThickness * 0.5f)
-        : bounds.max.y + (probeThickness * 0.5f);
-      probeCenter = new Vector2(bounds.center.x, y);
-      probeSize = new Vector2(Mathf.Max(0.01f, bounds.size.x - (fullCoverSampleInset * 2f)), probeThickness);
-    }
+
+    var y = normalizedDirection.y < 0f
+      ? bounds.min.y - (probeThickness * 0.5f)
+      : bounds.max.y + (probeThickness * 0.5f);
+    probeCenter = new Vector2(bounds.center.x, y);
+    probeSize = new Vector2(Mathf.Max(0.01f, bounds.size.x - (fullCoverSampleInset * 2f)), probeThickness);
+  }
+
+  private bool HasShadowOverlapNearSide(Vector2 direction, ContactFilter2D contactFilter)
+  {
+    GetSideProbeRect(direction, out var probeCenter, out var probeSize);
 
     var overlapCount = Physics2D.OverlapBox(probeCenter, probeSize, 0f, contactFilter, _overlapHits);
     for (var i = 0; i < overlapCount; i++)
     {
       if (IsShadowCollider(_overlapHits[i]))
       {
+        LastBlockReason = $"overlap:{_overlapHits[i].name}@{probeCenter:F2}";
         return true;
       }
     }
@@ -243,6 +295,11 @@ public sealed class Wall2DPlayerCrushDetector : MonoBehaviour
 
   private bool IsPointCoveredByShadow(Vector2 point, ContactFilter2D contactFilter)
   {
+    if (ignoreLightHoles && ShadowGeometryRegistry.ContainsWorldPoint(point))
+    {
+      return true;
+    }
+
     var overlapCount = Physics2D.OverlapPoint(point, contactFilter, _overlapHits);
     for (var i = 0; i < overlapCount; i++)
     {

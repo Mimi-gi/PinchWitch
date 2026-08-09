@@ -16,6 +16,8 @@ GameObject:
   - component: {fileID: 6366986472787756893}
   - component: {fileID: 2625326601827704127}
   - component: {fileID: 4113359618184724247}
+  - component: {fileID: 5223456789012345671}
+  - component: {fileID: 5223456789012345672}
   m_Layer: 7
   m_Name: Enemy_MovingLeftRight
   m_TagString: Untagged
@@ -118,6 +120,8 @@ MonoBehaviour:
   fullCoverSampleColumns: 3
   fullCoverSampleRows: 5
   fullCoverSampleInset: 0.02
+  ignoreLightHoles: 1
+  lightHoleProbeSamples: 5
 --- !u!114 &6505023227463010271
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -137,6 +141,7 @@ MonoBehaviour:
   stopWhileShadowCrushed: 1
   reverseWhenTouchingShadowEdge: 1
   shadowCrushDetector: {fileID: 918440762319808500}
+  logShadowReversal: 0
 --- !u!114 &7659167540011237721
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -236,3 +241,38 @@ MonoBehaviour:
   targetSpriteRenderer: {fileID: 3885194031258137367}
   spriteDefaultFacesLeft: 0
   minimumHorizontalDelta: 0.0001
+--- !u!114 &5223456789012345671
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8080889373806061079}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d96e92d15c204d244a0edf793a2c1774, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyHealth2D
+  maxHealth: 100
+--- !u!114 &5223456789012345672
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8080889373806061079}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dbfb0c018f6440e43a280f558a1728ff, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyLightReaction2D
+  health: {fileID: 5223456789012345671}
+  patrolMover: {fileID: 6505023227463010271}
+  touchRespawn: {fileID: 7659167540011237721}
+  bodyColliders:
+  - {fileID: 2625326601827704127}
+  spriteRenderer: {fileID: 3885194031258137367}
+  litCheckPoint: {fileID: 0}
+  damagePerSecond: 20
+  litSpeedMultiplierHorizontal: 0.5
+  depletedTint: {r: 0.4, g: 0.4, b: 0.4, a: 1}

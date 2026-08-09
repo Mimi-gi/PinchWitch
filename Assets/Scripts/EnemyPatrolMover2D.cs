@@ -24,6 +24,7 @@ public sealed class EnemyPatrolMover2D : MonoBehaviour, IRuntimeResettable
   [SerializeField] private bool stopWhileShadowCrushed = true;
   [SerializeField] private bool reverseWhenTouchingShadowEdge = true;
   [SerializeField] private Wall2DPlayerCrushDetector shadowCrushDetector;
+  [SerializeField] private bool logShadowReversal;
 
   private Vector3 _initialLocalPosition;
   private float _currentOffset;
@@ -73,6 +74,13 @@ public sealed class EnemyPatrolMover2D : MonoBehaviour, IRuntimeResettable
         && shadowCrushDetector != null
         && shadowCrushDetector.IsShadowBlockingDirection(GetPatrolWorldDirection()))
     {
+      if (logShadowReversal)
+      {
+        Debug.Log(
+          $"[EnemyPatrol] {name} reverse pos={(Vector2)transform.position:F2} dir={GetPatrolWorldDirection():F2} reason={shadowCrushDetector.LastBlockReason}",
+          this);
+      }
+
       ReverseDirection();
     }
 

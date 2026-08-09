@@ -82,16 +82,16 @@ MonoBehaviour:
     targetLayers:
       serializedVersion: 2
       m_Bits: 8
-    outlineWidthPx: 24
-    jfaMaxRadiusPx: 64
-    noiseScale: 12
+    outlineWidthPx: 64
+    jfaMaxRadiusPx: 10000
+    noiseScale: 100
     noiseSpeed: 2
-    baseDissolve: 0.234
-    fogOpacity: 0.741
+    noiseWidthStrength: 1
+    baseDissolve: 1
+    fogOpacity: 0.738
     playerFadeStart: 0.1
     playerFadeEnd: 0.8
-    playerFadeStrength: 0.5
-    skipBaseCameraWithStack: 1
+    playerFadeStrength: 1
   _silhouetteShader: {fileID: 4800000, guid: 0ace605dbafb4f8c87da9fbd913a687d, type: 3}
   _sdfShader: {fileID: 4800000, guid: 70ce108b2a9f44fcaaa5f3e8edca8412, type: 3}
 --- !u!114 &7833122117494664109

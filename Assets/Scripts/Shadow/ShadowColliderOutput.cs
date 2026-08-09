@@ -12,6 +12,10 @@ public sealed class ShadowColliderOutput : MonoBehaviour
   [SerializeField] private LightPassablePlatform2D lightPassablePlatform;
   private readonly List<PolygonCollider2D> _polygonSources = new List<PolygonCollider2D>();
 
+  // 光ギミックがコライダーに穴を開ける前の「本来の影形状」(このtransformのローカル座標)。
+  // 穴あけ用の LightHole2D は子オブジェクトにあるため、ここには含まれない。
+  private readonly List<Vector2[]> _shadowPathsLocal = new List<Vector2[]>();
+
   public PolygonCollider2D SourcePolygon => sourcePolygon;
   public CompositeCollider2D CompositeCollider => compositeCollider;
   public ShadowColliderBuilder OwnerBuilder => ownerBuilder;
@@ -26,6 +30,19 @@ public sealed class ShadowColliderOutput : MonoBehaviour
   private void Awake()
   {
     EnsureSetup();
+  }
+
+  private void OnEnable()
+  {
+    // ベイク済みのコライダーをそのまま使うステージでは実行時に再生成されないため、
+    // ここでシリアライズ済みの path からキャッシュを作る。
+    RebuildShadowGeometryCache();
+    ShadowGeometryRegistry.Register(this);
+  }
+
+  private void OnDisable()
+  {
+    ShadowGeometryRegistry.Unregister(this);
   }
 
   private void OnValidate()
@@ -131,6 +148,7 @@ public sealed class ShadowColliderOutput : MonoBehaviour
       }
 
       SetGeometryEnabled(true);
+      RebuildShadowGeometryCache();
       return;
     }
 
@@ -142,6 +160,7 @@ public sealed class ShadowColliderOutput : MonoBehaviour
     }
 
     SetGeometryEnabled(true);
+    RebuildShadowGeometryCache();
   }
 
   public void SetGeometryEnabled(bool isEnabled)
@@ -164,7 +183,108 @@ public sealed class ShadowColliderOutput : MonoBehaviour
       polygonSource.pathCount = 0;
     }
 
+    _shadowPathsLocal.Clear();
     ConfigureColliderMode(false);
+  }
+
+  /// <summary>
+  /// 光ギミックが開けた穴を無視した影形状に、指定のワールド座標が含まれるか。
+  /// 敵など「光では挙動が変わらないが影には反応する」対象の判定に使う。
+  /// </summary>
+  public bool ContainsWorldPointIgnoringLightHoles(Vector2 worldPoint)
+  {
+    if (_shadowPathsLocal.Count == 0 || !IsShadowGeometryActive())
+    {
+      return false;
+    }
+
+    var localPoint = (Vector2)transform.InverseTransformPoint(worldPoint);
+    for (var i = 0; i < _shadowPathsLocal.Count; i++)
+    {
+      if (IsPointInPolygon(localPoint, _shadowPathsLocal[i]))
+      {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /// <summary>
+  /// ソースの PolygonCollider2D から影形状のキャッシュを作り直す。
+  /// 実行時生成・エディタでのベイクのどちらでも同じように機能させるため、
+  /// 生成時の引数ではなくコライダーの現在の path を読む。
+  /// </summary>
+  [ContextMenu("Rebuild Shadow Geometry Cache")]
+  public void RebuildShadowGeometryCache()
+  {
+    _shadowPathsLocal.Clear();
+
+    foreach (var polygonSource in GetPolygonSources())
+    {
+      if (polygonSource == null)
+      {
+        continue;
+      }
+
+      var colliderOffset = polygonSource.offset;
+      for (var pathIndex = 0; pathIndex < polygonSource.pathCount; pathIndex++)
+      {
+        var path = polygonSource.GetPath(pathIndex);
+        if (path == null || path.Length < 3)
+        {
+          continue;
+        }
+
+        for (var pointIndex = 0; pointIndex < path.Length; pointIndex++)
+        {
+          path[pointIndex] += colliderOffset;
+        }
+
+        _shadowPathsLocal.Add(path);
+      }
+    }
+  }
+
+  // 実際に物理が見ているコライダーの有効状態をそのまま参照する。
+  private bool IsShadowGeometryActive()
+  {
+    if (compositeCollider != null && compositeCollider.enabled)
+    {
+      return true;
+    }
+
+    return sourcePolygon != null && sourcePolygon.enabled;
+  }
+
+  [ContextMenu("Log Shadow Geometry Cache")]
+  private void LogShadowGeometryCache()
+  {
+    Debug.Log($"[{name}] shadow paths: {_shadowPathsLocal.Count}, active: {IsShadowGeometryActive()}", this);
+  }
+
+  // 凹形状にも対応するため、交差数(even-odd)で内外を判定する。
+  private static bool IsPointInPolygon(Vector2 point, Vector2[] polygon)
+  {
+    var isInside = false;
+    for (int i = 0, j = polygon.Length - 1; i < polygon.Length; j = i++)
+    {
+      var current = polygon[i];
+      var previous = polygon[j];
+
+      if (current.y > point.y == previous.y > point.y)
+      {
+        continue;
+      }
+
+      var intersectionX = ((previous.x - current.x) * (point.y - current.y) / (previous.y - current.y)) + current.x;
+      if (point.x < intersectionX)
+      {
+        isInside = !isInside;
+      }
+    }
+
+    return isInside;
   }
 
   private void ConfigureColliderMode(bool enableGeometry)
