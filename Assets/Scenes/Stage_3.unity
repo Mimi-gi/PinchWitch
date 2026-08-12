@@ -653,11 +653,40 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 73c449877bc54512a65c6d528661f322, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MouseGrabInputController
+  inputMode: 2
   handPinchController: {fileID: 275874975}
-  enableMouseInput: 1
   mouseCamera: {fileID: 0}
   mouseLiftHeight: 4
   mouseRaycastDistance: 100
+  vrTriggerMode: 1
+  vrRotationMode: 1
+  vrPositionMappingMode: 0
+  vrTargetingMode: 0
+  vrGrabRadius: 1
+  vrHoverRadius: 2
+  vrRayDistance: 100
+  vrPreferredHand: 0
+  vrApplicationMode: 0
+  trackingOrigin: {fileID: 0}
+  positionScale: 3
+  calibrateCenterKey: 99
+  controllerVisual: {fileID: 1341055078}
+  hideControllerVisualWhenInactive: 1
+  drawAimRay: 1
+  aimRayHitColor: {r: 0, g: 1, b: 0, a: 1}
+  aimRayMissColor: {r: 1, g: 1, b: 1, a: 0.7}
+  mockTranslationSensitivity: 0.02
+  mockDepthSensitivity: 0.02
+  mockRotationSensitivity: 2
+  mockRollSensitivity: 150
+  mockInitialPosition: {x: 0, y: 0, z: 0}
+  mockMovementExtents: {x: 1.5, y: 1.5, z: 1.5}
+  mockDepthModifierKey: 304
+  mockRotationModifierKey: 308
+  mockGrabKey: 103
+  mockRotateStepKey: 116
+  mockAxisToggleKey: 121
+  mockResetPoseKey: 98
 --- !u!114 &275874978
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -668,7 +697,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7ba78dd48357cb34e983e1ed0bec431e, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VrGrabInputController
   handPinchController: {fileID: 275874975}
   enableVrInput: 1
@@ -4606,7 +4635,7 @@ MonoBehaviour:
   spaceViewModeSwitcher: {fileID: 0}
   wall2DPlayerRespawner: {fileID: 0}
   handPinchController: {fileID: 0}
-  mouseGrabInputController: {fileID: 0}
+  grabInputController: {fileID: 0}
   goalController: {fileID: 0}
   screenFadeRoot: {fileID: 0}
   screenFadeCanvasGroup: {fileID: 0}
@@ -7065,7 +7094,7 @@ PrefabInstance:
     - target: {fileID: 4338869684194242769, guid: 04db5221504dd4187a6b9a3d794acde5,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: -4.32
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4338869684194242769, guid: 04db5221504dd4187a6b9a3d794acde5,
         type: 3}
@@ -7107,6 +7136,12 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 04db5221504dd4187a6b9a3d794acde5, type: 3}
+--- !u!4 &1341055078 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 4338869684194242769, guid: 04db5221504dd4187a6b9a3d794acde5,
+    type: 3}
+  m_PrefabInstance: {fileID: 1341055077}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1350019601
 GameObject:
   m_ObjectHideFlags: 0
