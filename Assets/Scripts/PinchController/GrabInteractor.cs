@@ -64,6 +64,10 @@ public sealed class GrabInteractor
   private ColliderDetection _colliderDetection;
   // 目標としている回転値。
   private Quaternion _targetRotation;
+  // 目標回転へ速度制限なしで追従するかどうか。
+  // ステップ回転は 1 回ぶんの回り込みを見せたいので制限するが、
+  // コントローラーの向きをそのまま反映する用途では制限すると手の動きから遅れてしまう。
+  private bool _followRotationImmediately;
   // 最新フレームで要求された掴み位置。
   private Vector3 _desiredGrabPosition;
   // 掴み位置が初期化済みかどうか。
@@ -164,6 +168,7 @@ public sealed class GrabInteractor
     _colliderDetection.Initialize(_config.grabbableLayerMask);
 
     _targetRotation = _grabbedBody.rotation;
+    _followRotationImmediately = false;
     _desiredGrabPosition = _grabbedBody.position;
     _hasDesiredGrabPosition = true;
     GrabStarted?.Invoke(_grabbedBody);
@@ -220,10 +225,12 @@ public sealed class GrabInteractor
     }
 
     _targetRotation = Quaternion.AngleAxis(angleDegrees, worldAxis.normalized) * _targetRotation;
+    _followRotationImmediately = false;
   }
 
   // grab 中オブジェクトの目標回転を絶対値で設定する。
   // コントローラーの向きをそのまま反映する用途など、差分積算では表せない指定に使う。
+  // 毎フレーム最新の向きが渡ってくる前提のため、速度制限を外して即座に追従させる。
   public void SetGrabbedObjectRotation(Quaternion worldRotation)
   {
     if (_grabbedBody == null)
@@ -232,6 +239,7 @@ public sealed class GrabInteractor
     }
 
     _targetRotation = worldRotation;
+    _followRotationImmediately = true;
   }
 
   // grab 中オブジェクトを解放して元の物理設定へ戻す。
@@ -532,7 +540,7 @@ public sealed class GrabInteractor
     }
 
     var maxStep = Mathf.Max(0f, _config.rotationDegreesPerSecond) * deltaTime;
-    if (maxStep <= 0f)
+    if (_followRotationImmediately || maxStep <= 0f)
     {
       return _targetRotation;
     }

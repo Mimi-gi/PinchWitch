@@ -8,7 +8,7 @@ public enum GrabInputMode
   Mouse,
   // マウスとキーボードで VR コントローラーを模擬する検証用モード。
   MouseVrMock,
-  // VR コントローラー。姿勢供給元が差し込まれるまでは動作しない。
+  // 実機 VR コントローラー(OpenVR / SteamVR 経由。Meta Quest は Quest Link で接続)。
   Vr,
 }
 
@@ -16,7 +16,8 @@ public enum GrabInputMode
 // HandPinchController から共有依存を受け取り、inputMode で選ばれた 1 つの入力だけを駆動する。
 // 同時に複数の入力が grab を奪い合わないよう、モード切り替え時に非アクティブ側を必ず解除する。
 //
-// 実機 VR は IVrPoseSource の実装を SetPoseSource() で差し込むことで有効になる。
+// Vr モードは内蔵の OpenVrPoseSource(SteamVR 経由)で動く。
+// 別方式の実機対応を試すときは IVrPoseSource の実装を SetPoseSource() で差し込んで置き換えられる。
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(50)]
 public sealed class GrabInputController : MonoBehaviour
@@ -55,6 +56,13 @@ public sealed class GrabInputController : MonoBehaviour
   [SerializeField] private float vrHoverRadius = 2f;
   // Ray: コントローラー前方へ飛ばす Ray の最大距離。
   [SerializeField] private float vrRayDistance = 100f;
+
+  [Header("VR Device (OpenVR)")]
+  // Vr モードで優先的に使うコントローラーの手。未接続なら逆の手へ自動で切り替える。
+  [SerializeField] private OpenVrControllerHand vrPreferredHand = OpenVrControllerHand.Right;
+  // SteamVR への接続の仕方。Scene は SteamVR を自動起動して入力フォーカスを確保する。
+  // Background は起動済みの SteamVR へ相乗りする(未起動なら接続できない)。
+  [SerializeField] private OpenVrApplicationMode vrApplicationMode = OpenVrApplicationMode.Scene;
 
   [Header("VR Tracking Space")]
   // トラッキング空間の原点として扱う Transform。未指定ならワールド原点。
@@ -112,7 +120,9 @@ public sealed class GrabInputController : MonoBehaviour
   private VrTrackingSpaceMapper _trackingSpaceMapper;
   // 内蔵のモック姿勢供給元。
   private MockVrPoseSource _mockPoseSource;
-  // 外部から差し込まれた姿勢供給元(実機用)。
+  // 内蔵の実機姿勢供給元(OpenVR / SteamVR 経由)。
+  private OpenVrPoseSource _openVrPoseSource;
+  // 外部から差し込まれた姿勢供給元。内蔵の OpenVR ソースより優先する。
   private IVrPoseSource _injectedPoseSource;
   // 前フレームのトラッキング空間位置。
   private Vector3 _previousTrackingPosition;
@@ -122,8 +132,6 @@ public sealed class GrabInputController : MonoBehaviour
   private GrabInputMode _activeMode;
   // 駆動中のモードを保持済みかどうか。
   private bool _hasActiveMode;
-  // 姿勢供給元が無い旨の警告を出し終えたかどうか。
-  private bool _hasWarnedMissingPoseSource;
   // 直近フレームの手のワールド位置(Gizmo 描画用)。
   private Vector3 _lastHandPosition;
   // 手の位置を保持済みかどうか。
@@ -150,6 +158,7 @@ public sealed class GrabInputController : MonoBehaviour
   {
     NormalizeSerializedValues();
     _mockPoseSource?.ApplyConfiguration(BuildMockConfig());
+    _openVrPoseSource?.ApplyConfiguration(BuildOpenVrConfig());
     _trackingSpaceMapper?.ApplyConfiguration(BuildMapperConfig());
     if (_hasGrabInputContext)
     {
@@ -192,12 +201,11 @@ public sealed class GrabInputController : MonoBehaviour
     }
   }
 
-  // 実機の姿勢供給元を差し込む。null を渡すと Vr モードは無効に戻る。
+  // 実機の姿勢供給元を差し込む。null を渡すと内蔵の OpenVR ソースへ戻る。
   public void SetPoseSource(IVrPoseSource poseSource)
   {
     _injectedPoseSource = poseSource;
     _hasPreviousTrackingPosition = false;
-    _hasWarnedMissingPoseSource = false;
     _vrGrabController?.ResetController();
   }
 
@@ -242,7 +250,6 @@ public sealed class GrabInputController : MonoBehaviour
 
     _activeMode = inputMode;
     _hasActiveMode = true;
-    _hasWarnedMissingPoseSource = false;
     _hasPreviousTrackingPosition = false;
   }
 
@@ -268,13 +275,14 @@ public sealed class GrabInputController : MonoBehaviour
     if (poseSource == null)
     {
       SetControllerVisualVisible(false);
-      WarnMissingPoseSourceOnce();
       return;
     }
 
     poseSource.Poll();
     if (!poseSource.TryGetPose(out var trackingPosition, out var trackingRotation))
     {
+      // 実機の切断・トラッキング喪失中は grab を持ち越さない(掴みっぱなし防止)。
+      _vrGrabController.ResetController();
       SetControllerVisualVisible(false);
       _hasPreviousTrackingPosition = false;
       return;
@@ -335,22 +343,21 @@ public sealed class GrabInputController : MonoBehaviour
       return _mockPoseSource;
     }
 
-    return _injectedPoseSource;
-  }
-
-  // 実機モードなのに姿勢供給元が無い場合、毎フレーム出力しないよう一度だけ警告する。
-  private void WarnMissingPoseSourceOnce()
-  {
-    if (_hasWarnedMissingPoseSource)
+    if (_injectedPoseSource != null)
     {
-      return;
+      return _injectedPoseSource;
     }
 
-    _hasWarnedMissingPoseSource = true;
-    Debug.LogWarning(
-      $"{nameof(GrabInputController)}: {GrabInputMode.Vr} は姿勢供給元が未設定のため動作しません。"
-      + $"IVrPoseSource の実装を {nameof(SetPoseSource)}() で差し込んでください。",
-      this);
+    if (_openVrPoseSource == null)
+    {
+      _openVrPoseSource = new OpenVrPoseSource(BuildOpenVrConfig());
+    }
+    else
+    {
+      _openVrPoseSource.ApplyConfiguration(BuildOpenVrConfig());
+    }
+
+    return _openVrPoseSource;
   }
 
   private bool TryPrepareControllers()
@@ -495,6 +502,15 @@ public sealed class GrabInputController : MonoBehaviour
     };
   }
 
+  private OpenVrPoseSource.Config BuildOpenVrConfig()
+  {
+    return new OpenVrPoseSource.Config
+    {
+      preferredHand = vrPreferredHand,
+      applicationMode = vrApplicationMode,
+    };
+  }
+
   private VrTrackingSpaceMapper.Config BuildMapperConfig()
   {
     return new VrTrackingSpaceMapper.Config
@@ -528,6 +544,7 @@ public sealed class GrabInputController : MonoBehaviour
     _mouseGrabController?.Reset();
     _vrGrabController?.ResetController();
     _mockPoseSource?.ResetState();
+    _openVrPoseSource?.ResetState();
     _injectedPoseSource?.ResetState();
     SetControllerVisualVisible(false);
     _hasPreviousTrackingPosition = false;
