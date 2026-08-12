@@ -72,6 +72,15 @@ public sealed class GrabInputController : MonoBehaviour
   // 現在のコントローラー位置を中心として記録し直すキー。
   [SerializeField] private KeyCode calibrateCenterKey = KeyCode.C;
 
+  [Header("VR Diagnostics")]
+  // 6DoF(位置 3 軸 + 回転 3 軸)の計測ログを Console に出すかどうか。
+  // 実機の可動域を測って positionScale を決めるための機能なので、普段は切っておく。
+  [SerializeField] private bool logPoseDiagnostics;
+  // 計測ログを出す間隔(秒)。毎フレーム出すと Console が埋まって読めない。
+  [SerializeField] private float poseLogIntervalSeconds = 1f;
+  // 積み上げた可動域を捨てて測り直すキー。
+  [SerializeField] private KeyCode resetPoseRangeKey = KeyCode.V;
+
   [Header("Hand Visual")]
   // 手(コントローラー)の想定ワールド姿勢を追従させる表示用オブジェクト。
   // Mouse モードでは手の概念が無いため、下の設定に従って自動的に隠す。
@@ -118,6 +127,8 @@ public sealed class GrabInputController : MonoBehaviour
   private VrGrabController _vrGrabController;
   // トラッキング空間からワールド空間への変換。
   private VrTrackingSpaceMapper _trackingSpaceMapper;
+  // 6DoF の計測ログ。
+  private VrPoseDiagnostics _poseDiagnostics;
   // 内蔵のモック姿勢供給元。
   private MockVrPoseSource _mockPoseSource;
   // 内蔵の実機姿勢供給元(OpenVR / SteamVR 経由)。
@@ -160,6 +171,7 @@ public sealed class GrabInputController : MonoBehaviour
     _mockPoseSource?.ApplyConfiguration(BuildMockConfig());
     _openVrPoseSource?.ApplyConfiguration(BuildOpenVrConfig());
     _trackingSpaceMapper?.ApplyConfiguration(BuildMapperConfig());
+    _poseDiagnostics?.ApplyConfiguration(BuildDiagnosticsConfig());
     if (_hasGrabInputContext)
     {
       _mouseGrabController?.ApplyConfiguration(BuildMouseConfig(_grabInputContext));
@@ -291,6 +303,8 @@ public sealed class GrabInputController : MonoBehaviour
     if (Input.GetKeyDown(calibrateCenterKey))
     {
       _trackingSpaceMapper.CalibrateCenter(trackingPosition);
+      // 中心が変わるとワールド座標が跳ぶため、計測中の可動域は捨てて測り直す。
+      _poseDiagnostics.ResetRange();
     }
 
     var trackingDelta = _hasPreviousTrackingPosition
@@ -306,6 +320,12 @@ public sealed class GrabInputController : MonoBehaviour
 
     _lastHandPosition = pose.WorldPosition;
     _hasLastHandPosition = true;
+
+    _poseDiagnostics.Record(
+      poseSource.SourceDescription,
+      trackingPosition,
+      trackingRotation,
+      pose.WorldPosition);
 
     UpdateControllerVisual(pose);
     _vrGrabController.Process(poseSource, pose);
@@ -380,6 +400,15 @@ public sealed class GrabInputController : MonoBehaviour
     else
     {
       _trackingSpaceMapper.ApplyConfiguration(BuildMapperConfig());
+    }
+
+    if (_poseDiagnostics == null)
+    {
+      _poseDiagnostics = new VrPoseDiagnostics(BuildDiagnosticsConfig());
+    }
+    else
+    {
+      _poseDiagnostics.ApplyConfiguration(BuildDiagnosticsConfig());
     }
 
     if (_mouseGrabController == null)
@@ -511,6 +540,16 @@ public sealed class GrabInputController : MonoBehaviour
     };
   }
 
+  private VrPoseDiagnostics.Config BuildDiagnosticsConfig()
+  {
+    return new VrPoseDiagnostics.Config
+    {
+      enabled = logPoseDiagnostics,
+      logIntervalSeconds = poseLogIntervalSeconds,
+      resetRangeKey = resetPoseRangeKey,
+    };
+  }
+
   private VrTrackingSpaceMapper.Config BuildMapperConfig()
   {
     return new VrTrackingSpaceMapper.Config
@@ -603,6 +642,7 @@ public sealed class GrabInputController : MonoBehaviour
     vrGrabRadius = Mathf.Max(0.01f, vrGrabRadius);
     vrHoverRadius = Mathf.Max(vrGrabRadius, vrHoverRadius);
     positionScale = Mathf.Max(0.01f, positionScale);
+    poseLogIntervalSeconds = Mathf.Max(0.1f, poseLogIntervalSeconds);
     mockTranslationSensitivity = Mathf.Max(0f, mockTranslationSensitivity);
     mockDepthSensitivity = Mathf.Max(0f, mockDepthSensitivity);
     mockRotationSensitivity = Mathf.Max(0f, mockRotationSensitivity);

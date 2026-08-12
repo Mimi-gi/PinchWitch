@@ -65,6 +65,7 @@ public sealed class MockVrPoseSource : IVrPoseSource
   }
 
   public bool IsAvailable => true;
+  public string SourceDescription => "Mock (マウス+キーボード)";
   public bool GrabPressedThisFrame { get; private set; }
   public bool GrabHeld { get; private set; }
   public bool RotatePressedThisFrame { get; private set; }

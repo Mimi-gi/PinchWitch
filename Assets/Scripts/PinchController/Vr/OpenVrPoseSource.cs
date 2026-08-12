@@ -56,6 +56,10 @@ public sealed class OpenVrPoseSource : IVrPoseSource
   private bool _hasPose;
   // 現在コントローラーが接続されているかどうか。
   private bool _isControllerConnected;
+  // 現在値を取っているデバイス番号。未接続なら k_unTrackedDeviceIndexInvalid。
+  private uint _deviceIndex = OpenVR.k_unTrackedDeviceIndexInvalid;
+  // 現在値を取っているデバイスの手。
+  private ETrackedControllerRole _deviceRole = ETrackedControllerRole.Invalid;
 
   public OpenVrPoseSource(Config config)
   {
@@ -65,6 +69,19 @@ public sealed class OpenVrPoseSource : IVrPoseSource
   // トラッキングが一瞬途切れたフレーム(遮蔽など)は直前の姿勢を返し続け、
   // 掴み中のオブジェクトが即座に手放されるのを避ける。切断されたときだけ利用不可にする。
   public bool IsAvailable => _isControllerConnected && _hasPose;
+
+  public string SourceDescription
+  {
+    get
+    {
+      if (!_isControllerConnected)
+      {
+        return "OpenVR (コントローラー未検出)";
+      }
+
+      return $"OpenVR {DescribeRole(_deviceRole)} #{_deviceIndex}";
+    }
+  }
 
   public bool GrabPressedThisFrame => IsPressedThisFrame(GrabButtonMask);
   public bool GrabHeld => (_currentButtonMask & GrabButtonMask) != 0;
@@ -96,6 +113,8 @@ public sealed class OpenVrPoseSource : IVrPoseSource
     }
 
     _isControllerConnected = true;
+    _deviceIndex = deviceIndex;
+    _deviceRole = system.GetControllerRoleForTrackedDeviceIndex(deviceIndex);
     UpdatePose(system, deviceIndex);
     UpdateButtons(system, deviceIndex);
   }
@@ -125,6 +144,22 @@ public sealed class OpenVrPoseSource : IVrPoseSource
   {
     _isControllerConnected = false;
     _currentButtonMask = 0;
+    _deviceIndex = OpenVR.k_unTrackedDeviceIndexInvalid;
+    _deviceRole = ETrackedControllerRole.Invalid;
+  }
+
+  // 診断ログ用に手の名前を短く表す。
+  private static string DescribeRole(ETrackedControllerRole role)
+  {
+    switch (role)
+    {
+      case ETrackedControllerRole.LeftHand:
+        return "左手";
+      case ETrackedControllerRole.RightHand:
+        return "右手";
+      default:
+        return "手不明";
+    }
   }
 
   // 使用するコントローラーのデバイス番号を解決する。

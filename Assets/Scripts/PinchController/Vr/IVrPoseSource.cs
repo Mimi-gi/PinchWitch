@@ -11,6 +11,10 @@ public interface IVrPoseSource
   // 姿勢が取得できる状態かどうか。
   bool IsAvailable { get; }
 
+  // 現在どこから姿勢が供給されているかを表す診断用の文字列。
+  // ログに「どのデバイスの値なのか」を残すためだけに使い、挙動には影響しない。
+  string SourceDescription { get; }
+
   // 掴み入力がこのフレームで押されたか。
   bool GrabPressedThisFrame { get; }
 

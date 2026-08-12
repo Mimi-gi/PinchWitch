@@ -86,6 +86,33 @@ Unity の XR パッケージや SteamVR Unity Plugin は **入れません**。�
 4. コントローラーを操作の中心に構えて **`C` キー** を押し、その位置を基準点として記録する
 5. 掴めるオブジェクトに近づけてアウトラインが出れば、トラッキングと座標変換は成功
 
+### 6DoF 計測ログで可動域を測る
+
+`Position Scale` を実機に合わせて決めるための機能です。`Log Pose Diagnostics` を ON にすると、位置 3 軸と回転 3 軸の現在値、および **観測した可動域の累積** が一定間隔で Console に出ます。
+
+```
+[VR 6DoF] OpenVR 右手 #1 | 可動域 x  0.834 y  0.482 z  0.431 m
+  位置 tracking (m)  x   0.213   y   1.184   z  -0.402
+  回転 (deg)     pitch  -12.4   yaw   38.1  roll    2.7
+  位置 world         x   0.639   y   3.552   z  -1.206
+  可動域 tracking (m) x   0.834 [ -0.311 ..  0.523] y   0.482 [  0.941 ..  1.423] z   0.431 [ -0.612 .. -0.181]
+  可動域 world (unit) x   2.502 [ -0.933 ..  1.569] y   1.446 [  2.823 ..  4.269] z   1.293 [ -1.836 .. -0.543]
+```
+
+測り方の手順です。
+
+1. `Log Pose Diagnostics` を ON にして再生する
+2. コントローラーを操作の中心に構えて `C` を押す（キャリブレーションと同時に可動域の計測もリセットされる）
+3. **無理なく動かせる範囲を一通り往復させる**（左右・上下・前後）
+4. `可動域 tracking (m)` の行を見る。これが実際の腕の可動域
+5. `可動域 world (unit)` の行と、そのステージの `xRange` / `yRange` / `zRange` を見比べる
+
+ワールド側の幅がステージの可動範囲より狭ければ、その差の比率だけ `Position Scale` を上げます。上の例なら x 方向は 0.834m しか動かせず、ワールドでは 2.502 しかカバーできていません。Stage_3 の `xRange` は `{-6, 6}`（幅 12）なので、端まで届かせるには 5 倍近くにする必要がある計算になります。
+
+ただし `Position Scale` を上げるほど手ブレも同じ倍率で増幅され、細かい配置がしづらくなります。数値どおりに上げるのではなく、届く範囲と扱いやすさのバランスを見て決めてください。測り直したいときは `V` で可動域だけリセットできます。
+
+> 計測ログは Console を占有するため、**調整が終わったら OFF に戻してください。**
+
 ---
 
 ## 4. 操作方法
@@ -168,6 +195,14 @@ Unity の XR パッケージや SteamVR Unity Plugin は **入れません**。�
 | `Position Scale` | 3 | 実空間 1m をワールド空間の何ユニットとして扱うか |
 | `Calibrate Center Key` | `C` | 現在のコントローラー位置を基準点として記録し直すキー |
 
+### VR Diagnostics
+
+| 項目 | 既定値 | 説明 |
+|---|---|---|
+| `Log Pose Diagnostics` | OFF | 6DoF の計測ログを Console に出す。可動域調整用なので普段は OFF |
+| `Pose Log Interval Seconds` | 1.0 | ログを出す間隔（秒）。下限 0.1 |
+| `Reset Pose Range Key` | `V` | 累積した可動域を捨てて測り直すキー。`C` でも同時にリセットされる |
+
 ### Hand Visual
 
 | 項目 | 既定値 | 説明 |
@@ -189,6 +224,7 @@ Unity の XR パッケージや SteamVR Unity Plugin は **入れません**。�
 | `OpenVrRuntime` | OpenVR ランタイムへの接続をプロセス全体で 1 つ管理する static クラス |
 | `VrTrackingSpaceMapper` | トラッキング空間 → ワールド空間の座標変換とキャリブレーション |
 | `VrGrabController` | 掴み・移動・回転・解放のロジック本体 |
+| `VrPoseDiagnostics` | 6DoF の計測ログ。瞬時値と軸ごとの可動域を累積する |
 | `GrabInputController` | シーンに置く MonoBehaviour の入口。上記を組み立てて駆動する |
 
 `GrabInputController` は `HandPinchController` から `GrabInteractor` / `OutlineController` / `GrabInputCoordinator` を受け取ります。掴み処理そのものは `Mouse` モードと完全に共通で、VR 対応は「姿勢とボタンの供給元が変わっただけ」という構造になっています。
@@ -294,5 +330,6 @@ OpenVR は右手座標系、Unity は左手座標系ですが、変換は `openv
 | [MockVrPoseSource.cs](MockVrPoseSource.cs) | マウス+キーボードによるモック |
 | [VrTrackingSpaceMapper.cs](VrTrackingSpaceMapper.cs) | 座標変換・キャリブレーション |
 | [VrGrabController.cs](VrGrabController.cs) | 掴み・移動・回転のロジック本体 |
+| [VrPoseDiagnostics.cs](VrPoseDiagnostics.cs) | 6DoF 計測ログ |
 | [../GrabInputController.cs](../GrabInputController.cs) | シーンに置く MonoBehaviour の入口 |
 | `Assets/Plugins/OpenVR/` | OpenVR SDK バイナリ（`openvr_api.cs` / `.dll`） |
