@@ -498,6 +498,7 @@ GameObject:
   - component: {fileID: 275874975}
   - component: {fileID: 275874976}
   - component: {fileID: 275874977}
+  - component: {fileID: 275874978}
   m_Layer: 0
   m_Name: Solution
   m_TagString: Untagged
@@ -576,6 +577,41 @@ MonoBehaviour:
   mouseCamera: {fileID: 0}
   mouseLiftHeight: 4
   mouseRaycastDistance: 100
+--- !u!114 &275874978
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 275874966}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7ba78dd48357cb34e983e1ed0bec431e, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::VrGrabInputController
+  handPinchController: {fileID: 275874975}
+  enableVrInput: 1
+  triggerMode: 0
+  rotationMode: 0
+  positionMappingMode: 0
+  rayDistance: 100
+  trackingOrigin: {fileID: 0}
+  positionScale: 3
+  calibrateCenterKey: 99
+  controllerVisual: {fileID: 0}
+  useMockPoseSource: 1
+  mockTranslationSensitivity: 0.02
+  mockDepthSensitivity: 0.02
+  mockRotationSensitivity: 2
+  mockRollSensitivity: 150
+  mockInitialPosition: {x: 0, y: 0, z: 0}
+  mockMovementExtents: {x: 1.5, y: 1.5, z: 1.5}
+  mockDepthModifierKey: 304
+  mockRotationModifierKey: 308
+  mockGrabKey: 103
+  mockRotateStepKey: 116
+  mockAxisToggleKey: 121
+  mockResetPoseKey: 98
 --- !u!1001 &293140501
 PrefabInstance:
   m_ObjectHideFlags: 0

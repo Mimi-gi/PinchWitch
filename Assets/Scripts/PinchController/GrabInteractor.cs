@@ -222,6 +222,18 @@ public sealed class GrabInteractor
     _targetRotation = Quaternion.AngleAxis(angleDegrees, worldAxis.normalized) * _targetRotation;
   }
 
+  // grab 中オブジェクトの目標回転を絶対値で設定する。
+  // コントローラーの向きをそのまま反映する用途など、差分積算では表せない指定に使う。
+  public void SetGrabbedObjectRotation(Quaternion worldRotation)
+  {
+    if (_grabbedBody == null)
+    {
+      return;
+    }
+
+    _targetRotation = worldRotation;
+  }
+
   // grab 中オブジェクトを解放して元の物理設定へ戻す。
   public void ReleaseGrabbedObject()
   {

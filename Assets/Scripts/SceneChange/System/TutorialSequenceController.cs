@@ -4,6 +4,7 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 [DisallowMultipleComponent]
@@ -109,7 +110,8 @@ public sealed class TutorialSequenceController : MonoBehaviour
   [SerializeField] private SpaceViewModeSwitcher spaceViewModeSwitcher;
   [SerializeField] private Wall2DPlayerRespawner wall2DPlayerRespawner;
   [SerializeField] private HandPinchController handPinchController;
-  [SerializeField] private MouseGrabInputController mouseGrabInputController;
+  [FormerlySerializedAs("mouseGrabInputController")]
+  [SerializeField] private GrabInputController grabInputController;
   [SerializeField] private GoalController goalController;
 
   [Header("Screen Fade")]
@@ -705,14 +707,14 @@ public sealed class TutorialSequenceController : MonoBehaviour
       handPinchController.SetInteractionEnabled(_is3DInteractionEnabled);
     }
 
-    if (mouseGrabInputController != null)
+    if (grabInputController != null)
     {
-      if (!mouseGrabInputController.enabled)
+      if (!grabInputController.enabled)
       {
-        mouseGrabInputController.enabled = true;
+        grabInputController.enabled = true;
       }
 
-      mouseGrabInputController.SetInteractionEnabled(_is3DInteractionEnabled);
+      grabInputController.SetInteractionEnabled(_is3DInteractionEnabled);
     }
 
     StateChanged?.Invoke();
@@ -755,9 +757,9 @@ public sealed class TutorialSequenceController : MonoBehaviour
       handPinchController = FindFirstObjectByType<HandPinchController>(FindObjectsInactive.Include);
     }
 
-    if (mouseGrabInputController == null)
+    if (grabInputController == null)
     {
-      mouseGrabInputController = FindFirstObjectByType<MouseGrabInputController>(FindObjectsInactive.Include);
+      grabInputController = FindFirstObjectByType<GrabInputController>(FindObjectsInactive.Include);
     }
 
     if (goalController == null)

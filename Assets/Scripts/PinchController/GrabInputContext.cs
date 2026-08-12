@@ -4,6 +4,7 @@ public enum GrabInputSource
 {
   Hand,
   Pointer,
+  Vr,
 }
 
 public readonly struct GrabInputContext
