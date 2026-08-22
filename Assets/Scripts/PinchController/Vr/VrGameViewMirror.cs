@@ -34,7 +34,9 @@ public sealed class VrGameViewMirror : MonoBehaviour
   // 目線からの上下オフセット(m)。正で上。
   [SerializeField] private float screenVerticalOffsetInMeters;
   // 画面が上下逆さに映る場合に入れる。
-  [SerializeField] private bool flipVertically = true;
+  [SerializeField] private bool flipVertically;
+  // 画面が鏡像(左右逆)に映る場合に入れる。上下と両方入れると 180 度回転になる。
+  [SerializeField] private bool flipHorizontally = true;
   // World モードでスクリーンを目の前へ置き直すキー。
   [SerializeField] private KeyCode recenterScreenKey = KeyCode.M;
 
@@ -142,6 +144,8 @@ public sealed class VrGameViewMirror : MonoBehaviour
 
     if (!enableMirror || _overlay == null)
     {
+      // 止めた瞬間の絵が residual として残らないよう、明示的に隠す。
+      _overlay?.Hide();
       return;
     }
 
@@ -285,6 +289,7 @@ public sealed class VrGameViewMirror : MonoBehaviour
       distanceInMeters = screenDistanceInMeters,
       verticalOffsetInMeters = screenVerticalOffsetInMeters,
       flipVertically = flipVertically,
+      flipHorizontally = flipHorizontally,
       applicationMode = applicationMode,
     };
   }

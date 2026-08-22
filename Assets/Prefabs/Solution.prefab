@@ -145,7 +145,8 @@ MonoBehaviour:
   screenWidthInMeters: 3
   screenDistanceInMeters: 2.5
   screenVerticalOffsetInMeters: 0
-  flipVertically: 1
+  flipVertically: 0
+  flipHorizontally: 1
   recenterScreenKey: 109
   applicationMode: 0
 --- !u!1 &6410233871905510011

@@ -44,6 +44,10 @@ public sealed class OpenVrGameViewOverlay : IDisposable
     // 画面を上下反転するかどうか。
     // グラフィックス API によって読み出したピクセルの並びが変わるため、逆さに映ったら切り替える。
     public bool flipVertically;
+    // 画面を左右反転するかどうか。
+    // オーバーレイの板を裏側から見ている場合など、鏡像になったときに切り替える。
+    // 上下と左右の両方を入れると 180 度回転になる。
+    public bool flipHorizontally;
     // SteamVR への接続の仕方。姿勢取得側と揃える。
     public OpenVrApplicationMode applicationMode;
   }
@@ -57,6 +61,8 @@ public sealed class OpenVrGameViewOverlay : IDisposable
   private ulong _overlayHandle;
   // World モードで一度でも配置済みかどうか。
   private bool _hasPlacedWorldAnchor;
+  // 現在オーバーレイを表示状態にしてあるかどうか。
+  private bool _isShown;
   // 生成失敗を報告済みかどうか。毎フレーム警告しないために持つ。
   private bool _hasWarnedCreateFailure;
 
@@ -113,12 +119,32 @@ public sealed class OpenVrGameViewOverlay : IDisposable
     {
       handle.Free();
     }
+
+    // 中身を入れてから表示する。逆にすると一瞬空の板が見える。
+    if (!_isShown)
+    {
+      overlay.ShowOverlay(_overlayHandle);
+      _isShown = true;
+    }
   }
 
   // 現在の頭の向きの正面へスクリーンを置き直す。World モードでのみ意味を持つ。
   public void Recenter()
   {
     _hasPlacedWorldAnchor = false;
+  }
+
+  // スクリーンを隠す。表示を止めても最後のフレームが残り続けないようにするために使う。
+  // ハンドルは保持したままなので、次に Submit すればそのまま再表示される。
+  public void Hide()
+  {
+    if (_overlayHandle == 0)
+    {
+      return;
+    }
+
+    OpenVR.Overlay?.HideOverlay(_overlayHandle);
+    _isShown = false;
   }
 
   public void Dispose()
@@ -131,6 +157,7 @@ public sealed class OpenVrGameViewOverlay : IDisposable
     OpenVR.Overlay?.DestroyOverlay(_overlayHandle);
     _overlayHandle = 0;
     _hasPlacedWorldAnchor = false;
+    _isShown = false;
   }
 
   // オーバーレイをまだ作っていなければ作る。
@@ -163,16 +190,22 @@ public sealed class OpenVrGameViewOverlay : IDisposable
     overlay.SetOverlayFlag(_overlayHandle, VROverlayFlags.IgnoreTextureAlpha, true);
     overlay.SetOverlayAlpha(_overlayHandle, 1f);
     ApplyTextureBounds(overlay);
-    overlay.ShowOverlay(_overlayHandle);
+    // 表示は最初のフレームを流し込んだ後に行う(Submit 側)。
+    _isShown = false;
     return true;
   }
 
-  // 上下反転の指定をテクスチャ座標側で行う。CPU で並べ替えるより安い。
+  // 反転の指定をテクスチャ座標側で行う。CPU で並べ替えるより安い。
+  // 上下・左右を独立して指定できるため、4 通りの向きすべてに合わせられる。
   private void ApplyTextureBounds(CVROverlay overlay)
   {
-    var bounds = _config.flipVertically
-      ? new VRTextureBounds_t { uMin = 0f, vMin = 1f, uMax = 1f, vMax = 0f }
-      : new VRTextureBounds_t { uMin = 0f, vMin = 0f, uMax = 1f, vMax = 1f };
+    var bounds = new VRTextureBounds_t
+    {
+      uMin = _config.flipHorizontally ? 1f : 0f,
+      uMax = _config.flipHorizontally ? 0f : 1f,
+      vMin = _config.flipVertically ? 1f : 0f,
+      vMax = _config.flipVertically ? 0f : 1f,
+    };
     overlay.SetOverlayTextureBounds(_overlayHandle, ref bounds);
   }
 
