@@ -2,7 +2,7 @@
 
 ## 目的・背景
 - 展示ブース向けの空間入力デバイス。前身は MediaPipe によるカメラハンドトラッキングで、その置き換えとして導入
-- ゲームの表示先はモニターのまま。ヘッドセットは装着せず、コントローラーのみを位置と向き(6DoF)の入力デバイスとして使う
+- ゲームの表示先はモニター。加えて `VrGameViewMirror` によりヘッドセット内の仮想スクリーンにも同じ画面を映せるため、被ったままプレイできる
 - 実機は Meta Quest コントローラーを採用(2026-08-12 対応実装)。**Quest Link で PC に接続し、SteamVR (OpenVR) 経由**で通常の SteamVR コントローラーとして扱う
   - Quest のコントローラーは HMD のカメラが追跡するため、HMD の電源が入りトラッキングが動作している必要がある
   - HMD を装着しない運用では、装着センサー(近接センサー)を塞ぐ等でスリープを回避し、コントローラーが HMD のカメラ視野に入る位置に HMD を設置する必要がある。実機で要検証
@@ -33,9 +33,8 @@
 ## 実機(Meta Quest)の使い方
 1. PC に SteamVR をインストールする
 2. Quest を Quest Link(有線 / Air Link)で PC に接続する
-3. 対象シーンの `GrabInputController` の `inputMode` を `Vr` にする
-4. 再生すると `OpenVrRuntime` が SteamVR へ接続する(`vrApplicationMode: Scene` なら SteamVR を自動起動する)
-5. コントローラーを操作の中心に構え、`C` キーを押す。手は `calibratedHandWorldPosition`(シーンごとに Inspector で設定するワールド座標。既定はワールド原点)へワープし、そこを基準にコントローラーの動きが反映される
+3. 再生すると `OpenVrRuntime` が SteamVR へ接続する(`vrApplicationMode: Scene` なら SteamVR を自動起動する)
+4. コントローラーを操作の中心に構え、`C` キーを押す。手は `calibratedHandWorldPosition`(シーンごとに Inspector で設定するワールド座標。既定はワールド原点)へワープし、そこを基準にコントローラーの動きが反映される
 
 ### Inspector 設定(`GrabInputController` の「VR Device (OpenVR)」欄)
 - `vrPreferredHand` — 優先的に使う手(既定: Right)。未接続なら逆の手、それも無ければ接続中の任意のコントローラーへ自動フォールバックする
@@ -79,16 +78,15 @@ SteamVR のレガシー入力のボタン ID(トリガー / グリップ / A / �
 - ボタン入力は SteamVR のレガシー入力 API(`GetControllerState`)に依存する。動かない場合は `vrApplicationMode` の切り替え、SteamVR Home の無効化、SteamVR のコントローラーバインド設定の確認を試す
 
 ## シーン構成(2026-08-12 時点)
-- 対象: Stage_1〜10, Stage_Practice, Title, StageSelect(13シーン)。各シーンの `Solution` GameObject に `GrabInputController` が載っている
+- 対象: Stage_1〜10, Stage_Practice, Title, StageSelect(13シーン)。各シーンの `Solution` は共通プレハブ `Assets/Prefabs/Solution.prefab` のインスタンス
 - 対象外: Opening, Ending(grab 系コンポーネント自体が存在しないため)
 
 ## 既知のギャップ・要対応
-- 全 13 シーンの `GrabInputController` は旧コンポーネント名(`MouseGrabInputController`)時代の stale なシリアライズ値を持っており、現状は既定値の `inputMode: Mouse` で動く。**VR を使うにはシーンごとに Inspector で `Vr` へ切り替えて保存し直す必要がある**
-- 各シーンの `Solution` に旧 `VrGrabInputController` の missing script(guid `7ba78dd48357cb34e983e1ed0bec431e`、対応する .cs は削除済み)が残っている。動作への影響は無いが警告が出るため掃除したい
 - `StageSelectControlller` はステージ決定演出中に `HandPinchController` しか無効化しておらず、`GrabInputController`(マウス/VR)は動き続ける
-- 実機の腕の可動域(~0.8m)とゲーム内可動範囲のスケール差は未調整。ステージごとに `xRange` 等の可動域自体が異なる(例: 多くのステージは `{-6, 6}`、Stage_6 のみ `{-8, 8}`)ため、`positionScale`(既定 3)の一律設定では最適化しきれない。実機到着後に詰める
-- `trackingOrigin` は全 13 シーンに `TrackingOrigin` オブジェクト(ローカル座標 `(0, -11, -11)`)を置いて設定済み。`controllerVisual` も Title 以外は設定済み(Title のみ手カーソル用プレハブが無いため未設定)
-- `VrGameViewMirror`(ゲーム画面を HMD 内の仮想スクリーンへ映すコンポーネント)は現状どのシーンにも未配置
+- 実機の腕の可動域(~0.8m)とゲーム内可動範囲のスケール差は未調整。`positionScale` は `20` で統一してあるが実機未検証。6DoF 計測ログで測って詰める
+- 全 13 シーンの `Solution` は共通プレハブ `Assets/Prefabs/Solution.prefab` のインスタンス。`TrackingOrigin` と `handursor` はプレハブの子オブジェクトとして内包しており、`trackingOrigin` / `controllerVisual` の参照はプレハブ内で完結する。`VrGameViewMirror` もプレハブに含まれる
+- シーン固有の差分は StageSelect の `xRange: {-8, 8}` のみ(他は `{-6, 6}`)。インスタンス側で上書きしている
+- **シーンのプレハブ化はテキスト編集で行ったため、Unity 上での目視確認が未実施**
 - `calibratedHandWorldPosition` は全シーン既定値 `(0, 0, 0)` のまま。ステージごとに掴みたいオブジェクトの位置へ調整する必要がある
 - Quest を HMD 非装着で運用する際のスリープ回避・トラッキング維持(近接センサー対策、HMD の設置位置)は実機で要検証
 
@@ -102,4 +100,8 @@ SteamVR のレガシー入力のボタン ID(トリガー / グリップ / A / �
 - `Assets/Scripts/PinchController/GrabInputController.cs` — シーンに置く MonoBehaviour の入口(`inputMode` で Mouse / MouseVrMock / Vr を排他駆動)
 - `Assets/Scripts/PinchController/GrabInputContext.cs` — `GrabInputSource` / `GrabInputCoordinator`(入力の排他制御)
 - `Assets/Scripts/PinchController/HandPinchController.cs` — 掴み・アウトライン・入力調停の共有ハブ
+- `Assets/Scripts/PinchController/Vr/VrPoseDiagnostics.cs` — 6DoF 計測ログ
+- `Assets/Scripts/PinchController/Vr/OpenVrGameViewOverlay.cs` / `VrGameViewMirror.cs` — ゲーム画面の HMD 表示
+- `Assets/Prefabs/Solution.prefab` — 全シーン共通の Solution(TrackingOrigin / handursor を内包)
+- `Assets/Prefabs/handursor.prefab` — 手カーソル(SphereCollider は isTrigger)
 - `Assets/Plugins/OpenVR/` — OpenVR SDK バイナリ(`openvr_api.cs` / `.dll`)

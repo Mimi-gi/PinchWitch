@@ -72,17 +72,22 @@ Unity の XR パッケージや SteamVR Unity Plugin は **入れません**。�
 
 ### 3-3. Unity 側の設定
 
-1. 対象シーンを開く（`Stage_1`〜`Stage_10`, `Stage_Practice`, `Title`, `StageSelect`）
-2. Hierarchy の **`Solution`** GameObject を選択する
-3. **`GrabInputController`** コンポーネントの `Input Mode` を **`Vr`** に変更する
-4. シーンを保存する
+**通常は設定作業は不要です。** 全 13 シーンの `Solution` は共通プレハブ `Assets/Prefabs/Solution.prefab` のインスタンスになっており、`Input Mode` は既定で `Vr`、ヘッドセット表示（`VrGameViewMirror`）も入った状態です。
 
-> **注意：シーンごとに個別の設定が必要です。**
-> シーンに保存されている値は旧コンポーネント（`MouseGrabInputController` + `VrGrabInputController` の 2 つに分かれていた頃）のもので、`Input Mode` を持ちません。未設定のシーンは既定値の `Mouse` として読まれます。VR を使うシーンはすべて手動で `Vr` に切り替えて保存し直してください。
->
-> 2026-08-12 時点で、全 13 シーンに VR 設定一式（`TrackingOrigin` オブジェクト、`Hold` / `Wrist`、`positionScale: 20`、`Controller Visual`）を適用済みですが、**`Input Mode` はすべて `Mouse` のまま**です。VR で動かすシーンは個別に `Vr` へ切り替えてください。
->
-> `Controller Visual` は Title のみ未設定です（そのシーンだけ手カーソル用プレハブが存在しないため）。
+設定を変えたいときは **プレハブ本体を編集すれば全シーンに反映されます**。特定のシーンだけ変えたい場合は、そのシーンのインスタンス側で上書きしてください。
+
+#### Solution プレハブの構成
+
+```
+Solution                     … HandPinchController / GrabInputController
+│                              ReloadSceneOnKeyPress / VrGameViewMirror
+├── TrackingOrigin           … トラッキング空間の原点 (0, -11, -11)
+└── handursor                … 手カーソル（handursor.prefab の入れ子）
+```
+
+`Tracking Origin` と `Controller Visual` はプレハブ内の子オブジェクトを指しているため、シーンごとの再設定は不要です。
+
+シーン固有の差分は現在ひとつだけで、StageSelect の `xRange` が `{-8, 8}`（他は `{-6, 6}`）としてインスタンス側で上書きされています。
 
 ### 3-4. 動作確認
 
@@ -100,9 +105,9 @@ Unity の XR パッケージや SteamVR Unity Plugin は **入れません**。�
 
 ### ヘッドセットにゲーム画面を映す
 
-`VrGameViewMirror` コンポーネントを `Solution` に追加すると、ゲーム画面がヘッドセット内の**仮想スクリーン**（目の前に浮かぶ大きな平面）に映ります。これでヘッドセットを被ったままプレイできるため、装着センサーを塞ぐ・額に乗せるといった運用上の工夫が不要になります。
+`Solution` プレハブに入っている `VrGameViewMirror` が、ゲーム画面をヘッドセット内の**仮想スクリーン**（目の前に浮かぶ大きな平面）に映します。全シーンで既に有効なので、そのまま再生すれば動きます。これでヘッドセットを被ったままプレイできるため、装着センサーを塞ぐ・額に乗せるといった運用上の工夫が不要になります。
 
-`Enable Mirror` を入れて再生するだけで動きます。SteamVR に接続できない環境では何もしないので、付けっぱなしでも通常のモニター再生には影響しません。
+SteamVR に接続できない環境では何もしないので、有効なままでも通常のモニター再生には影響しません。
 
 | 項目 | 既定値 | 説明 |
 |---|---|---|
@@ -204,7 +209,7 @@ Unity の XR パッケージや SteamVR Unity Plugin は **入れません**。�
 
 | 項目 | 既定値 | 説明 |
 |---|---|---|
-| `Input Mode` | `Mouse` | `Mouse` / `MouseVrMock` / `Vr` を排他的に切り替える |
+| `Input Mode` | `Vr` | `Mouse` / `MouseVrMock` / `Vr` を排他的に切り替える |
 
 ### VR
 
@@ -364,15 +369,13 @@ OpenVR は右手座標系、Unity は左手座標系ですが、変換は `openv
 
 実機到着後に確認・調整が必要な項目です。
 
-1. **ボタン割り当ての実機確認** — SteamVR のレガシー入力（`GetControllerState`）による Quest Touch のボタン ID 対応。本実装は一般的なレガシーバインドを前提にしており、実機で異なる可能性があります
-2. **ヘッドセット内表示の確認** — 仮想スクリーンが見えるか、上下が正しいか（逆なら `Flip Vertically`）、30fps で実用に足るか
-3. **HMD 非装着運用の成立性** — 被らない運用を選ぶ場合のみ。装着センサーを塞いだ状態でスリープせず追跡を維持できるか
-4. **全シーンの `Input Mode` 切り替え** — 全 13 シーンとも `Mouse` のまま。VR で動かすシーンは `Vr` にする必要があります
-5. **`VrGameViewMirror` の配置** — 現状どのシーンにも未配置。使うシーンの `Solution` に追加する
-6. **`Position Scale` の調整** — 全シーン `20` で統一済みだが実機未検証。6DoF 計測ログで可動域を測って詰める
-7. **`Calibrated Hand World Position` の調整** — 全シーン既定値 `(0, 0, 0)`。ステージごとに掴みたいオブジェクトの位置へ合わせる
-8. **旧コンポーネントの残骸掃除** — 各シーンの `Solution` に削除済みスクリプトを指す missing script が残っています。動作に影響はありませんが警告が出ます
-9. **`StageSelectControlller` の無効化漏れ** — ステージ決定演出中に `HandPinchController` しか無効化しておらず、`GrabInputController` は動き続けます
+1. **Unity で全シーンを開いて確認** — シーンのプレハブ化はテキスト編集で行ったため、Unity 上で `Solution` が正しくプレハブインスタンスとして開けるか、参照が切れていないかの目視確認が必要です
+2. **ボタン割り当ての実機確認** — SteamVR のレガシー入力（`GetControllerState`）による Quest Touch のボタン ID 対応。本実装は一般的なレガシーバインドを前提にしており、実機で異なる可能性があります
+3. **ヘッドセット内表示の確認** — 仮想スクリーンが見えるか、上下が正しいか（逆なら `Flip Vertically`）、30fps で実用に足るか
+4. **HMD 非装着運用の成立性** — 被らない運用を選ぶ場合のみ。装着センサーを塞いだ状態でスリープせず追跡を維持できるか
+5. **`Position Scale` の調整** — `20` で統一済みだが実機未検証。6DoF 計測ログで可動域を測って詰める
+6. **`Calibrated Hand World Position` の調整** — 既定値 `(0, 0, 0)`。ステージごとに掴みたいオブジェクトの位置へ合わせる（プレハブで一括、必要ならシーンごとに上書き）
+7. **`StageSelectControlller` の無効化漏れ** — ステージ決定演出中に `HandPinchController` しか無効化しておらず、`GrabInputController` は動き続けます
 
 ---
 
