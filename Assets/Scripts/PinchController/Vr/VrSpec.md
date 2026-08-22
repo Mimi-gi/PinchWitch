@@ -15,6 +15,7 @@
 - `OpenVrRuntime` — OpenVR ランタイムへの接続をプロセス全体で 1 つ管理する static クラス。シーンをまたいで接続を使い回し、アプリ終了時(エディタでは再生終了時)にのみ解放する。接続失敗時は 15 秒間隔でリトライし、SteamVR 未インストール環境では一度警告して以後何もしない
 - `VrTrackingSpaceMapper` — トラッキング空間の姿勢をワールド空間へ変換。実行時キャリブレーション(中心位置の記録)を持つ
 - `VrGrabController` — 掴み・移動・回転のロジック本体。`MouseGrabController` と対になる入力層
+- `OpenVrGameViewOverlay` / `VrGameViewMirror` — ゲーム画面を HMD 内の仮想スクリーンへ映す。掴み入力とは独立した関心事なので別コンポーネントにしてある。マルチスレッドレンダリング有効下で GPU ハンドルを OpenVR へ渡すとレンダースレッドと競合して落ちるため、`AsyncGPUReadback` + `SetOverlayRaw` の CPU 経由で転送する
 - `GrabInputController` — シーンに置く MonoBehaviour の入口。`HandPinchController` から `GrabInteractor` / `OutlineController` / `GrabInputCoordinator` を受け取り、上記を組み立てて駆動する
   - 旧構成の `MouseGrabInputController` + `VrGrabInputController`(2 コンポーネント常時併走)は、この 1 コンポーネントへ統合済み
 
@@ -86,7 +87,8 @@ SteamVR のレガシー入力のボタン ID(トリガー / グリップ / A / �
 - 各シーンの `Solution` に旧 `VrGrabInputController` の missing script(guid `7ba78dd48357cb34e983e1ed0bec431e`、対応する .cs は削除済み)が残っている。動作への影響は無いが警告が出るため掃除したい
 - `StageSelectControlller` はステージ決定演出中に `HandPinchController` しか無効化しておらず、`GrabInputController`(マウス/VR)は動き続ける
 - 実機の腕の可動域(~0.8m)とゲーム内可動範囲のスケール差は未調整。ステージごとに `xRange` 等の可動域自体が異なる(例: 多くのステージは `{-6, 6}`、Stage_6 のみ `{-8, 8}`)ため、`positionScale`(既定 3)の一律設定では最適化しきれない。実機到着後に詰める
-- `trackingOrigin` / `controllerVisual` は全シーン未設定(デバッグ表示なし)。展示時の設置が決まったら調整する
+- `trackingOrigin` は全 13 シーンに `TrackingOrigin` オブジェクト(ローカル座標 `(0, -11, -11)`)を置いて設定済み。`controllerVisual` も Title 以外は設定済み(Title のみ手カーソル用プレハブが無いため未設定)
+- `VrGameViewMirror`(ゲーム画面を HMD 内の仮想スクリーンへ映すコンポーネント)は現状どのシーンにも未配置
 - `calibratedHandWorldPosition` は全シーン既定値 `(0, 0, 0)` のまま。ステージごとに掴みたいオブジェクトの位置へ調整する必要がある
 - Quest を HMD 非装着で運用する際のスリープ回避・トラッキング維持(近接センサー対策、HMD の設置位置)は実機で要検証
 

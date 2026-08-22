@@ -21,7 +21,7 @@ Quest コントローラー
                   └─(openvr_api.dll)→ OpenVrPoseSource → ゲーム
 ```
 
-ゲームの映像はこれまでどおり **モニターに出ます**。HMD には何も描きません（HMD の中は SteamVR の待機画面のままになります）。
+ゲームの映像はモニターに出ます。加えて `VrGameViewMirror` を使えば、**同じ画面をヘッドセット内の仮想スクリーンにも映せます**（後述）。
 
 ### 最重要の制約：HMD の電源を入れておく必要がある
 
@@ -30,7 +30,11 @@ Quest のコントローラーは **HMD 本体のカメラが位置を追跡** �
 - **HMD の電源が入っていること**
 - **コントローラーが HMD のカメラの視野内にあること**
 
-の両方が満たされないと位置が取れません。頭に被らない展示運用では、HMD を「プレイヤーの手元が見える位置・向き」に置いたうえで、装着センサー（額の近接センサー）を塞いでスリープさせない工夫が要ります。
+の両方が満たされないと位置が取れません。
+
+**推奨は「普通に被って遊ぶ」構成です。** `VrGameViewMirror`（後述）でゲーム画面をヘッドセット内に映せるようになったため、被ったまま画面を見てプレイできます。この場合トラッキングは Quest 本来の使い方そのものなので、以下の制約は問題になりません。
+
+頭に被らない運用にする場合は、HMD を「プレイヤーの手元が見える位置・向き」に置いたうえで、装着センサー（額の近接センサー）を塞いでスリープさせない工夫が要ります。
 
 これは Quest 方式に固有の弱点で、[VrSpec.md](VrSpec.md) が当初 Quest を候補から外していた理由でもあります。展示本番までにこの運用が成立するか、実機で必ず確認してください。成立しない場合は Vive Tracker などの Lighthouse 系に切り替える判断が必要になります。
 
@@ -64,7 +68,7 @@ Unity の XR パッケージや SteamVR Unity Plugin は **入れません**。�
 1. Quest の電源を入れ、ガーディアン（境界）を設定する
 2. USB-C ケーブルで PC に接続し、ヘッドセット内で **Quest Link を開始** する
 3. コントローラーの電源が入っていること、Quest 側で追跡されていることを確認する
-4. 展示運用の場合は、HMD をプレイヤーの手元が見える位置に設置し、装着センサーを塞いでスリープを防ぐ
+4. ヘッドセットを被って遊ぶ場合はそのまま装着する（`VrGameViewMirror` で画面が中に映る）。被らない運用にする場合のみ、HMD をプレイヤーの手元が見える位置に設置し、装着センサーを塞いでスリープを防ぐ
 
 ### 3-3. Unity 側の設定
 
@@ -76,7 +80,9 @@ Unity の XR パッケージや SteamVR Unity Plugin は **入れません**。�
 > **注意：シーンごとに個別の設定が必要です。**
 > シーンに保存されている値は旧コンポーネント（`MouseGrabInputController` + `VrGrabInputController` の 2 つに分かれていた頃）のもので、`Input Mode` を持ちません。未設定のシーンは既定値の `Mouse` として読まれます。VR を使うシーンはすべて手動で `Vr` に切り替えて保存し直してください。
 >
-> 2026-08-12 時点で設定済みなのは **Stage_3 のみ**（`Vr` / `Hold` / `Wrist`、`Controller Visual` 割り当て済み）。残り 12 シーンは未設定です。
+> 2026-08-12 時点で、全 13 シーンに VR 設定一式（`TrackingOrigin` オブジェクト、`Hold` / `Wrist`、`positionScale: 20`、`Controller Visual`）を適用済みですが、**`Input Mode` はすべて `Mouse` のまま**です。VR で動かすシーンは個別に `Vr` へ切り替えてください。
+>
+> `Controller Visual` は Title のみ未設定です（そのシーンだけ手カーソル用プレハブが存在しないため）。
 
 ### 3-4. 動作確認
 
@@ -91,6 +97,37 @@ Unity の XR パッケージや SteamVR Unity Plugin は **入れません**。�
 `C` を押した瞬間、手は必ず `Calibrated Hand World Position` の座標にワープします。既定値の `(0, 0, 0)` はワールド原点で、掴みたいオブジェクトが宙にある場合はほぼ確実に届きません（Stage_3 の `yRange` は `{0, 4.5}` なので、原点は床すれすれです）。
 
 ステージごとに掴みたいオブジェクトの中心付近の座標を `Calibrated Hand World Position` に設定してください。以後 `C` を押すたびに、その位置を基準としてコントローラーの動きが反映されます。
+
+### ヘッドセットにゲーム画面を映す
+
+`VrGameViewMirror` コンポーネントを `Solution` に追加すると、ゲーム画面がヘッドセット内の**仮想スクリーン**（目の前に浮かぶ大きな平面）に映ります。これでヘッドセットを被ったままプレイできるため、装着センサーを塞ぐ・額に乗せるといった運用上の工夫が不要になります。
+
+`Enable Mirror` を入れて再生するだけで動きます。SteamVR に接続できない環境では何もしないので、付けっぱなしでも通常のモニター再生には影響しません。
+
+| 項目 | 既定値 | 説明 |
+|---|---|---|
+| `Enable Mirror` | ON | ヘッドセットへ映すかどうか |
+| `Target Frames Per Second` | 30 | 転送するフレームレート。上げるほど滑らかだが読み戻し負荷が増える |
+| `Transfer Height` | 720 | 転送する画像の高さ(px)。幅は画面のアスペクト比から決まる |
+| `Anchor Mode` | `World` | `World` は空間に固定（首を振っても画面が動かない）。`HeadLocked` は常に視界の正面 |
+| `Screen Width In Meters` | 3.0 | 仮想スクリーンの横幅(m) |
+| `Screen Distance In Meters` | 2.5 | 頭からスクリーンまでの距離(m) |
+| `Screen Vertical Offset In Meters` | 0 | 目線からの上下オフセット(m)。正で上 |
+| `Flip Vertically` | ON | 画面が上下逆さに映る場合に切り替える |
+| `Recenter Screen Key` | `M` | `World` モードでスクリーンを目の前へ置き直す |
+| `Application Mode` | `Scene` | SteamVR への接続の仕方。`GrabInputController` と揃える |
+
+スクリーンは表示開始時に自動で目の前へ配置されます。見当たらない場合や向きがずれた場合は `M` を押してください。
+
+> **画面が上下逆さに映ったら** `Flip Vertically` を切り替えてください。画面の取り込み結果の並びはグラフィックス API によって変わるため、実機で確認するまでどちらが正しいか確定できません。
+
+#### なぜ立体視ではなく「平面スクリーン」なのか
+
+このゲームは 2D の影を足場にするモニター向けタイトルで、立体視でレンダリングする意味がありません。そのため HMD 内に 1 枚の大きなスクリーンを出す方式にしています。
+
+実装上の理由もあります。ゲーム画面を VR に出す正攻法は GPU テクスチャのハンドルを OpenVR へ直接渡すこと（`Submit` / `SetOverlayTexture`）ですが、本プロジェクトは**マルチスレッドレンダリングが有効**（`m_MTRendering: 1`）なため、これを行うと Unity のレンダースレッドと OpenVR がグラフィックスデバイスを取り合ってクラッシュします。SteamVR Unity Plugin はネイティブプラグインでこれを回避していますが、本プロジェクトは `openvr_api` を直接叩く方針のためその手段がありません。
+
+そこで CPU バッファを渡す `SetOverlayRaw` を使っています。`AsyncGPUReadback` で GPU を待たずに画面を読み戻すため描画は止まらず、GPU デバイスに触らないので競合そのものが起きません。代償は読み戻しのメモリ帯域で、既定の 720p / 30fps なら約 110MB/s と実用範囲です。滑らかさが足りなければ `Target Frames Per Second` を、負荷が高ければ `Transfer Height` を調整してください。
 
 ### 6DoF 計測ログで可動域を測る
 
@@ -232,6 +269,8 @@ Unity の XR パッケージや SteamVR Unity Plugin は **入れません**。�
 | `VrTrackingSpaceMapper` | トラッキング空間 → ワールド空間の座標変換とキャリブレーション |
 | `VrGrabController` | 掴み・移動・回転・解放のロジック本体 |
 | `VrPoseDiagnostics` | 6DoF の計測ログ。瞬時値と軸ごとの可動域を累積する |
+| `OpenVrGameViewOverlay` | ゲーム画面を OpenVR オーバーレイとして HMD に表示する |
+| `VrGameViewMirror` | 画面キャプチャと転送を駆動する MonoBehaviour |
 | `GrabInputController` | シーンに置く MonoBehaviour の入口。上記を組み立てて駆動する |
 
 `GrabInputController` は `HandPinchController` から `GrabInteractor` / `OutlineController` / `GrabInputCoordinator` を受け取ります。掴み処理そのものは `Mouse` モードと完全に共通で、VR 対応は「姿勢とボタンの供給元が変わっただけ」という構造になっています。
@@ -326,12 +365,14 @@ OpenVR は右手座標系、Unity は左手座標系ですが、変換は `openv
 実機到着後に確認・調整が必要な項目です。
 
 1. **ボタン割り当ての実機確認** — SteamVR のレガシー入力（`GetControllerState`）による Quest Touch のボタン ID 対応。本実装は一般的なレガシーバインドを前提にしており、実機で異なる可能性があります
-2. **HMD 非装着運用の成立性** — 装着センサーを塞いだ状態でスリープせず追跡を維持できるか。コントローラーが HMD のカメラ視野から外れたときの挙動
-3. **残り 12 シーンの `Input Mode` 切り替え** — 設定済みは Stage_3 のみ。他は既定値の `Mouse` として読まれます
-4. **`Position Scale` の調整** — 腕の可動域（約 0.8m）とゲーム内可動範囲のスケール差。ステージごとに可動範囲が異なる（多くは `{-6, 6}`、Stage_6 のみ `{-8, 8}`）ため一律値では最適化しきれません
-5. **`Tracking Origin` / `Controller Visual` の設定** — 全シーン未設定。展示時の設置位置が決まったら調整
-6. **旧コンポーネントの残骸掃除** — 各シーンの `Solution` に削除済みスクリプトを指す missing script が残っています。動作に影響はありませんが警告が出ます
-7. **`StageSelectControlller` の無効化漏れ** — ステージ決定演出中に `HandPinchController` しか無効化しておらず、`GrabInputController` は動き続けます
+2. **ヘッドセット内表示の確認** — 仮想スクリーンが見えるか、上下が正しいか（逆なら `Flip Vertically`）、30fps で実用に足るか
+3. **HMD 非装着運用の成立性** — 被らない運用を選ぶ場合のみ。装着センサーを塞いだ状態でスリープせず追跡を維持できるか
+4. **全シーンの `Input Mode` 切り替え** — 全 13 シーンとも `Mouse` のまま。VR で動かすシーンは `Vr` にする必要があります
+5. **`VrGameViewMirror` の配置** — 現状どのシーンにも未配置。使うシーンの `Solution` に追加する
+6. **`Position Scale` の調整** — 全シーン `20` で統一済みだが実機未検証。6DoF 計測ログで可動域を測って詰める
+7. **`Calibrated Hand World Position` の調整** — 全シーン既定値 `(0, 0, 0)`。ステージごとに掴みたいオブジェクトの位置へ合わせる
+8. **旧コンポーネントの残骸掃除** — 各シーンの `Solution` に削除済みスクリプトを指す missing script が残っています。動作に影響はありませんが警告が出ます
+9. **`StageSelectControlller` の無効化漏れ** — ステージ決定演出中に `HandPinchController` しか無効化しておらず、`GrabInputController` は動き続けます
 
 ---
 
@@ -346,5 +387,7 @@ OpenVR は右手座標系、Unity は左手座標系ですが、変換は `openv
 | [VrTrackingSpaceMapper.cs](VrTrackingSpaceMapper.cs) | 座標変換・キャリブレーション |
 | [VrGrabController.cs](VrGrabController.cs) | 掴み・移動・回転のロジック本体 |
 | [VrPoseDiagnostics.cs](VrPoseDiagnostics.cs) | 6DoF 計測ログ |
+| [OpenVrGameViewOverlay.cs](OpenVrGameViewOverlay.cs) | ゲーム画面の HMD 表示（OpenVR オーバーレイ） |
+| [VrGameViewMirror.cs](VrGameViewMirror.cs) | 画面キャプチャと転送の駆動 |
 | [../GrabInputController.cs](../GrabInputController.cs) | シーンに置く MonoBehaviour の入口 |
 | `Assets/Plugins/OpenVR/` | OpenVR SDK バイナリ（`openvr_api.cs` / `.dll`） |
