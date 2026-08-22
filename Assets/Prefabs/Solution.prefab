@@ -34,7 +34,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 6410233871905510012}
-  - {fileID: 6410233871905510021}
+  - {fileID: 7260782552263238229}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &6410233871905510003
@@ -47,8 +47,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f2f1fb0c65f04ed0a8a3d6ad2ff8a4c1, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   worldCamera: {fileID: 0}
   grabbableLayerMask:
     serializedVersion: 2
@@ -72,8 +72,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c71aaded9c4c4350884b8a1c8693ae89, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   sceneName: DemoScene
   reloadKey: 114
 --- !u!114 &6410233871905510005
@@ -86,8 +86,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 73c449877bc54512a65c6d528661f322, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   inputMode: 2
   handPinchController: {fileID: 6410233871905510003}
   mouseCamera: {fileID: 0}
@@ -112,7 +112,7 @@ MonoBehaviour:
   logPoseDiagnostics: 0
   poseLogIntervalSeconds: 1
   resetPoseRangeKey: 118
-  controllerVisual: {fileID: 6410233871905510021}
+  controllerVisual: {fileID: 7260782552263238229}
   hideControllerVisualWhenInactive: 1
   drawAimRay: 1
   aimRayHitColor: {r: 0, g: 1, b: 0, a: 1}
@@ -139,8 +139,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ee6fdfad9c0c440c64db1ec70212db14, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   enableMirror: 1
   targetFramesPerSecond: 30
   transferHeight: 720
@@ -149,7 +149,7 @@ MonoBehaviour:
   screenDistanceInMeters: 2.5
   screenVerticalOffsetInMeters: 0
   flipVertically: 0
-  flipHorizontally: 1
+  flipHorizontally: 0
   recenterScreenKey: 109
   applicationMode: 0
 --- !u!1 &6410233871905510011
@@ -266,7 +266,7 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 04db5221504dd4187a6b9a3d794acde5, type: 3}
---- !u!4 &6410233871905510021 stripped
+--- !u!4 &7260782552263238229 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4338869684194242769, guid: 04db5221504dd4187a6b9a3d794acde5,
     type: 3}
