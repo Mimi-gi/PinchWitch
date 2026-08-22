@@ -15,7 +15,7 @@ public enum OpenVrControllerHand
 // Meta Quest は Quest Link で PC に接続して SteamVR を経由することで、
 // Lighthouse 系(Vive / Index)と同じ SteamVR コントローラーとして扱える。
 //
-// ボタン割り当て(SteamVR レガシー入力。Quest Touch コントローラーの場合):
+// ボタン割り当ては Config 経由で外部(Inspector)から指定する。既定値は Quest Touch を想定:
 //   トリガー / グリップ : 掴み入力
 //   A / X ボタン        : ステップ回転
 //   B / Y ボタン        : 回転軸切り替え
@@ -27,15 +27,13 @@ public sealed class OpenVrPoseSource : IVrPoseSource
     public OpenVrControllerHand preferredHand;
     // SteamVR への接続の仕方。
     public OpenVrApplicationMode applicationMode;
+    // 掴み入力として扱うボタン群。
+    public VrControllerButton grabButtons;
+    // ステップ回転に割り当てるボタン群。
+    public VrControllerButton rotateButtons;
+    // 回転軸切り替えに割り当てるボタン群。
+    public VrControllerButton axisToggleButtons;
   }
-
-  // 掴み入力として扱うボタン群。トリガーでもグリップでも掴めるようにしてある。
-  private const ulong GrabButtonMask =
-    (1ul << (int)EVRButtonId.k_EButton_SteamVR_Trigger) | (1ul << (int)EVRButtonId.k_EButton_Grip);
-  // ステップ回転に割り当てるボタン(Quest Touch の A / X)。
-  private const ulong RotateButtonMask = 1ul << (int)EVRButtonId.k_EButton_A;
-  // 回転軸切り替えに割り当てるボタン(Quest Touch の B / Y)。
-  private const ulong AxisToggleButtonMask = 1ul << (int)EVRButtonId.k_EButton_ApplicationMenu;
 
   // GetControllerState へ渡す構造体サイズ。
   private static readonly uint ControllerStateSize = (uint)Marshal.SizeOf(typeof(VRControllerState_t));
@@ -60,6 +58,10 @@ public sealed class OpenVrPoseSource : IVrPoseSource
   private uint _deviceIndex = OpenVR.k_unTrackedDeviceIndexInvalid;
   // 現在値を取っているデバイスの手。
   private ETrackedControllerRole _deviceRole = ETrackedControllerRole.Invalid;
+  // Config から変換済みのボタンマスク。毎フレーム変換し直さないようキャッシュする。
+  private ulong _grabButtonMask;
+  private ulong _rotateButtonMask;
+  private ulong _axisToggleButtonMask;
 
   public OpenVrPoseSource(Config config)
   {
@@ -83,15 +85,18 @@ public sealed class OpenVrPoseSource : IVrPoseSource
     }
   }
 
-  public bool GrabPressedThisFrame => IsPressedThisFrame(GrabButtonMask);
-  public bool GrabHeld => (_currentButtonMask & GrabButtonMask) != 0;
-  public bool RotatePressedThisFrame => IsPressedThisFrame(RotateButtonMask);
-  public bool AxisTogglePressedThisFrame => IsPressedThisFrame(AxisToggleButtonMask);
+  public bool GrabPressedThisFrame => IsPressedThisFrame(_grabButtonMask);
+  public bool GrabHeld => (_currentButtonMask & _grabButtonMask) != 0;
+  public bool RotatePressedThisFrame => IsPressedThisFrame(_rotateButtonMask);
+  public bool AxisTogglePressedThisFrame => IsPressedThisFrame(_axisToggleButtonMask);
 
   // 接続設定を更新する。
   public void ApplyConfiguration(Config config)
   {
     _config = config;
+    _grabButtonMask = config.grabButtons.ToOpenVrButtonMask();
+    _rotateButtonMask = config.rotateButtons.ToOpenVrButtonMask();
+    _axisToggleButtonMask = config.axisToggleButtons.ToOpenVrButtonMask();
   }
 
   public void Poll()

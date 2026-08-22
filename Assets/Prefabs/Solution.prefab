@@ -102,6 +102,9 @@ MonoBehaviour:
   vrRayDistance: 100
   vrPreferredHand: 0
   vrApplicationMode: 0
+  vrGrabButtons: 3
+  vrRotateButtons: 4
+  vrAxisToggleButtons: 8
   trackingOrigin: {fileID: 6410233871905510012}
   positionScale: 20
   calibrateCenterKey: 99

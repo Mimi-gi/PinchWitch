@@ -187,6 +187,18 @@ SteamVR に接続できない環境では何もしないので、有効なまま
 
 掴みの挙動は `Trigger Mode` 設定で変わります。既定の `Toggle` は「押すたびに掴む／離す」、`Hold` は「押している間だけ掴む」です。展示では握りっぱなしにならない `Toggle` を推奨します。
 
+#### ボタン割り当てを変更する
+
+上表のボタンは **`GrabInputController` の Inspector から変更できます**（「VR Device (OpenVR)」欄）。
+
+| 項目 | 既定値 | 対象 |
+|---|---|---|
+| `Vr Grab Buttons` | `Trigger, Grip` | 掴む / 離す |
+| `Vr Rotate Buttons` | `AX` | ステップ回転（`Stepped` 時のみ） |
+| `Vr Axis Toggle Buttons` | `BY` | 回転軸の切り替え（`Stepped` 時のみ） |
+
+複数選択できるチェックボックス付きドロップダウンです（`Trigger` / `Grip` / `AX` / `BY` / `Thumbstick Click`）。何も選ばなければそのボタンは常に反応しません。実機でボタンの並びが説明書と違った場合は、ここを実機に合わせて変更してください。プレハブ `Assets/Prefabs/Solution.prefab` を直せば全シーンに反映されます。
+
 ### 回転方式：手首でまわす（推奨）
 
 `Vr Rotation Mode` で 2 通りから選べます。**VR で遊ぶなら `Wrist` を推奨します。**
@@ -367,7 +379,7 @@ OpenVR は右手座標系、Unity は左手座標系ですが、変換は `openv
 | Console に「OpenVR の初期化に失敗しました」 | Quest Link が開始されているか。SteamVR が起動しているか。エラーコードを SteamVR のドキュメントで確認する |
 | 接続できたがコントローラーが認識されない | Quest 側でコントローラーが追跡されているか。SteamVR のステータス画面にコントローラーのアイコンが出ているか |
 | 姿勢は動くがボタンが効かない | `Vr Application Mode` を `Scene` にする。SteamVR Home を無効化する。SteamVR のコントローラーバインド設定でレガシー入力が有効か確認する |
-| ボタンの割り当てが説明書と違う | 実機未検証の項目です。`OpenVrPoseSource.cs` 冒頭の `GrabButtonMask` / `RotateButtonMask` / `AxisToggleButtonMask` を実機に合わせて変更してください |
+| ボタンの割り当てが説明書と違う | `GrabInputController`（掴み系）または `TutorialSequenceController`（テキスト送り）の Inspector でボタンを選び直してください。コード変更は不要です |
 | 手を動かしても位置が飛ぶ・追従が変 | `C` キーでキャリブレーションし直す。`Position Scale` を調整する |
 | 腕の可動域とゲーム内の可動域が合わない | `Position Scale`（既定 3）を調整する。ステージごとに可動範囲が異なる点に注意 |
 | `Vr` にしたのにマウス操作のまま | シーンの `GrabInputController` の `Input Mode` が `Vr` で保存されているか確認する |

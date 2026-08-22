@@ -63,6 +63,12 @@ public sealed class GrabInputController : MonoBehaviour
   // SteamVR への接続の仕方。Scene は SteamVR を自動起動して入力フォーカスを確保する。
   // Background は起動済みの SteamVR へ相乗りする(未起動なら接続できない)。
   [SerializeField] private OpenVrApplicationMode vrApplicationMode = OpenVrApplicationMode.Scene;
+  // 掴み入力として扱うボタン群。
+  [SerializeField] private VrControllerButton vrGrabButtons = VrControllerButton.Trigger | VrControllerButton.Grip;
+  // ステップ回転に割り当てるボタン群(Vr Rotation Mode が Stepped のときのみ使う)。
+  [SerializeField] private VrControllerButton vrRotateButtons = VrControllerButton.AX;
+  // 回転軸切り替えに割り当てるボタン群(Vr Rotation Mode が Stepped のときのみ使う)。
+  [SerializeField] private VrControllerButton vrAxisToggleButtons = VrControllerButton.BY;
 
   [Header("VR Tracking Space")]
   // トラッキング空間の原点として扱う Transform。未指定ならワールド原点。
@@ -540,6 +546,9 @@ public sealed class GrabInputController : MonoBehaviour
     {
       preferredHand = vrPreferredHand,
       applicationMode = vrApplicationMode,
+      grabButtons = vrGrabButtons,
+      rotateButtons = vrRotateButtons,
+      axisToggleButtons = vrAxisToggleButtons,
     };
   }
 

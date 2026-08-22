@@ -11,12 +11,13 @@
 ## アーキテクチャ
 - `IVrPoseSource` — 姿勢とボタン入力を供給する抽象。実機とモックを差し替えるための境界
   - `MockVrPoseSource` — マウス+キーボードで 6DoF を模擬
-  - `OpenVrPoseSource` — 実機用。OpenVR (SteamVR) 経由で姿勢とボタンを取得する。Quest Touch / Lighthouse 系(Vive / Index)の両対応
+  - `OpenVrPoseSource` — 実機用。OpenVR (SteamVR) 経由で姿勢とボタンを取得する。Quest Touch / Lighthouse 系(Vive / Index)の両対応。ボタン割り当ては `VrControllerButton` 経由で Inspector から変更できる
 - `OpenVrRuntime` — OpenVR ランタイムへの接続をプロセス全体で 1 つ管理する static クラス。シーンをまたいで接続を使い回し、アプリ終了時(エディタでは再生終了時)にのみ解放する。接続失敗時は 15 秒間隔でリトライし、SteamVR 未インストール環境では一度警告して以後何もしない
 - `VrTrackingSpaceMapper` — トラッキング空間の姿勢をワールド空間へ変換。実行時キャリブレーション(中心位置の記録)を持つ
 - `VrGrabController` — 掴み・移動・回転のロジック本体。`MouseGrabController` と対になる入力層
 - `OpenVrGameViewOverlay` / `VrGameViewMirror` — ゲーム画面を HMD 内の仮想スクリーンへ映す。掴み入力とは独立した関心事なので別コンポーネントにしてある。マルチスレッドレンダリング有効下で GPU ハンドルを OpenVR へ渡すとレンダースレッドと競合して落ちるため、`AsyncGPUReadback` + `SetOverlayRaw` の CPU 経由で転送する
-- `VrAdvanceButtonSource` — UI 進行(テキスト送りなど)用の VR ボタン入力。掴み用の `OpenVrPoseSource` とは別系統で、左右どちらの手の A/B(X/Y)でも反応する。`TutorialSequenceController.advanceKeys`(Space / Return / Mouse0)に相乗りする形で組み込み済み
+- `VrAdvanceButtonSource` — UI 進行(テキスト送りなど)用の VR ボタン入力。掴み用の `OpenVrPoseSource` とは別系統で、左右どちらの手でも反応する。`TutorialSequenceController.advanceKeys`(Space / Return / Mouse0)に相乗りする形で組み込み済み
+- `VrControllerButton` — Inspector から選べる VR ボタンの `[Flags]` 列挙体(`Trigger` / `Grip` / `AX` / `BY` / `ThumbstickClick`)。`OpenVrPoseSource` と `VrAdvanceButtonSource` の両方がこれ経由でボタン割り当てを受け取る
 - `GrabInputController` — シーンに置く MonoBehaviour の入口。`HandPinchController` から `GrabInteractor` / `OutlineController` / `GrabInputCoordinator` を受け取り、上記を組み立てて駆動する
   - 旧構成の `MouseGrabInputController` + `VrGrabInputController`(2 コンポーネント常時併走)は、この 1 コンポーネントへ統合済み
 
@@ -58,7 +59,7 @@ SteamVR のレガシー入力のボタン ID(トリガー / グリップ / A / �
 |---|---|
 | A / X ボタン、または B / Y ボタン(左右どちらでも可) | テキスト送り(`TutorialSequenceController.advanceKeys` の VR 版) |
 
-`VrAdvanceButtonSource` が両手ぶんのコントローラーを個別に確認しており、`GrabInputController` がどちらの手を掴み用にトラッキングしているかとは無関係に動く。`TutorialSequenceController` の `Accept Vr Advance Input` で無効化できる。
+`VrAdvanceButtonSource` が両手ぶんのコントローラーを個別に確認しており、`GrabInputController` がどちらの手を掴み用にトラッキングしているかとは無関係に動く。`TutorialSequenceController` の `Accept Vr Advance Input` で無効化できる。ボタンの組み合わせは `Vr Advance Buttons`(Inspector、`VrControllerButton` の複数選択)で変更できる。
 
 > ステップ回転(上表)と同じ物理ボタンを使っているが、通常チュートリアルのナレーション中は `Set3DInteraction` ステップ前で 3D 操作(掴み)自体が無効化されているため、実運用での競合は起きにくい。両方が同時に有効な状況を作る場合は考慮すること。
 
@@ -112,6 +113,9 @@ SteamVR のレガシー入力のボタン ID(トリガー / グリップ / A / �
 - `Assets/Scripts/PinchController/HandPinchController.cs` — 掴み・アウトライン・入力調停の共有ハブ
 - `Assets/Scripts/PinchController/Vr/VrPoseDiagnostics.cs` — 6DoF 計測ログ
 - `Assets/Scripts/PinchController/Vr/OpenVrGameViewOverlay.cs` / `VrGameViewMirror.cs` — ゲーム画面の HMD 表示
+- `Assets/Scripts/PinchController/Vr/VrControllerButton.cs` — Inspector で選べるボタンの `[Flags]` 列挙体と OpenVR マスクへの変換
+- `Assets/Scripts/PinchController/Vr/VrAdvanceButtonSource.cs` — UI 進行(テキスト送り)用の VR ボタン入力
+- `Assets/Scripts/SceneChange/System/TutorialSequenceController.cs` — ナレーション進行。`Accept Vr Advance Input` / `Vr Advance Buttons` で VR ボタンによるテキスト送りを設定
 - `Assets/Prefabs/Solution.prefab` — 全シーン共通の Solution(TrackingOrigin / handursor を内包)
 - `Assets/Prefabs/handursor.prefab` — 手カーソル(SphereCollider は isTrigger)
 - `Assets/Plugins/OpenVR/` — OpenVR SDK バイナリ(`openvr_api.cs` / `.dll`)

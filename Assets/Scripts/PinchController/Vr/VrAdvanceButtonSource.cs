@@ -7,29 +7,25 @@ using Valve.VR;
 // 掴み操作の入力(OpenVrPoseSource)とは別系統にしてある。
 // 掴み操作は「現在アクティブな片手」だけを見るが、UI 進行はどちらの手で押しても反応してほしいため、
 // 接続中の両手のコントローラーを毎フレーム確認する。
-//
-// 対応ボタン(SteamVR レガシー入力。Quest Touch の場合):
-//   A / X ボタン、B / Y ボタン(左右どちらでも可)
 public sealed class VrAdvanceButtonSource
 {
-  // 対象とするボタン群。A(X) と ApplicationMenu(B/Y)。
-  private const ulong AdvanceButtonMask =
-    (1ul << (int)EVRButtonId.k_EButton_A) | (1ul << (int)EVRButtonId.k_EButton_ApplicationMenu);
-
   // GetControllerState へ渡す構造体サイズ。
   private static readonly uint ControllerStateSize = (uint)Marshal.SizeOf(typeof(VRControllerState_t));
 
   // SteamVR への接続の仕方。
   private readonly OpenVrApplicationMode _applicationMode;
+  // 対象とするボタン群から変換済みのマスク。
+  private readonly ulong _buttonMask;
 
   // 現在フレームで、いずれかの手の対象ボタンが押されているかどうか。
   private bool _isCurrentlyHeld;
   // 前フレームの状態。押した瞬間の判定に使う。
   private bool _wasHeldLastFrame;
 
-  public VrAdvanceButtonSource(OpenVrApplicationMode applicationMode)
+  public VrAdvanceButtonSource(OpenVrApplicationMode applicationMode, VrControllerButton buttons)
   {
     _applicationMode = applicationMode;
+    _buttonMask = buttons.ToOpenVrButtonMask();
   }
 
   // このフレームで新たに押されたかどうか。
@@ -63,7 +59,7 @@ public sealed class VrAdvanceButtonSource
     PressedThisFrame = false;
   }
 
-  private static bool IsButtonHeld(CVRSystem system, uint deviceIndex)
+  private bool IsButtonHeld(CVRSystem system, uint deviceIndex)
   {
     if (deviceIndex >= OpenVR.k_unMaxTrackedDeviceCount
         || system.GetTrackedDeviceClass(deviceIndex) != ETrackedDeviceClass.Controller
@@ -78,6 +74,6 @@ public sealed class VrAdvanceButtonSource
       return false;
     }
 
-    return (state.ulButtonPressed & AdvanceButtonMask) != 0;
+    return (state.ulButtonPressed & _buttonMask) != 0;
   }
 }

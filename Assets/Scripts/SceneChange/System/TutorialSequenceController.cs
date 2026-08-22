@@ -104,8 +104,10 @@ public sealed class TutorialSequenceController : MonoBehaviour
   [SerializeField] private float autoAdvanceNarrationDelay = 1.25f;
   [SerializeField] private KeyCode[] advanceKeys = { KeyCode.Space, KeyCode.Return, KeyCode.Mouse0 };
   [SerializeField] private float advanceInputGracePeriod = 0.1f;
-  // VR コントローラーの A/B(X/Y)ボタンでもテキスト送りを受け付けるかどうか。左右どちらの手でもよい。
+  // VR コントローラーのボタンでもテキスト送りを受け付けるかどうか。左右どちらの手でもよい。
   [SerializeField] private bool acceptVrAdvanceInput = true;
+  // テキスト送りに割り当てるボタン群。
+  [SerializeField] private VrControllerButton vrAdvanceButtons = VrControllerButton.AX | VrControllerButton.BY;
   // SteamVR への接続の仕方。GrabInputController 側と揃える。
   [SerializeField] private OpenVrApplicationMode vrAdvanceApplicationMode = OpenVrApplicationMode.Scene;
 
@@ -1032,7 +1034,7 @@ public sealed class TutorialSequenceController : MonoBehaviour
 
     if (_vrAdvanceButtonSource == null)
     {
-      _vrAdvanceButtonSource = new VrAdvanceButtonSource(vrAdvanceApplicationMode);
+      _vrAdvanceButtonSource = new VrAdvanceButtonSource(vrAdvanceApplicationMode, vrAdvanceButtons);
     }
 
     _vrAdvanceButtonSource.Poll();
