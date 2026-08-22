@@ -30,6 +30,12 @@ public sealed class OpenVrGameViewOverlay : IDisposable
   private const string OverlayKey = "pinchwitch.gameview";
   // SteamVR のオーバーレイ一覧に出る表示名。
   private const string OverlayName = "PinchWitch Game View";
+  // SetOverlayRaw の完了イベントが来ない場合に、転送を永遠に待たないための上限。
+  private const float RawSubmitTimeoutSeconds = 2f;
+  // OpenVR 接続そのものを作り直すまでに許容する連続失敗回数。
+  private const int ReconnectFailureThreshold = 3;
+  // 同じ障害で Console を埋めないためのログ間隔。
+  private const float ErrorLogIntervalSeconds = 2f;
 
   public struct Config
   {
@@ -63,9 +69,16 @@ public sealed class OpenVrGameViewOverlay : IDisposable
   private bool _hasPlacedWorldAnchor;
   // 現在オーバーレイを表示状態にしてあるかどうか。
   private bool _isShown;
-  // 生成失敗を報告済みかどうか。毎フレーム警告しないために持つ。
-  private bool _hasWarnedCreateFailure;
-
+  // 少なくとも 1 枚の Raw 画像が SteamVR 側でロード済みかどうか。
+  private bool _hasLoadedTexture;
+  // SetOverlayRaw 後、VREvent_ImageLoaded / ImageFailed を待っているかどうか。
+  private bool _isRawSubmitPending;
+  // Raw 転送完了を待つ期限。
+  private float _rawSubmitDeadline;
+  // Overlay API の連続失敗回数。
+  private int _consecutiveFailures;
+  // 次に障害ログを出してよい時刻。
+  private float _nextErrorLogTime;
   public OpenVrGameViewOverlay(Config config)
   {
     ApplyConfiguration(config);
@@ -94,38 +107,69 @@ public sealed class OpenVrGameViewOverlay : IDisposable
   }
 
   // 1 フレームぶんのゲーム画面を送る。ピクセルは RGBA32、先頭が左上の並びを前提とする。
-  public void Submit(byte[] pixels, int width, int height)
+  public bool Submit(byte[] pixels, int width, int height)
   {
     if (pixels == null || width <= 0 || height <= 0 || pixels.Length < width * height * 4)
     {
-      return;
+      return false;
     }
 
     var overlay = OpenVR.Overlay;
-    if (overlay == null || !EnsureOverlayCreated(overlay))
+    if (overlay == null)
     {
-      return;
+      return false;
+    }
+
+    RefreshState(overlay);
+    if (_isRawSubmitPending || !EnsureOverlayCreated(overlay))
+    {
+      return false;
     }
 
     UpdateTransform(overlay);
 
     // SetOverlayRaw は渡したポインタの中身を同期的に読み取るため、呼び出しの間だけ固定できればよい。
     var handle = GCHandle.Alloc(pixels, GCHandleType.Pinned);
+    EVROverlayError submitResult;
     try
     {
-      overlay.SetOverlayRaw(_overlayHandle, handle.AddrOfPinnedObject(), (uint)width, (uint)height, 4u);
+      submitResult = overlay.SetOverlayRaw(
+        _overlayHandle,
+        handle.AddrOfPinnedObject(),
+        (uint)width,
+        (uint)height,
+        4u);
     }
     finally
     {
       handle.Free();
     }
 
-    // 中身を入れてから表示する。逆にすると一瞬空の板が見える。
-    if (!_isShown)
+    if (submitResult != EVROverlayError.None)
     {
-      overlay.ShowOverlay(_overlayHandle);
-      _isShown = true;
+      HandleFailure(overlay, nameof(CVROverlay.SetOverlayRaw), submitResult, recreateOverlay: true);
+      return false;
     }
+
+    // Raw 画像のロード完了前に次の画像を積むと、SteamVR 側の画像更新が詰まりやすい。
+    // 完了イベントを受けるまで 1 要求だけに制限する。
+    _isRawSubmitPending = true;
+    _rawSubmitDeadline = Time.realtimeSinceStartup + RawSubmitTimeoutSeconds;
+    return true;
+  }
+
+  // 次の画面キャプチャを開始してよいか確認する。
+  // イベント処理と、非表示になった Overlay の再表示もここで行う。
+  public bool CanAcceptFrame()
+  {
+    var overlay = OpenVR.Overlay;
+    if (overlay == null)
+    {
+      return false;
+    }
+
+    RefreshState(overlay);
+    return !_isRawSubmitPending;
   }
 
   // 現在の頭の向きの正面へスクリーンを置き直す。World モードでのみ意味を持つ。
@@ -143,7 +187,16 @@ public sealed class OpenVrGameViewOverlay : IDisposable
       return;
     }
 
-    OpenVR.Overlay?.HideOverlay(_overlayHandle);
+    var overlay = OpenVR.Overlay;
+    if (overlay != null)
+    {
+      var result = overlay.HideOverlay(_overlayHandle);
+      if (result != EVROverlayError.None && !IsInvalidHandleError(result))
+      {
+        LogFailure(nameof(CVROverlay.HideOverlay), result);
+      }
+    }
+
     _isShown = false;
   }
 
@@ -154,10 +207,7 @@ public sealed class OpenVrGameViewOverlay : IDisposable
       return;
     }
 
-    OpenVR.Overlay?.DestroyOverlay(_overlayHandle);
-    _overlayHandle = 0;
-    _hasPlacedWorldAnchor = false;
-    _isShown = false;
+    InvalidateOverlay(OpenVR.Overlay, destroyOverlay: true);
   }
 
   // オーバーレイをまだ作っていなければ作る。
@@ -172,18 +222,15 @@ public sealed class OpenVrGameViewOverlay : IDisposable
     var error = overlay.CreateOverlay(OverlayKey, OverlayName, ref handle);
     if (error != EVROverlayError.None)
     {
-      if (!_hasWarnedCreateFailure)
-      {
-        _hasWarnedCreateFailure = true;
-        Debug.LogWarning($"{nameof(OpenVrGameViewOverlay)}: オーバーレイの生成に失敗しました ({error})。");
-      }
-
+      // KeyInUse や SteamVR 再起動直後の一時エラーも、数回続けば接続ごと作り直す。
+      RegisterFailure(overlay, nameof(CVROverlay.CreateOverlay), error, recreateOverlay: false);
       return false;
     }
 
     _overlayHandle = handle;
-    _hasWarnedCreateFailure = false;
     _hasPlacedWorldAnchor = false;
+    _hasLoadedTexture = false;
+    _isRawSubmitPending = false;
 
     overlay.SetOverlayWidthInMeters(_overlayHandle, Mathf.Max(0.1f, _config.widthInMeters));
     // ゲーム画面は不透明なので、アルファを見ずに描いてもらう。
@@ -193,6 +240,147 @@ public sealed class OpenVrGameViewOverlay : IDisposable
     // 表示は最初のフレームを流し込んだ後に行う(Submit 側)。
     _isShown = false;
     return true;
+  }
+
+  // Overlay 固有イベントを処理し、転送完了・非表示化・タイムアウトから復旧する。
+  private void RefreshState(CVROverlay overlay)
+  {
+    if (_overlayHandle == 0)
+    {
+      return;
+    }
+
+    var overlayEvent = default(VREvent_t);
+    var eventSize = (uint)Marshal.SizeOf(typeof(VREvent_t));
+    while (overlay.PollNextOverlayEvent(_overlayHandle, ref overlayEvent, eventSize))
+    {
+      switch ((EVREventType)overlayEvent.eventType)
+      {
+        case EVREventType.VREvent_ImageLoaded:
+          _isRawSubmitPending = false;
+          _hasLoadedTexture = true;
+          _consecutiveFailures = 0;
+          break;
+
+        case EVREventType.VREvent_ImageFailed:
+          _isRawSubmitPending = false;
+          RegisterFailure(overlay, "SetOverlayRaw image load", EVROverlayError.RequestFailed, recreateOverlay: false);
+          break;
+
+        case EVREventType.VREvent_OverlayShown:
+          _isShown = true;
+          break;
+
+        case EVREventType.VREvent_OverlayHidden:
+          _isShown = false;
+          break;
+
+        case EVREventType.VREvent_OverlayDestroyed:
+          InvalidateOverlay(overlay, destroyOverlay: false);
+          return;
+      }
+    }
+
+    if (_isRawSubmitPending && Time.realtimeSinceStartup >= _rawSubmitDeadline)
+    {
+      _isRawSubmitPending = false;
+      RegisterFailure(overlay, "SetOverlayRaw completion", EVROverlayError.TimedOut, recreateOverlay: true);
+      return;
+    }
+
+    if (_overlayHandle == 0 || _isRawSubmitPending || !_hasLoadedTexture)
+    {
+      return;
+    }
+
+    // SteamVR Dashboard、HMD スタンバイ、再フォーカスなどで隠された場合にも戻す。
+    if (_isShown && !overlay.IsOverlayVisible(_overlayHandle))
+    {
+      _isShown = false;
+    }
+
+    if (!_isShown)
+    {
+      ShowOverlay(overlay);
+    }
+  }
+
+  private void ShowOverlay(CVROverlay overlay)
+  {
+    var result = overlay.ShowOverlay(_overlayHandle);
+    if (result == EVROverlayError.None)
+    {
+      _isShown = true;
+      _consecutiveFailures = 0;
+      return;
+    }
+
+    HandleFailure(overlay, nameof(CVROverlay.ShowOverlay), result, recreateOverlay: true);
+  }
+
+  private void HandleFailure(
+    CVROverlay overlay,
+    string operation,
+    EVROverlayError error,
+    bool recreateOverlay)
+  {
+    RegisterFailure(overlay, operation, error, recreateOverlay || IsInvalidHandleError(error));
+  }
+
+  private void RegisterFailure(
+    CVROverlay overlay,
+    string operation,
+    EVROverlayError error,
+    bool recreateOverlay)
+  {
+    _consecutiveFailures++;
+    LogFailure(operation, error);
+
+    if (recreateOverlay)
+    {
+      InvalidateOverlay(overlay, destroyOverlay: !IsInvalidHandleError(error));
+    }
+
+    if (_consecutiveFailures < ReconnectFailureThreshold)
+    {
+      return;
+    }
+
+    _consecutiveFailures = 0;
+    InvalidateOverlay(overlay, destroyOverlay: false);
+    OpenVrRuntime.RequestReconnect($"{operation}: {error}");
+  }
+
+  private void LogFailure(string operation, EVROverlayError error)
+  {
+    if (Time.realtimeSinceStartup < _nextErrorLogTime)
+    {
+      return;
+    }
+
+    _nextErrorLogTime = Time.realtimeSinceStartup + ErrorLogIntervalSeconds;
+    Debug.LogWarning($"{nameof(OpenVrGameViewOverlay)}: {operation} に失敗しました ({error})。");
+  }
+
+  private void InvalidateOverlay(CVROverlay overlay, bool destroyOverlay)
+  {
+    if (_overlayHandle != 0 && destroyOverlay && overlay != null)
+    {
+      overlay.DestroyOverlay(_overlayHandle);
+    }
+
+    _overlayHandle = 0;
+    _hasPlacedWorldAnchor = false;
+    _isShown = false;
+    _hasLoadedTexture = false;
+    _isRawSubmitPending = false;
+    _rawSubmitDeadline = 0f;
+  }
+
+  private static bool IsInvalidHandleError(EVROverlayError error)
+  {
+    return error == EVROverlayError.UnknownOverlay
+      || error == EVROverlayError.InvalidHandle;
   }
 
   // 反転の指定をテクスチャ座標側で行う。CPU で並べ替えるより安い。

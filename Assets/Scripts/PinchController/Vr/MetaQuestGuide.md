@@ -141,7 +141,7 @@ SteamVR に接続できない環境では何もしないので、有効なまま
 
 実装上の理由もあります。ゲーム画面を VR に出す正攻法は GPU テクスチャのハンドルを OpenVR へ直接渡すこと（`Submit` / `SetOverlayTexture`）ですが、本プロジェクトは**マルチスレッドレンダリングが有効**（`m_MTRendering: 1`）なため、これを行うと Unity のレンダースレッドと OpenVR がグラフィックスデバイスを取り合ってクラッシュします。SteamVR Unity Plugin はネイティブプラグインでこれを回避していますが、本プロジェクトは `openvr_api` を直接叩く方針のためその手段がありません。
 
-そこで CPU バッファを渡す `SetOverlayRaw` を使っています。`AsyncGPUReadback` で GPU を待たずに画面を読み戻すため描画は止まらず、GPU デバイスに触らないので競合そのものが起きません。代償は読み戻しのメモリ帯域で、既定の 720p / 30fps なら約 110MB/s と実用範囲です。滑らかさが足りなければ `Target Frames Per Second` を、負荷が高ければ `Transfer Height` を調整してください。
+そこで CPU バッファを渡す `SetOverlayRaw` を使っています。`AsyncGPUReadback` で GPU を待たずに画面を読み戻すため描画は止まらず、GPU デバイスに触らないので競合そのものが起きません。Raw 画像は SteamVR の画像ロード完了イベントを待って 1 件ずつ送り、スタンバイや一時切断で Overlay が失効した場合は Overlay と OpenVR 接続を再作成します。代償は読み戻しのメモリ帯域で、既定の 720p / 30fps なら約 110MB/s と実用範囲です。滑らかさが足りなければ `Target Frames Per Second` を、負荷が高ければ `Transfer Height` を調整してください。
 
 ### 6DoF 計測ログで可動域を測る
 

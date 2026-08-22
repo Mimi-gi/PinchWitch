@@ -16,6 +16,11 @@ using UnityEngine.Rendering;
 [DisallowMultipleComponent]
 public sealed class VrGameViewMirror : MonoBehaviour
 {
+  // GPU 読み戻しが完了しないまま永久停止しないための上限。
+  private const float ReadbackTimeoutSeconds = 2f;
+  // 同じ GPU 障害で Console を埋めないためのログ間隔。
+  private const float ReadbackErrorLogIntervalSeconds = 2f;
+
   [Header("Mirror")]
   // ヘッドセットへゲーム画面を映すかどうか。
   [SerializeField] private bool enableMirror = true;
@@ -56,6 +61,10 @@ public sealed class VrGameViewMirror : MonoBehaviour
   private AsyncGPUReadbackRequest _readbackRequest;
   // 読み戻し要求が実行中かどうか。
   private bool _hasPendingReadback;
+  // 現在の読み戻しを開始した時刻。
+  private float _readbackStartTime;
+  // 次に GPU 読み戻し障害のログを出してよい時刻。
+  private float _nextReadbackErrorLogTime;
   // 次に転送してよい時刻。
   private float _nextCaptureTime;
   // フレーム終端を待つコルーチン。
@@ -65,6 +74,8 @@ public sealed class VrGameViewMirror : MonoBehaviour
 
   private void OnEnable()
   {
+    // SteamVR / Quest Link がフォーカスを取っても画面転送を止めない。
+    Application.runInBackground = true;
     _overlay = new OpenVrGameViewOverlay(BuildOverlayConfig());
     _captureRoutine = StartCoroutine(CaptureLoop());
   }
@@ -174,6 +185,12 @@ public sealed class VrGameViewMirror : MonoBehaviour
       return;
     }
 
+    // SteamVR が前の Raw 画像をロードし終えるまで次の GPU 読み戻しを開始しない。
+    if (!_overlay.CanAcceptFrame())
+    {
+      return;
+    }
+
     _nextCaptureTime = Time.realtimeSinceStartup + 1f / Mathf.Max(1f, targetFramesPerSecond);
 
     if (!EnsureTextures())
@@ -187,18 +204,41 @@ public sealed class VrGameViewMirror : MonoBehaviour
 
     _readbackRequest = AsyncGPUReadback.Request(_transferTexture, 0, TextureFormat.RGBA32);
     _hasPendingReadback = true;
+    _readbackStartTime = Time.realtimeSinceStartup;
   }
 
   private void CompletePendingReadback()
   {
-    if (!_hasPendingReadback || !_readbackRequest.done)
+    if (!_hasPendingReadback)
     {
       return;
+    }
+
+    if (!_readbackRequest.done)
+    {
+      if (Time.realtimeSinceStartup - _readbackStartTime < ReadbackTimeoutSeconds)
+      {
+        return;
+      }
+
+      // 非同期要求を放置したまま同じ RenderTexture を再利用できないため、異常時だけ同期して回収する。
+      LogReadbackFailure("GPU 読み戻しがタイムアウトしたため、完了を同期的に待ちます。");
+      _readbackRequest.WaitForCompletion();
+      if (!_readbackRequest.done)
+      {
+        return;
+      }
     }
 
     _hasPendingReadback = false;
     if (_readbackRequest.hasError || _overlay == null || _transferTexture == null)
     {
+      if (_readbackRequest.hasError)
+      {
+        LogReadbackFailure("GPU 読み戻しに失敗したため、転送用 RenderTexture を作り直します。");
+        ReleaseTextures();
+      }
+
       return;
     }
 
@@ -225,7 +265,10 @@ public sealed class VrGameViewMirror : MonoBehaviour
     var screenWidth = Mathf.Max(1, Screen.width);
     var screenHeight = Mathf.Max(1, Screen.height);
 
-    if (_captureTexture == null || _captureTexture.width != screenWidth || _captureTexture.height != screenHeight)
+    if (_captureTexture == null
+        || !_captureTexture.IsCreated()
+        || _captureTexture.width != screenWidth
+        || _captureTexture.height != screenHeight)
     {
       ReleaseTexture(ref _captureTexture);
       _captureTexture = new RenderTexture(screenWidth, screenHeight, 0, RenderTextureFormat.ARGB32)
@@ -243,7 +286,10 @@ public sealed class VrGameViewMirror : MonoBehaviour
     // 幅を偶数に揃える。奇数幅は読み戻し時の行パディングでずれることがある。
     targetWidth -= targetWidth % 2;
 
-    if (_transferTexture == null || _transferTexture.width != targetWidth || _transferTexture.height != targetHeight)
+    if (_transferTexture == null
+        || !_transferTexture.IsCreated()
+        || _transferTexture.width != targetWidth
+        || _transferTexture.height != targetHeight)
     {
       ReleaseTexture(ref _transferTexture);
       _transferTexture = new RenderTexture(targetWidth, targetHeight, 0, RenderTextureFormat.ARGB32)
@@ -278,6 +324,17 @@ public sealed class VrGameViewMirror : MonoBehaviour
     texture.Release();
     Destroy(texture);
     texture = null;
+  }
+
+  private void LogReadbackFailure(string message)
+  {
+    if (Time.realtimeSinceStartup < _nextReadbackErrorLogTime)
+    {
+      return;
+    }
+
+    _nextReadbackErrorLogTime = Time.realtimeSinceStartup + ReadbackErrorLogIntervalSeconds;
+    Debug.LogWarning($"{nameof(VrGameViewMirror)}: {message}", this);
   }
 
   private OpenVrGameViewOverlay.Config BuildOverlayConfig()

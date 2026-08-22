@@ -15,7 +15,7 @@
 - `OpenVrRuntime` — OpenVR ランタイムへの接続をプロセス全体で 1 つ管理する static クラス。シーンをまたいで接続を使い回し、アプリ終了時(エディタでは再生終了時)にのみ解放する。接続失敗時は 15 秒間隔でリトライし、SteamVR 未インストール環境では一度警告して以後何もしない
 - `VrTrackingSpaceMapper` — トラッキング空間の姿勢をワールド空間へ変換。実行時キャリブレーション(中心位置の記録)を持つ
 - `VrGrabController` — 掴み・移動・回転のロジック本体。`MouseGrabController` と対になる入力層
-- `OpenVrGameViewOverlay` / `VrGameViewMirror` — ゲーム画面を HMD 内の仮想スクリーンへ映す。掴み入力とは独立した関心事なので別コンポーネントにしてある。マルチスレッドレンダリング有効下で GPU ハンドルを OpenVR へ渡すとレンダースレッドと競合して落ちるため、`AsyncGPUReadback` + `SetOverlayRaw` の CPU 経由で転送する
+- `OpenVrGameViewOverlay` / `VrGameViewMirror` — ゲーム画面を HMD 内の仮想スクリーンへ映す。掴み入力とは独立した関心事なので別コンポーネントにしてある。マルチスレッドレンダリング有効下で GPU ハンドルを OpenVR へ渡すとレンダースレッドと競合して落ちるため、`AsyncGPUReadback` + `SetOverlayRaw` の CPU 経由で転送する。Raw 転送は SteamVR の完了イベントを待って直列化し、タイムアウト・Overlay 失効・OpenVR 切断時は自動再作成する
 - `VrAdvanceButtonSource` — UI 進行(テキスト送りなど)用の VR ボタン入力。掴み用の `OpenVrPoseSource` とは別系統で、左右どちらの手でも反応する。`TutorialSequenceController.advanceKeys`(Space / Return / Mouse0)に相乗りする形で組み込み済み
 - `VrControllerButton` — Inspector から選べる VR ボタンの `[Flags]` 列挙体(`Trigger` / `Grip` / `AX` / `BY` / `ThumbstickClick`)。`OpenVrPoseSource` と `VrAdvanceButtonSource` の両方がこれ経由でボタン割り当てを受け取る
 - `GrabInputController` — シーンに置く MonoBehaviour の入口。`HandPinchController` から `GrabInteractor` / `OutlineController` / `GrabInputCoordinator` を受け取り、上記を組み立てて駆動する

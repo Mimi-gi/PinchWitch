@@ -33,6 +33,23 @@ public static class OpenVrRuntime
   // 直近で警告を出した失敗理由。同じ理由を再試行のたびに繰り返し出力しないために持つ。
   private static EVRInitError _lastLoggedError = EVRInitError.None;
 
+  // Overlay や入力側が接続切れを検出したとき、次回アクセスで初期化し直せる状態へ戻す。
+  // SteamVR / Quest Link の再起動後に古い CVRSystem を使い続けないための入口。
+  public static void RequestReconnect(string reason)
+  {
+    if (_system == null)
+    {
+      return;
+    }
+
+    _system = null;
+    OpenVR.Shutdown();
+    // 一時的なスタンバイで毎フレーム初期化を繰り返さないよう、短い猶予を置く。
+    _nextAttemptTime = Time.realtimeSinceStartup + 1f;
+    _lastLoggedError = EVRInitError.None;
+    Debug.LogWarning($"{nameof(OpenVrRuntime)}: OpenVR 接続を再初期化します ({reason})。");
+  }
+
   // 接続済みなら CVRSystem を返す。未接続なら間隔を空けつつ接続を試みる。
   // 接続できない環境(SteamVR 未インストール等)では null を返し続ける。
   public static CVRSystem TryGetSystem(OpenVrApplicationMode applicationMode)
