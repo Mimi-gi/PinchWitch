@@ -16,6 +16,7 @@
 - `VrTrackingSpaceMapper` — トラッキング空間の姿勢をワールド空間へ変換。実行時キャリブレーション(中心位置の記録)を持つ
 - `VrGrabController` — 掴み・移動・回転のロジック本体。`MouseGrabController` と対になる入力層
 - `OpenVrGameViewOverlay` / `VrGameViewMirror` — ゲーム画面を HMD 内の仮想スクリーンへ映す。掴み入力とは独立した関心事なので別コンポーネントにしてある。マルチスレッドレンダリング有効下で GPU ハンドルを OpenVR へ渡すとレンダースレッドと競合して落ちるため、`AsyncGPUReadback` + `SetOverlayRaw` の CPU 経由で転送する
+- `VrAdvanceButtonSource` — UI 進行(テキスト送りなど)用の VR ボタン入力。掴み用の `OpenVrPoseSource` とは別系統で、左右どちらの手の A/B(X/Y)でも反応する。`TutorialSequenceController.advanceKeys`(Space / Return / Mouse0)に相乗りする形で組み込み済み
 - `GrabInputController` — シーンに置く MonoBehaviour の入口。`HandPinchController` から `GrabInteractor` / `OutlineController` / `GrabInputCoordinator` を受け取り、上記を組み立てて駆動する
   - 旧構成の `MouseGrabInputController` + `VrGrabInputController`(2 コンポーネント常時併走)は、この 1 コンポーネントへ統合済み
 
@@ -51,6 +52,15 @@
 | `C`(キーボード) | 現在位置を中心としてキャリブレーション |
 
 SteamVR のレガシー入力のボタン ID(トリガー / グリップ / A / アプリケーションメニュー)を使っているため、Vive / Index コントローラーでも対応ボタンでそのまま動く。
+
+### UI 進行(テキスト送り)のボタン割り当て
+| 操作 | 割り当て |
+|---|---|
+| A / X ボタン、または B / Y ボタン(左右どちらでも可) | テキスト送り(`TutorialSequenceController.advanceKeys` の VR 版) |
+
+`VrAdvanceButtonSource` が両手ぶんのコントローラーを個別に確認しており、`GrabInputController` がどちらの手を掴み用にトラッキングしているかとは無関係に動く。`TutorialSequenceController` の `Accept Vr Advance Input` で無効化できる。
+
+> ステップ回転(上表)と同じ物理ボタンを使っているが、通常チュートリアルのナレーション中は `Set3DInteraction` ステップ前で 3D 操作(掴み)自体が無効化されているため、実運用での競合は起きにくい。両方が同時に有効な状況を作る場合は考慮すること。
 
 ### 回転方式
 `rotationMode` が `Wrist` のときは、ボタンを使わず **コントローラーの向きをそのまま 1:1 で反映** する。掴んだ瞬間からの回転差分を適用するため、掴み始めにオブジェクトが飛ばない。VR 実機では `Wrist` を推奨する。
