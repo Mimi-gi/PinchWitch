@@ -10,7 +10,10 @@ using UnityEngine.Rendering;
 public sealed class PlanarProjectedShadow : MonoBehaviour
 {
     private const string DefaultMaterialResourcePath = "PlanarProjectionShadow";
-    private const string DefaultProjectionPlaneName = "Floor";
+    private const string CheckerboardMaterialName = "CheckerBoard3DPlane_mat";
+    private const string ProjectionPlaneLayerName = "Plane";
+    private const string ProjectionPlaneObjectName = "Plane";
+    private const string LegacyProjectionPlaneObjectName = "Floor";
 
     private static readonly int ShadowColorId = Shader.PropertyToID("_ShadowColor");
     private static readonly int ProjectionPlaneId = Shader.PropertyToID("_ProjectionPlane");
@@ -24,7 +27,7 @@ public sealed class PlanarProjectedShadow : MonoBehaviour
     [SerializeField] private bool includeInactiveRenderers;
 
     [Header("Projection Plane")]
-    [Tooltip("未設定時はシーン内の Floor を自動検出します。ローカル Up が平面法線です。")]
+    [Tooltip("未設定時はチェック柄マテリアルを持つ Plane を自動検出します。ローカル Up が平面法線です。")]
     [SerializeField] private Transform projectionPlane;
     [SerializeField, Min(0f)] private float surfaceOffset = 0.003f;
 
@@ -81,11 +84,6 @@ public sealed class PlanarProjectedShadow : MonoBehaviour
         }
 
         var planeNormal = projectionPlane.up.normalized;
-        if (Vector3.Dot(transform.position - projectionPlane.position, planeNormal) < -surfaceOffset)
-        {
-            return;
-        }
-
         var plane = new Vector4(
             planeNormal.x,
             planeNormal.y,
@@ -233,11 +231,61 @@ public sealed class PlanarProjectedShadow : MonoBehaviour
             return;
         }
 
-        var floor = GameObject.Find(DefaultProjectionPlaneName);
-        if (floor != null)
+        projectionPlane = FindCheckerboardProjectionPlane();
+        if (projectionPlane != null)
         {
-            projectionPlane = floor.transform;
+            return;
         }
+
+        // マテリアル名が変更された場合も、Plane レイヤーを優先して探す。
+        var planeLayer = LayerMask.NameToLayer(ProjectionPlaneLayerName);
+        if (planeLayer >= 0)
+        {
+            var renderers = FindObjectsByType<MeshRenderer>(FindObjectsInactive.Include);
+            foreach (var candidate in renderers)
+            {
+                if (candidate != null && candidate.gameObject.layer == planeLayer)
+                {
+                    projectionPlane = candidate.transform;
+                    return;
+                }
+            }
+        }
+
+        // 古いシーン構成との互換用フォールバック。
+        var planeObject = GameObject.Find(ProjectionPlaneObjectName);
+        if (planeObject == null)
+        {
+            planeObject = GameObject.Find(LegacyProjectionPlaneObjectName);
+        }
+
+        if (planeObject != null)
+        {
+            projectionPlane = planeObject.transform;
+        }
+    }
+
+    private static Transform FindCheckerboardProjectionPlane()
+    {
+        var renderers = FindObjectsByType<MeshRenderer>(FindObjectsInactive.Include);
+        foreach (var candidate in renderers)
+        {
+            if (candidate == null)
+            {
+                continue;
+            }
+
+            var materials = candidate.sharedMaterials;
+            foreach (var material in materials)
+            {
+                if (material != null && material.name == CheckerboardMaterialName)
+                {
+                    return candidate.transform;
+                }
+            }
+        }
+
+        return null;
     }
 
     private static int AllocateStencilReference()

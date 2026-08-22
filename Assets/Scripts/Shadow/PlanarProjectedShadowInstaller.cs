@@ -78,7 +78,9 @@ public sealed class PlanarProjectedShadowInstaller : MonoBehaviour
 
     private void AttachMissingShadowComponents()
     {
-        var rendererCandidates = FindObjectsByType<Renderer>(FindObjectsInactive.Exclude);
+        // handcursor はVR姿勢を受信するまで非表示になるため、非アクティブ中に
+        // コンポーネントを仕込んで表示初回フレームから影を描けるようにする。
+        var rendererCandidates = FindObjectsByType<Renderer>(FindObjectsInactive.Include);
         var casterRoots = new HashSet<Transform>();
 
         foreach (var candidate in rendererCandidates)
