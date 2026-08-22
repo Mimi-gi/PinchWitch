@@ -71,6 +71,9 @@ public sealed class GrabInputController : MonoBehaviour
   [SerializeField] private float positionScale = 3f;
   // 現在のコントローラー位置を中心として記録し直すキー。
   [SerializeField] private KeyCode calibrateCenterKey = KeyCode.C;
+  // キャリブレーション直後、手がワープする先のワールド座標。
+  // ステージごとに掴みたいオブジェクトの高さ・位置が違うため、シーンごとに設定する。
+  [SerializeField] private Vector3 calibratedHandWorldPosition = Vector3.zero;
 
   [Header("VR Diagnostics")]
   // 6DoF(位置 3 軸 + 回転 3 軸)の計測ログを Console に出すかどうか。
@@ -302,7 +305,7 @@ public sealed class GrabInputController : MonoBehaviour
 
     if (Input.GetKeyDown(calibrateCenterKey))
     {
-      _trackingSpaceMapper.CalibrateCenter(trackingPosition);
+      _trackingSpaceMapper.CalibrateCenter(trackingPosition, calibratedHandWorldPosition);
       // 中心が変わるとワールド座標が跳ぶため、計測中の可動域は捨てて測り直す。
       _poseDiagnostics.ResetRange();
     }

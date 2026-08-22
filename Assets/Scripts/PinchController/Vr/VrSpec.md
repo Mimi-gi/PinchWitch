@@ -34,7 +34,7 @@
 2. Quest を Quest Link(有線 / Air Link)で PC に接続する
 3. 対象シーンの `GrabInputController` の `inputMode` を `Vr` にする
 4. 再生すると `OpenVrRuntime` が SteamVR へ接続する(`vrApplicationMode: Scene` なら SteamVR を自動起動する)
-5. コントローラーを操作の中心に構え、`C` キーでその位置をトラッキング空間の中心としてキャリブレーションする
+5. コントローラーを操作の中心に構え、`C` キーを押す。手は `calibratedHandWorldPosition`(シーンごとに Inspector で設定するワールド座標。既定はワールド原点)へワープし、そこを基準にコントローラーの動きが反映される
 
 ### Inspector 設定(`GrabInputController` の「VR Device (OpenVR)」欄)
 - `vrPreferredHand` — 優先的に使う手(既定: Right)。未接続なら逆の手、それも無ければ接続中の任意のコントローラーへ自動フォールバックする
@@ -86,7 +86,8 @@ SteamVR のレガシー入力のボタン ID(トリガー / グリップ / A / �
 - 各シーンの `Solution` に旧 `VrGrabInputController` の missing script(guid `7ba78dd48357cb34e983e1ed0bec431e`、対応する .cs は削除済み)が残っている。動作への影響は無いが警告が出るため掃除したい
 - `StageSelectControlller` はステージ決定演出中に `HandPinchController` しか無効化しておらず、`GrabInputController`(マウス/VR)は動き続ける
 - 実機の腕の可動域(~0.8m)とゲーム内可動範囲のスケール差は未調整。ステージごとに `xRange` 等の可動域自体が異なる(例: 多くのステージは `{-6, 6}`、Stage_6 のみ `{-8, 8}`)ため、`positionScale`(既定 3)の一律設定では最適化しきれない。実機到着後に詰める
-- `trackingOrigin` / `controllerVisual` は全シーン未設定(ワールド原点基準、デバッグ表示なし)。展示時の設置が決まったら調整する
+- `trackingOrigin` / `controllerVisual` は全シーン未設定(デバッグ表示なし)。展示時の設置が決まったら調整する
+- `calibratedHandWorldPosition` は全シーン既定値 `(0, 0, 0)` のまま。ステージごとに掴みたいオブジェクトの位置へ調整する必要がある
 - Quest を HMD 非装着で運用する際のスリープ回避・トラッキング維持(近接センサー対策、HMD の設置位置)は実機で要検証
 
 ## 実装ファイル

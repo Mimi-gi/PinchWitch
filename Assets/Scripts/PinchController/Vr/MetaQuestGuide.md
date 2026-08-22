@@ -83,8 +83,14 @@ Unity の XR パッケージや SteamVR Unity Plugin は **入れません**。�
 1. Unity で再生する
 2. Console に `OpenVrRuntime: OpenVR (SteamVR) へ接続しました。` が出れば接続成功
 3. コントローラーを動かし、Scene ビューで照準の線（`Debug.DrawLine`）が追従するか確認する
-4. コントローラーを操作の中心に構えて **`C` キー** を押し、その位置を基準点として記録する
+4. コントローラーを操作の中心に構えて **`C` キー** を押す。手は `Calibrated Hand World Position`（既定はワールド原点）にワープし、そこを基準にコントローラーの動きが反映されるようになる
 5. 掴めるオブジェクトに近づけてアウトラインが出れば、トラッキングと座標変換は成功
+
+### 手のワープ先を設定する
+
+`C` を押した瞬間、手は必ず `Calibrated Hand World Position` の座標にワープします。既定値の `(0, 0, 0)` はワールド原点で、掴みたいオブジェクトが宙にある場合はほぼ確実に届きません（Stage_3 の `yRange` は `{0, 4.5}` なので、原点は床すれすれです）。
+
+ステージごとに掴みたいオブジェクトの中心付近の座標を `Calibrated Hand World Position` に設定してください。以後 `C` を押すたびに、その位置を基準としてコントローラーの動きが反映されます。
 
 ### 6DoF 計測ログで可動域を測る
 
@@ -194,6 +200,7 @@ Unity の XR パッケージや SteamVR Unity Plugin は **入れません**。�
 | `Tracking Origin` | 未設定 | トラッキング空間の原点として扱う Transform。未設定ならワールド原点 |
 | `Position Scale` | 3 | 実空間 1m をワールド空間の何ユニットとして扱うか |
 | `Calibrate Center Key` | `C` | 現在のコントローラー位置を基準点として記録し直すキー |
+| `Calibrated Hand World Position` | `(0, 0, 0)` | `C` を押した瞬間、手がワープする先のワールド座標。ステージごとに掴みたいオブジェクトの高さ・位置が違うため、シーンごとに設定する |
 
 ### VR Diagnostics
 
@@ -237,7 +244,7 @@ Unity の XR パッケージや SteamVR Unity Plugin は **入れません**。�
    - `GetTrackedDeviceIndexForControllerRole()` で使うコントローラーを決める（優先手 → 逆の手 → 任意）
    - `GetDeviceToAbsoluteTrackingPose()` で姿勢、`GetControllerState()` でボタンを取得
 3. `TryGetPose()` でトラッキング空間の位置・回転を受け取る
-4. `C` キーが押されていれば `VrTrackingSpaceMapper.CalibrateCenter()` で基準点を更新
+4. `C` キーが押されていれば `VrTrackingSpaceMapper.CalibrateCenter(trackingPosition, calibratedHandWorldPosition)` で基準点を更新
 5. 前フレームとの差分から移動量を求め、`VrTrackingSpaceMapper` でワールド空間へ変換して `PoseSample` を組む
 6. `VrGrabController.Process()` が掴み判定・追従・回転・解放を処理する
 
@@ -251,6 +258,14 @@ Unity の XR パッケージや SteamVR Unity Plugin は **入れません**。�
 ```
 
 `trackingOrigin` が未設定ならワールド原点・無回転として扱います。`positionScale` は 0.01 未満に潰れないよう下限が入っています。
+
+基準点（`_centerOffset`）は `C` を押した瞬間、**その時点のトラッキング位置が `calibratedHandWorldPosition` に変換されるよう逆算**して決めます。
+
+```
+基準点 = トラッキング位置 - (trackingOrigin.rotation の逆回転 * (calibratedHandWorldPosition - trackingOrigin.position)) / positionScale
+```
+
+`calibratedHandWorldPosition` の既定値 `Vector3.zero`、`trackingOrigin` 未設定の場合は「基準点 = トラッキング位置」に簡約され、旧仕様（ワールド原点にワープ）と完全に一致します。シーンごとに `calibratedHandWorldPosition` を設定すれば、`trackingOrigin` 用の空 GameObject を置かなくても、`C` を押した瞬間に手を任意のワールド座標へワープさせられます。
 
 OpenVR は右手座標系、Unity は左手座標系ですが、変換は `openvr_api.cs` 同梱の `HmdMatrix34_t.GetPosition()` / `GetRotation()` に任せています（Z 軸の符号反転を含む）。
 

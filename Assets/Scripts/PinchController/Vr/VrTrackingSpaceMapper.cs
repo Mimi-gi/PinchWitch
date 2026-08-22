@@ -32,10 +32,15 @@ public sealed class VrTrackingSpaceMapper
     _config = config;
   }
 
-  // 現在のコントローラー位置をトラッキング空間の中心として記録する。
-  public void CalibrateCenter(Vector3 trackingPosition)
+  // 現在のトラッキング位置が指定したワールド座標に変換されるよう、中心位置を記録する。
+  // 展示ごとにベースステーションの設置位置が変わるため、実行時に
+  // 「今コントローラーがある場所を targetWorldPosition とみなす」キャリブレーションとして使う。
+  public void CalibrateCenter(Vector3 trackingPosition, Vector3 targetWorldPosition)
   {
-    _centerOffset = trackingPosition;
+    var localTarget = _config.trackingOrigin == null
+      ? targetWorldPosition
+      : Quaternion.Inverse(_config.trackingOrigin.rotation) * (targetWorldPosition - _config.trackingOrigin.position);
+    _centerOffset = trackingPosition - localTarget / ResolveScale();
   }
 
   // キャリブレーション結果を破棄する。
