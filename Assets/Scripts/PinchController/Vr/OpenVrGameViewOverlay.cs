@@ -6,107 +6,92 @@ using Valve.VR;
 // ゲーム画面をヘッドセット内へ表示する仮想スクリーンの置き方。
 public enum VrScreenAnchorMode
 {
-  // トラッキング空間に固定する。首を振ると画面が視界の外に出る代わりに、大画面でも酔いにくい。
-  // 表示開始時と Recenter() 実行時に、そのときの頭の向きの正面へ置き直す。
   World,
-
-  // 常に視界の正面へ貼り付ける。必ず見える代わりに、首を振ると画面が付いてくるため疲れやすい。
   HeadLocked,
 }
 
-// ゲーム画面のピクセルを OpenVR のオーバーレイとしてヘッドセットへ表示する。
-//
-// このゲームは 2D の影を扱うモニター向けタイトルであり、立体視でレンダリングする意味がない。
-// そのため「HMD の中に大きな平面スクリーンを 1 枚出し、そこにゲーム画面を映す」方式を採る。
-//
-// GPU テクスチャのハンドルを渡す SetOverlayTexture ではなく、CPU バッファを渡す SetOverlayRaw を使う。
-// マルチスレッドレンダリングが有効な状態で GPU ハンドルを OpenVR へ渡すと、
-// Unity のレンダースレッドと OpenVR がグラフィックスデバイスを取り合って落ちるため。
-// SteamVR Unity Plugin はこれをネイティブプラグインで回避しているが、本プロジェクトは
-// openvr_api を直接叩く方針なのでその手段が無い。CPU 経由なら競合そのものが起きない。
+// 同じ位置に重ねた 2 枚の OpenVR Overlay を交互に更新する。
+// 表示中の旧フレームには触れず、背面へ次フレームをロードし、完了後に SortOrder を入れ替える。
 public sealed class OpenVrGameViewOverlay : IDisposable
 {
-  // オーバーレイを一意に識別するキー。プロセスをまたいで衝突しないよう固有名にする。
-  private const string OverlayKey = "pinchwitch.gameview";
-  // SteamVR のオーバーレイ一覧に出る表示名。
-  private const string OverlayName = "PinchWitch Game View";
-  // SetOverlayRaw の完了イベントが来ない場合に、転送を永遠に待たないための上限。
+  private const string PrimaryOverlayKey = "pinchwitch.gameview.primary";
+  private const string SecondaryOverlayKey = "pinchwitch.gameview.secondary";
+  private const string PrimaryOverlayName = "PinchWitch Game View A";
+  private const string SecondaryOverlayName = "PinchWitch Game View B";
+  private const uint BackSortOrder = 0u;
+  private const uint FrontSortOrder = 1u;
   private const float RawSubmitTimeoutSeconds = 2f;
-  // OpenVR 接続そのものを作り直すまでに許容する連続失敗回数。
   private const int ReconnectFailureThreshold = 3;
-  // 同じ障害で Console を埋めないためのログ間隔。
   private const float ErrorLogIntervalSeconds = 2f;
 
   public struct Config
   {
-    // 仮想スクリーンの置き方。
     public VrScreenAnchorMode anchorMode;
-    // 仮想スクリーンの横幅(m)。
     public float widthInMeters;
-    // 頭からスクリーンまでの距離(m)。
     public float distanceInMeters;
-    // 目線からの上下オフセット(m)。正で上。
     public float verticalOffsetInMeters;
-    // 画面を上下反転するかどうか。
-    // グラフィックス API によって読み出したピクセルの並びが変わるため、逆さに映ったら切り替える。
     public bool flipVertically;
-    // 画面を左右反転するかどうか。
-    // オーバーレイの板を裏側から見ている場合など、鏡像になったときに切り替える。
-    // 上下と左右の両方を入れると 180 度回転になる。
     public bool flipHorizontally;
-    // SteamVR への接続の仕方。姿勢取得側と揃える。
     public OpenVrApplicationMode applicationMode;
   }
 
-  // 全トラッキングデバイスの姿勢を受ける使い回しバッファ。
-  private readonly TrackedDevicePose_t[] _poses = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
+  private sealed class OverlaySlot
+  {
+    public readonly string key;
+    public readonly string name;
+    public ulong handle;
+    public bool isShown;
+    public bool hasLoadedTexture;
+    public bool isRawSubmitPending;
+    public bool hasAppliedTransform;
+    public float rawSubmitDeadline;
 
-  // 表示設定。
+    public OverlaySlot(string key, string name)
+    {
+      this.key = key;
+      this.name = name;
+    }
+  }
+
+  private readonly TrackedDevicePose_t[] _poses = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
+  private readonly OverlaySlot[] _slots =
+  {
+    new OverlaySlot(PrimaryOverlayKey, PrimaryOverlayName),
+    new OverlaySlot(SecondaryOverlayKey, SecondaryOverlayName),
+  };
+
   private Config _config;
-  // 生成済みオーバーレイのハンドル。0 なら未生成。
-  private ulong _overlayHandle;
-  // World モードで一度でも配置済みかどうか。
-  private bool _hasPlacedWorldAnchor;
-  // 現在オーバーレイを表示状態にしてあるかどうか。
-  private bool _isShown;
-  // 少なくとも 1 枚の Raw 画像が SteamVR 側でロード済みかどうか。
-  private bool _hasLoadedTexture;
-  // SetOverlayRaw 後、VREvent_ImageLoaded / ImageFailed を待っているかどうか。
-  private bool _isRawSubmitPending;
-  // Raw 転送完了を待つ期限。
-  private float _rawSubmitDeadline;
-  // Overlay API の連続失敗回数。
+  private int _displayedSlotIndex = -1;
+  private int _loadingSlotIndex = -1;
+  private bool _hasWorldAnchor;
+  private HmdMatrix34_t _worldAnchor;
   private int _consecutiveFailures;
-  // 次に障害ログを出してよい時刻。
   private float _nextErrorLogTime;
+
   public OpenVrGameViewOverlay(Config config)
   {
     ApplyConfiguration(config);
   }
 
-  // オーバーレイが生成済みかどうか。
-  public bool IsActive => _overlayHandle != 0;
+  public bool IsActive => _slots[0].handle != 0 || _slots[1].handle != 0;
 
-  // 表示設定を更新する。生成済みなら見た目へ即反映する。
   public void ApplyConfiguration(Config config)
   {
     _config = config;
-    if (_overlayHandle == 0)
-    {
-      return;
-    }
+    _hasWorldAnchor = false;
 
     var overlay = OpenVR.Overlay;
-    if (overlay == null)
+    foreach (var slot in _slots)
     {
-      return;
+      slot.hasAppliedTransform = false;
+      if (slot.handle != 0 && overlay != null)
+      {
+        ApplySlotConfiguration(overlay, slot);
+      }
     }
-
-    overlay.SetOverlayWidthInMeters(_overlayHandle, Mathf.Max(0.1f, _config.widthInMeters));
-    ApplyTextureBounds(overlay);
   }
 
-  // 1 フレームぶんのゲーム画面を送る。ピクセルは RGBA32、先頭が左上の並びを前提とする。
+  // 非表示または背面の Overlay へだけ次フレームを送る。
   public bool Submit(byte[] pixels, int width, int height)
   {
     if (pixels == null || width <= 0 || height <= 0 || pixels.Length < width * height * 4)
@@ -121,45 +106,51 @@ public sealed class OpenVrGameViewOverlay : IDisposable
     }
 
     RefreshState(overlay);
-    if (_isRawSubmitPending || !EnsureOverlayCreated(overlay))
+    if (_loadingSlotIndex >= 0)
     {
       return false;
     }
 
-    UpdateTransform(overlay);
+    var targetIndex = _displayedSlotIndex < 0 ? 0 : 1 - _displayedSlotIndex;
+    var target = _slots[targetIndex];
+    if (!EnsureOverlayCreated(overlay, targetIndex) || !ApplyTransform(overlay, target))
+    {
+      return false;
+    }
 
-    // SetOverlayRaw は渡したポインタの中身を同期的に読み取るため、呼び出しの間だけ固定できればよい。
-    var handle = GCHandle.Alloc(pixels, GCHandleType.Pinned);
+    var pinnedPixels = GCHandle.Alloc(pixels, GCHandleType.Pinned);
     EVROverlayError submitResult;
     try
     {
       submitResult = overlay.SetOverlayRaw(
-        _overlayHandle,
-        handle.AddrOfPinnedObject(),
+        target.handle,
+        pinnedPixels.AddrOfPinnedObject(),
         (uint)width,
         (uint)height,
         4u);
     }
     finally
     {
-      handle.Free();
+      pinnedPixels.Free();
     }
 
     if (submitResult != EVROverlayError.None)
     {
-      HandleFailure(overlay, nameof(CVROverlay.SetOverlayRaw), submitResult, recreateOverlay: true);
+      RegisterFailure(
+        overlay,
+        targetIndex,
+        nameof(CVROverlay.SetOverlayRaw),
+        submitResult,
+        recreateSlot: true);
       return false;
     }
 
-    // Raw 画像のロード完了前に次の画像を積むと、SteamVR 側の画像更新が詰まりやすい。
-    // 完了イベントを受けるまで 1 要求だけに制限する。
-    _isRawSubmitPending = true;
-    _rawSubmitDeadline = Time.realtimeSinceStartup + RawSubmitTimeoutSeconds;
+    target.isRawSubmitPending = true;
+    target.rawSubmitDeadline = Time.realtimeSinceStartup + RawSubmitTimeoutSeconds;
+    _loadingSlotIndex = targetIndex;
     return true;
   }
 
-  // 次の画面キャプチャを開始してよいか確認する。
-  // イベント処理と、非表示になった Overlay の再表示もここで行う。
   public bool CanAcceptFrame()
   {
     var overlay = OpenVR.Overlay;
@@ -169,176 +160,293 @@ public sealed class OpenVrGameViewOverlay : IDisposable
     }
 
     RefreshState(overlay);
-    return !_isRawSubmitPending;
+    return _loadingSlotIndex < 0;
   }
 
-  // 現在の頭の向きの正面へスクリーンを置き直す。World モードでのみ意味を持つ。
   public void Recenter()
   {
-    _hasPlacedWorldAnchor = false;
+    _hasWorldAnchor = false;
+    foreach (var slot in _slots)
+    {
+      slot.hasAppliedTransform = false;
+    }
   }
 
-  // スクリーンを隠す。表示を止めても最後のフレームが残り続けないようにするために使う。
-  // ハンドルは保持したままなので、次に Submit すればそのまま再表示される。
   public void Hide()
   {
-    if (_overlayHandle == 0)
-    {
-      return;
-    }
-
     var overlay = OpenVR.Overlay;
-    if (overlay != null)
+    foreach (var slot in _slots)
     {
-      var result = overlay.HideOverlay(_overlayHandle);
-      if (result != EVROverlayError.None && !IsInvalidHandleError(result))
+      if (slot.handle == 0)
       {
-        LogFailure(nameof(CVROverlay.HideOverlay), result);
+        continue;
       }
-    }
 
-    _isShown = false;
+      if (overlay != null)
+      {
+        var result = overlay.HideOverlay(slot.handle);
+        if (result != EVROverlayError.None && !IsInvalidHandleError(result))
+        {
+          LogFailure(nameof(CVROverlay.HideOverlay), result);
+        }
+      }
+
+      slot.isShown = false;
+    }
   }
 
   public void Dispose()
   {
-    if (_overlayHandle == 0)
-    {
-      return;
-    }
-
-    InvalidateOverlay(OpenVR.Overlay, destroyOverlay: true);
+    InvalidateAllOverlays(OpenVR.Overlay, destroyOverlays: true);
   }
 
-  // オーバーレイをまだ作っていなければ作る。
-  private bool EnsureOverlayCreated(CVROverlay overlay)
+  private bool EnsureOverlayCreated(CVROverlay overlay, int slotIndex)
   {
-    if (_overlayHandle != 0)
+    var slot = _slots[slotIndex];
+    if (slot.handle != 0)
     {
       return true;
     }
 
     var handle = 0ul;
-    var error = overlay.CreateOverlay(OverlayKey, OverlayName, ref handle);
+    var error = overlay.CreateOverlay(slot.key, slot.name, ref handle);
     if (error != EVROverlayError.None)
     {
-      // KeyInUse や SteamVR 再起動直後の一時エラーも、数回続けば接続ごと作り直す。
-      RegisterFailure(overlay, nameof(CVROverlay.CreateOverlay), error, recreateOverlay: false);
+      RegisterFailure(
+        overlay,
+        slotIndex,
+        nameof(CVROverlay.CreateOverlay),
+        error,
+        recreateSlot: false);
       return false;
     }
 
-    _overlayHandle = handle;
-    _hasPlacedWorldAnchor = false;
-    _hasLoadedTexture = false;
-    _isRawSubmitPending = false;
-
-    overlay.SetOverlayWidthInMeters(_overlayHandle, Mathf.Max(0.1f, _config.widthInMeters));
-    // ゲーム画面は不透明なので、アルファを見ずに描いてもらう。
-    overlay.SetOverlayFlag(_overlayHandle, VROverlayFlags.IgnoreTextureAlpha, true);
-    overlay.SetOverlayAlpha(_overlayHandle, 1f);
-    ApplyTextureBounds(overlay);
-    // 表示は最初のフレームを流し込んだ後に行う(Submit 側)。
-    _isShown = false;
+    slot.handle = handle;
+    slot.isShown = false;
+    slot.hasLoadedTexture = false;
+    slot.isRawSubmitPending = false;
+    slot.hasAppliedTransform = false;
+    ApplySlotConfiguration(overlay, slot);
     return true;
   }
 
-  // Overlay 固有イベントを処理し、転送完了・非表示化・タイムアウトから復旧する。
+  private void ApplySlotConfiguration(CVROverlay overlay, OverlaySlot slot)
+  {
+    overlay.SetOverlayWidthInMeters(slot.handle, Mathf.Max(0.1f, _config.widthInMeters));
+    overlay.SetOverlayFlag(slot.handle, VROverlayFlags.IgnoreTextureAlpha, true);
+    overlay.SetOverlayAlpha(slot.handle, 1f);
+    overlay.SetOverlaySortOrder(slot.handle, BackSortOrder);
+    ApplyTextureBounds(overlay, slot);
+  }
+
   private void RefreshState(CVROverlay overlay)
   {
-    if (_overlayHandle == 0)
+    for (var index = 0; index < _slots.Length; index++)
+    {
+      ProcessSlotEvents(overlay, index);
+    }
+
+    for (var index = 0; index < _slots.Length; index++)
+    {
+      var slot = _slots[index];
+      if (!slot.isRawSubmitPending || Time.realtimeSinceStartup < slot.rawSubmitDeadline)
+      {
+        continue;
+      }
+
+      slot.isRawSubmitPending = false;
+      if (_loadingSlotIndex == index)
+      {
+        _loadingSlotIndex = -1;
+      }
+
+      RegisterFailure(
+        overlay,
+        index,
+        "SetOverlayRaw completion",
+        EVROverlayError.TimedOut,
+        recreateSlot: true);
+    }
+
+    RecoverDisplayedOverlay(overlay);
+  }
+
+  private void ProcessSlotEvents(CVROverlay overlay, int index)
+  {
+    var slot = _slots[index];
+    if (slot.handle == 0)
     {
       return;
     }
 
     var overlayEvent = default(VREvent_t);
     var eventSize = (uint)Marshal.SizeOf(typeof(VREvent_t));
-    while (overlay.PollNextOverlayEvent(_overlayHandle, ref overlayEvent, eventSize))
+    while (slot.handle != 0 && overlay.PollNextOverlayEvent(slot.handle, ref overlayEvent, eventSize))
     {
       switch ((EVREventType)overlayEvent.eventType)
       {
         case EVREventType.VREvent_ImageLoaded:
-          _isRawSubmitPending = false;
-          _hasLoadedTexture = true;
+          slot.isRawSubmitPending = false;
+          slot.hasLoadedTexture = true;
+          if (_loadingSlotIndex == index)
+          {
+            _loadingSlotIndex = -1;
+          }
+
           _consecutiveFailures = 0;
+          PromoteLoadedSlot(overlay, index);
           break;
 
         case EVREventType.VREvent_ImageFailed:
-          _isRawSubmitPending = false;
-          RegisterFailure(overlay, "SetOverlayRaw image load", EVROverlayError.RequestFailed, recreateOverlay: false);
-          break;
+          slot.isRawSubmitPending = false;
+          if (_loadingSlotIndex == index)
+          {
+            _loadingSlotIndex = -1;
+          }
+
+          RegisterFailure(
+            overlay,
+            index,
+            "SetOverlayRaw image load",
+            EVROverlayError.RequestFailed,
+            recreateSlot: true);
+          return;
 
         case EVREventType.VREvent_OverlayShown:
-          _isShown = true;
+          slot.isShown = true;
           break;
 
         case EVREventType.VREvent_OverlayHidden:
-          _isShown = false;
+          slot.isShown = false;
           break;
 
         case EVREventType.VREvent_OverlayDestroyed:
-          InvalidateOverlay(overlay, destroyOverlay: false);
+          ResetSlot(index, overlay, destroyOverlay: false);
           return;
       }
     }
+  }
 
-    if (_isRawSubmitPending && Time.realtimeSinceStartup >= _rawSubmitDeadline)
+  // ロードが完了した背面を手前へ移す。旧フレームは背面に表示したまま残す。
+  private void PromoteLoadedSlot(CVROverlay overlay, int newFrontIndex)
+  {
+    var newFront = _slots[newFrontIndex];
+    var oldFrontIndex = _displayedSlotIndex;
+
+    if (oldFrontIndex >= 0 && oldFrontIndex != newFrontIndex)
     {
-      _isRawSubmitPending = false;
-      RegisterFailure(overlay, "SetOverlayRaw completion", EVROverlayError.TimedOut, recreateOverlay: true);
+      var oldFront = _slots[oldFrontIndex];
+      if (oldFront.handle != 0)
+      {
+        overlay.SetOverlaySortOrder(oldFront.handle, BackSortOrder);
+      }
+    }
+
+    var sortResult = overlay.SetOverlaySortOrder(newFront.handle, FrontSortOrder);
+    if (sortResult != EVROverlayError.None)
+    {
+      RegisterFailure(
+        overlay,
+        newFrontIndex,
+        nameof(CVROverlay.SetOverlaySortOrder),
+        sortResult,
+        recreateSlot: true);
       return;
     }
 
-    if (_overlayHandle == 0 || _isRawSubmitPending || !_hasLoadedTexture)
+    if (!newFront.isShown && !ShowSlot(overlay, newFrontIndex))
     {
       return;
     }
 
-    // SteamVR Dashboard、HMD スタンバイ、再フォーカスなどで隠された場合にも戻す。
-    if (_isShown && !overlay.IsOverlayVisible(_overlayHandle))
-    {
-      _isShown = false;
-    }
+    _displayedSlotIndex = newFrontIndex;
 
-    if (!_isShown)
+    // Recenter や設定変更後は、旧フレーム側も新しい前面と完全に同じ座標へ揃える。
+    // 旧フレームは背面に残すため、座標差による二重表示を防ぐ必要がある。
+    if (oldFrontIndex >= 0 && oldFrontIndex != newFrontIndex)
     {
-      ShowOverlay(overlay);
+      var oldFront = _slots[oldFrontIndex];
+      if (oldFront.handle != 0)
+      {
+        ApplyTransform(overlay, oldFront);
+      }
     }
   }
 
-  private void ShowOverlay(CVROverlay overlay)
+  private void RecoverDisplayedOverlay(CVROverlay overlay)
   {
-    var result = overlay.ShowOverlay(_overlayHandle);
+    if (_displayedSlotIndex < 0
+        || _displayedSlotIndex >= _slots.Length
+        || _slots[_displayedSlotIndex].handle == 0
+        || !_slots[_displayedSlotIndex].hasLoadedTexture)
+    {
+      _displayedSlotIndex = FindLoadedSlotIndex();
+    }
+
+    if (_displayedSlotIndex < 0)
+    {
+      return;
+    }
+
+    var displayed = _slots[_displayedSlotIndex];
+    if (displayed.isShown && !overlay.IsOverlayVisible(displayed.handle))
+    {
+      displayed.isShown = false;
+    }
+
+    if (!displayed.isShown)
+    {
+      overlay.SetOverlaySortOrder(displayed.handle, FrontSortOrder);
+      ShowSlot(overlay, _displayedSlotIndex);
+    }
+  }
+
+  private int FindLoadedSlotIndex()
+  {
+    for (var index = 0; index < _slots.Length; index++)
+    {
+      if (_slots[index].handle != 0 && _slots[index].hasLoadedTexture)
+      {
+        return index;
+      }
+    }
+
+    return -1;
+  }
+
+  private bool ShowSlot(CVROverlay overlay, int index)
+  {
+    var slot = _slots[index];
+    var result = overlay.ShowOverlay(slot.handle);
     if (result == EVROverlayError.None)
     {
-      _isShown = true;
+      slot.isShown = true;
       _consecutiveFailures = 0;
-      return;
+      return true;
     }
 
-    HandleFailure(overlay, nameof(CVROverlay.ShowOverlay), result, recreateOverlay: true);
-  }
-
-  private void HandleFailure(
-    CVROverlay overlay,
-    string operation,
-    EVROverlayError error,
-    bool recreateOverlay)
-  {
-    RegisterFailure(overlay, operation, error, recreateOverlay || IsInvalidHandleError(error));
+    RegisterFailure(
+      overlay,
+      index,
+      nameof(CVROverlay.ShowOverlay),
+      result,
+      recreateSlot: true);
+    return false;
   }
 
   private void RegisterFailure(
     CVROverlay overlay,
+    int slotIndex,
     string operation,
     EVROverlayError error,
-    bool recreateOverlay)
+    bool recreateSlot)
   {
     _consecutiveFailures++;
     LogFailure(operation, error);
 
-    if (recreateOverlay)
+    if (recreateSlot && slotIndex >= 0 && slotIndex < _slots.Length)
     {
-      InvalidateOverlay(overlay, destroyOverlay: !IsInvalidHandleError(error));
+      ResetSlot(slotIndex, overlay, destroyOverlay: !IsInvalidHandleError(error));
     }
 
     if (_consecutiveFailures < ReconnectFailureThreshold)
@@ -347,8 +455,46 @@ public sealed class OpenVrGameViewOverlay : IDisposable
     }
 
     _consecutiveFailures = 0;
-    InvalidateOverlay(overlay, destroyOverlay: false);
+    InvalidateAllOverlays(overlay, destroyOverlays: false);
     OpenVrRuntime.RequestReconnect($"{operation}: {error}");
+  }
+
+  private void ResetSlot(int index, CVROverlay overlay, bool destroyOverlay)
+  {
+    var slot = _slots[index];
+    if (slot.handle != 0 && destroyOverlay && overlay != null)
+    {
+      overlay.DestroyOverlay(slot.handle);
+    }
+
+    slot.handle = 0;
+    slot.isShown = false;
+    slot.hasLoadedTexture = false;
+    slot.isRawSubmitPending = false;
+    slot.hasAppliedTransform = false;
+    slot.rawSubmitDeadline = 0f;
+
+    if (_loadingSlotIndex == index)
+    {
+      _loadingSlotIndex = -1;
+    }
+
+    if (_displayedSlotIndex == index)
+    {
+      _displayedSlotIndex = FindLoadedSlotIndex();
+    }
+  }
+
+  private void InvalidateAllOverlays(CVROverlay overlay, bool destroyOverlays)
+  {
+    for (var index = 0; index < _slots.Length; index++)
+    {
+      ResetSlot(index, overlay, destroyOverlays);
+    }
+
+    _displayedSlotIndex = -1;
+    _loadingSlotIndex = -1;
+    _hasWorldAnchor = false;
   }
 
   private void LogFailure(string operation, EVROverlayError error)
@@ -362,30 +508,13 @@ public sealed class OpenVrGameViewOverlay : IDisposable
     Debug.LogWarning($"{nameof(OpenVrGameViewOverlay)}: {operation} に失敗しました ({error})。");
   }
 
-  private void InvalidateOverlay(CVROverlay overlay, bool destroyOverlay)
-  {
-    if (_overlayHandle != 0 && destroyOverlay && overlay != null)
-    {
-      overlay.DestroyOverlay(_overlayHandle);
-    }
-
-    _overlayHandle = 0;
-    _hasPlacedWorldAnchor = false;
-    _isShown = false;
-    _hasLoadedTexture = false;
-    _isRawSubmitPending = false;
-    _rawSubmitDeadline = 0f;
-  }
-
   private static bool IsInvalidHandleError(EVROverlayError error)
   {
     return error == EVROverlayError.UnknownOverlay
       || error == EVROverlayError.InvalidHandle;
   }
 
-  // 反転の指定をテクスチャ座標側で行う。CPU で並べ替えるより安い。
-  // 上下・左右を独立して指定できるため、4 通りの向きすべてに合わせられる。
-  private void ApplyTextureBounds(CVROverlay overlay)
+  private void ApplyTextureBounds(CVROverlay overlay, OverlaySlot slot)
   {
     var bounds = new VRTextureBounds_t
     {
@@ -394,53 +523,60 @@ public sealed class OpenVrGameViewOverlay : IDisposable
       vMin = _config.flipVertically ? 1f : 0f,
       vMax = _config.flipVertically ? 0f : 1f,
     };
-    overlay.SetOverlayTextureBounds(_overlayHandle, ref bounds);
+    overlay.SetOverlayTextureBounds(slot.handle, ref bounds);
   }
 
-  // スクリーンの位置と向きを更新する。
-  private void UpdateTransform(CVROverlay overlay)
+  private bool ApplyTransform(CVROverlay overlay, OverlaySlot slot)
   {
     if (_config.anchorMode == VrScreenAnchorMode.HeadLocked)
     {
-      // 頭に対する相対配置。OpenVR は -Z が前方なので、その向きへ距離ぶん押し出す。
       var headLocal = ToHmdMatrix34(
         new Vector3(0f, _config.verticalOffsetInMeters, _config.distanceInMeters),
         Quaternion.identity);
-      overlay.SetOverlayTransformTrackedDeviceRelative(
-        _overlayHandle,
+      var result = overlay.SetOverlayTransformTrackedDeviceRelative(
+        slot.handle,
         OpenVR.k_unTrackedDeviceIndex_Hmd,
         ref headLocal);
-      return;
+      slot.hasAppliedTransform = result == EVROverlayError.None;
+      return slot.hasAppliedTransform;
     }
 
-    if (_hasPlacedWorldAnchor)
+    if (!_hasWorldAnchor && !TryBuildWorldAnchor(out _worldAnchor))
     {
-      return;
+      return false;
     }
 
+    _hasWorldAnchor = true;
+    if (slot.hasAppliedTransform)
+    {
+      return true;
+    }
+
+    var worldAnchor = _worldAnchor;
+    var transformResult = overlay.SetOverlayTransformAbsolute(
+      slot.handle,
+      ETrackingUniverseOrigin.TrackingUniverseStanding,
+      ref worldAnchor);
+    slot.hasAppliedTransform = transformResult == EVROverlayError.None;
+    return slot.hasAppliedTransform;
+  }
+
+  private bool TryBuildWorldAnchor(out HmdMatrix34_t worldAnchor)
+  {
+    worldAnchor = default;
     if (!TryGetHeadPose(out var headPosition, out var headRotation))
     {
-      return;
+      return false;
     }
 
-    // 頭の左右の向き(ヨー)だけを使い、スクリーンが傾かないようにする。
     var yaw = Quaternion.Euler(0f, headRotation.eulerAngles.y, 0f);
     var screenPosition = headPosition
       + yaw * Vector3.forward * _config.distanceInMeters
       + Vector3.up * _config.verticalOffsetInMeters;
-
-    var worldMatrix = ToHmdMatrix34(screenPosition, yaw);
-    var result = overlay.SetOverlayTransformAbsolute(
-      _overlayHandle,
-      ETrackingUniverseOrigin.TrackingUniverseStanding,
-      ref worldMatrix);
-    if (result == EVROverlayError.None)
-    {
-      _hasPlacedWorldAnchor = true;
-    }
+    worldAnchor = ToHmdMatrix34(screenPosition, yaw);
+    return true;
   }
 
-  // HMD の姿勢を取得する。
   private bool TryGetHeadPose(out Vector3 position, out Quaternion rotation)
   {
     position = Vector3.zero;
@@ -464,12 +600,6 @@ public sealed class OpenVrGameViewOverlay : IDisposable
     return true;
   }
 
-  // Unity(左手系・+Z 前方)の姿勢を OpenVR(右手系・-Z 前方)の 3x4 行列へ変換する。
-  //
-  // 基底変換 S = diag(1, 1, -1) を用いて T_openvr = S * T_unity * S となる。
-  // 回転部分は行または列のどちらか一方だけが Z のとき符号が反転し、
-  // 平行移動は Z 成分だけが反転する。openvr_api.cs 側の GetPosition() が
-  // (m3, m7, -m11) を返すことと対応が取れている。
   private static HmdMatrix34_t ToHmdMatrix34(Vector3 position, Quaternion rotation)
   {
     var m = Matrix4x4.Rotate(rotation);
