@@ -359,6 +359,37 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LightPassablePlatform2D
   holeCollider: {fileID: 0}
   holeCompositeOrder: 100
+--- !u!1 &138755746
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 138755747}
+  m_Layer: 0
+  m_Name: TrackingOrigin
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &138755747
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 138755746}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: -11, z: -11}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &207694705
 GameObject:
   m_ObjectHideFlags: 0
@@ -653,7 +684,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 73c449877bc54512a65c6d528661f322, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MouseGrabInputController
-  inputMode: 2
+  inputMode: 0
   handPinchController: {fileID: 275874975}
   mouseCamera: {fileID: 0}
   mouseLiftHeight: 4
@@ -668,8 +699,12 @@ MonoBehaviour:
   vrPreferredHand: 0
   vrApplicationMode: 0
   trackingOrigin: {fileID: 0}
-  positionScale: 3
+  positionScale: 20
   calibrateCenterKey: 99
+  calibratedHandWorldPosition: {x: 0, y: 0, z: 0}
+  logPoseDiagnostics: 0
+  poseLogIntervalSeconds: 1
+  resetPoseRangeKey: 118
   controllerVisual: {fileID: 1341055078}
   hideControllerVisualWhenInactive: 1
   drawAimRay: 1
@@ -8871,6 +8906,7 @@ SceneRoots:
   - {fileID: 669156454}
   - {fileID: 1602385919}
   - {fileID: 1223870916}
+  - {fileID: 138755747}
   - {fileID: 275874967}
   - {fileID: 1906743333}
   - {fileID: 1350019605}

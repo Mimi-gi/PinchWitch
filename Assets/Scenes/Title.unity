@@ -488,11 +488,44 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 73c449877bc54512a65c6d528661f322, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MouseGrabInputController
+  inputMode: 0
   handPinchController: {fileID: 275874975}
-  enableMouseInput: 1
   mouseCamera: {fileID: 0}
   mouseLiftHeight: 4
   mouseRaycastDistance: 100
+  vrTriggerMode: 1
+  vrRotationMode: 1
+  vrPositionMappingMode: 0
+  vrTargetingMode: 0
+  vrGrabRadius: 1
+  vrHoverRadius: 2
+  vrRayDistance: 100
+  vrPreferredHand: 0
+  vrApplicationMode: 0
+  trackingOrigin: {fileID: 844046890}
+  positionScale: 20
+  calibrateCenterKey: 99
+  calibratedHandWorldPosition: {x: 0, y: 0, z: 0}
+  logPoseDiagnostics: 0
+  poseLogIntervalSeconds: 1
+  resetPoseRangeKey: 118
+  controllerVisual: {fileID: 0}
+  hideControllerVisualWhenInactive: 1
+  drawAimRay: 1
+  aimRayHitColor: {r: 0, g: 1, b: 0, a: 1}
+  aimRayMissColor: {r: 1, g: 1, b: 1, a: 0.7}
+  mockTranslationSensitivity: 0.02
+  mockDepthSensitivity: 0.02
+  mockRotationSensitivity: 2
+  mockRollSensitivity: 150
+  mockInitialPosition: {x: 0, y: 0, z: 0}
+  mockMovementExtents: {x: 1.5, y: 1.5, z: 1.5}
+  mockDepthModifierKey: 304
+  mockRotationModifierKey: 308
+  mockGrabKey: 103
+  mockRotateStepKey: 116
+  mockAxisToggleKey: 121
+  mockResetPoseKey: 98
 --- !u!114 &275874978
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3951,6 +3984,7 @@ MeshFilter:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
+  - {fileID: 844046890}
   - {fileID: 1377561611}
   - {fileID: 1471524779}
   - {fileID: 403491824}
@@ -3978,3 +4012,34 @@ SceneRoots:
   - {fileID: 1247738506}
   - {fileID: 900000002}
   - {fileID: 1037341595}
+--- !u!1 &962700532
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 844046890}
+  m_Layer: 0
+  m_Name: TrackingOrigin
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &844046890
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 962700532}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: -11, z: -11}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
