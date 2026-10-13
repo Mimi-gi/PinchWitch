@@ -446,7 +446,8 @@ public class ShadowColliderBuilder : MonoBehaviour
         var meshFilters = root.GetComponentsInChildren<MeshFilter>(includeInactiveMeshFilters);
         foreach (var meshFilter in meshFilters)
         {
-            if (meshFilter != null)
+            // ガラス等の影を落とさない部品は投影しない。
+            if (meshFilter != null && !ShadowExcludedPart.IsExcluded(meshFilter.transform, root))
             {
                 buffer.Add(meshFilter);
             }
@@ -745,6 +746,12 @@ public class ShadowColliderBuilder : MonoBehaviour
 
         foreach (Transform child in source)
         {
+            // 影を落とさない部品はプロキシに複製しない(URP の影描画にも出さないため)。
+            if (child.TryGetComponent<ShadowExcludedPart>(out _))
+            {
+                continue;
+            }
+
             var childClone = new GameObject(child.name).transform;
             childClone.SetParent(destination, false);
             CloneRenderableHierarchy(child, childClone, false);

@@ -7,6 +7,8 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public sealed class LightBeamEmitter : MonoBehaviour
 {
+    private const string GlassLayerName = "Glass";
+
     [Header("Projection")]
     [SerializeField] private ShadowProjectionContext context;
     [SerializeField] private Transform projectionWallOverride;
@@ -14,6 +16,8 @@ public sealed class LightBeamEmitter : MonoBehaviour
     [Header("Sampling")]
     [SerializeField, Range(4, 64)] private int samplesPerAxis = 24;
     [SerializeField] private LayerMask occluderMask = ~0;
+    [Tooltip("有効なら occluderMask の設定に関わらず Glass レイヤーを遮蔽物から除外する(ガラスは光を通す)。")]
+    [SerializeField] private bool glassIsTransparent = true;
     [SerializeField] private float originForwardOffset = 0.05f;
     [SerializeField] private float apertureLocalZ;
 
@@ -124,6 +128,7 @@ public sealed class LightBeamEmitter : MonoBehaviour
         }
 
         var forward = transform.forward;
+        var effectiveOccluderMask = ResolveOccluderMask();
 
         for (var iy = 0; iy < n; iy++)
         {
@@ -150,7 +155,7 @@ public sealed class LightBeamEmitter : MonoBehaviour
                 }
 
                 var reachedWall = !Physics.Raycast(
-                    castOrigin, forward, wallDistance, occluderMask, QueryTriggerInteraction.Ignore);
+                    castOrigin, forward, wallDistance, effectiveOccluderMask, QueryTriggerInteraction.Ignore);
 
                 _reachedWallGrid[index] = reachedWall;
             }
@@ -158,6 +163,17 @@ public sealed class LightBeamEmitter : MonoBehaviour
 
         BuildLitQuads(wall, n);
         BuildBeamTube(wall);
+    }
+
+    private int ResolveOccluderMask()
+    {
+        if (!glassIsTransparent)
+        {
+            return occluderMask;
+        }
+
+        var glassLayer = LayerMask.NameToLayer(GlassLayerName);
+        return glassLayer >= 0 ? occluderMask & ~(1 << glassLayer) : occluderMask;
     }
 
     private Vector3 GetLocalCirclePointWorld(float u, float v)

@@ -251,6 +251,7 @@ GameObject:
   - component: {fileID: 7914165727145019685}
   - component: {fileID: 5123456789012345671}
   - component: {fileID: 5123456789012345672}
+  - component: {fileID: 5912350018800302672}
   m_Layer: 0
   m_Name: Enemy_MovingUpDown
   m_TagString: Untagged
@@ -275,7 +276,7 @@ Transform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!212 &3370391816586059772
 SpriteRenderer:
-  serializedVersion: 2
+  serializedVersion: 3
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -332,6 +333,7 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
+  m_BlendShapeWeights: []
 --- !u!114 &1128406784049987300
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -342,7 +344,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8fd6179b9ac21944f83dcff17c269daa, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Wall2DPlayerCrushDetector
   crushLayers:
     serializedVersion: 2
@@ -446,7 +448,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d96e92d15c204d244a0edf793a2c1774, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHealth2D
   maxHealth: 100
 --- !u!114 &5123456789012345672
@@ -459,15 +461,28 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: dbfb0c018f6440e43a280f558a1728ff, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyLightReaction2D
   health: {fileID: 5123456789012345671}
+  stun: {fileID: 0}
   patrolMover: {fileID: 3144679010252584525}
-  touchRespawn: {fileID: 1490678915622852805}
-  bodyColliders:
-  - {fileID: 7914165727145019685}
-  spriteRenderer: {fileID: 3370391816586059772}
   litCheckPoint: {fileID: 0}
   damagePerSecond: 20
   litSpeedMultiplierHorizontal: 0.5
-  depletedTint: {r: 0.4, g: 0.4, b: 0.4, a: 1}
+  stunDuration: 3
+--- !u!114 &5912350018800302672
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8455678841335083124}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f258d4b72ceb644abb13f5379e47dfe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyStun2D
+  spriteRenderer: {fileID: 0}
+  stunTint: {r: 0.55, g: 0.55, b: 0.7, a: 1}
+  blinkDuration: 0.25
+  recoveryWarningSeconds: 1

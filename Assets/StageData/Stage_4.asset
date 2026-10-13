@@ -1,0 +1,121 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 69e95d969646c54429ad4595d192a782, type: 3}
+  m_Name: Stage_4
+  m_EditorClassIdentifier: Assembly-CSharp::StageData
+  displayName: Stage 4
+  gridPosition: {x: 0, y: 0, z: 5}
+  playerStartPosition: {x: -10.12, y: 2, z: 5.0000005}
+  spawnPointPosition: {x: -4, y: 7.51, z: 4.9}
+  tilemaps:
+  - tilemapName: Tilemap_ground
+    positions:
+    - {x: -6, y: -1, z: 0}
+    - {x: -5, y: -1, z: 0}
+    - {x: -4, y: -1, z: 0}
+    - {x: -3, y: -1, z: 0}
+    - {x: -12, y: 0, z: 0}
+    - {x: -11, y: 0, z: 0}
+    - {x: -10, y: 0, z: 0}
+    - {x: -9, y: 0, z: 0}
+    - {x: -8, y: 0, z: 0}
+    - {x: -7, y: 0, z: 0}
+    - {x: -6, y: 0, z: 0}
+    - {x: -5, y: 0, z: 0}
+    - {x: -4, y: 0, z: 0}
+    - {x: -3, y: 0, z: 0}
+    - {x: -2, y: 0, z: 0}
+    - {x: -1, y: 0, z: 0}
+    - {x: 0, y: 0, z: 0}
+    - {x: 1, y: 0, z: 0}
+    - {x: 2, y: 0, z: 0}
+    - {x: 3, y: 0, z: 0}
+    - {x: 4, y: 0, z: 0}
+    - {x: 5, y: 0, z: 0}
+    - {x: 6, y: 0, z: 0}
+    - {x: 7, y: 0, z: 0}
+    - {x: 8, y: 0, z: 0}
+    - {x: 9, y: 0, z: 0}
+    - {x: 10, y: 0, z: 0}
+    - {x: 11, y: 0, z: 0}
+    tiles:
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: f81d6fc11e13942b5874c8ca64c58ad8, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: a636726195f704ceeb194225059741a2, type: 2}
+    - {fileID: 11400000, guid: 70006046ae4c9475e93d70f81f365a49, type: 2}
+  - tilemapName: Tilemap_object
+    positions:
+    - {x: -9, y: 1, z: 0}
+    - {x: -8, y: 1, z: 0}
+    - {x: 3, y: 1, z: 0}
+    - {x: 10, y: 1, z: 0}
+    tiles:
+    - {fileID: 11400000, guid: 7087b1918dd27439796ea41cd1e53b8d, type: 2}
+    - {fileID: 11400000, guid: 7087b1918dd27439796ea41cd1e53b8d, type: 2}
+    - {fileID: 11400000, guid: 7087b1918dd27439796ea41cd1e53b8d, type: 2}
+    - {fileID: 11400000, guid: b6d1e61f8c76d49af9f41b34092e96ff, type: 2}
+  objects:
+  - prefab: {fileID: 4287025879964113213, guid: 720730344b0174720852ad7b784f036a,
+      type: 3}
+    name: Goal
+    position: {x: 9.55, y: 2.89, z: 5}
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 4, y: 4, z: 1}
+    active: 1
+    overrides: []
+  - prefab: {fileID: 8264485491052481699, guid: 0f4dd5ef1f3714fbfbd8db9cebd44a81,
+      type: 3}
+    name: Grabbable_2Block_Tate
+    position: {x: -2.7, y: 1.67, z: -3.19}
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 1.71, y: 3.42, z: 1.71}
+    active: 1
+    overrides: []
+  - prefab: {fileID: 875984592649898282, guid: 76b8bc93cb6644023ae10e8024cd3c67, type: 3}
+    name: Grabbable_HeartBox
+    position: {x: 0.07803, y: 1.59, z: 0.31}
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 3, y: 3, z: 3}
+    active: 1
+    overrides: []
+  - prefab: {fileID: 8264485491052481699, guid: 0f4dd5ef1f3714fbfbd8db9cebd44a81,
+      type: 3}
+    name: Grabbable_2Block_Tate (1)
+    position: {x: 4.01, y: 3.06, z: 1.49}
+    rotation: {x: 0, y: 0, z: 0, w: 1}
+    scale: {x: 3, y: 6, z: 3}
+    active: 1
+    overrides: []

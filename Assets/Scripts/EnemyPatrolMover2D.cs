@@ -2,7 +2,7 @@ using UnityEngine;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Collider2D))]
-public sealed class EnemyPatrolMover2D : MonoBehaviour, IRuntimeResettable
+public sealed class EnemyPatrolMover2D : MonoBehaviour, IRuntimeResettable, IEnemyMover
 {
   public enum PatrolAxis
   {

@@ -121,9 +121,8 @@ public class ResultPanelManager : MonoBehaviour
       return;
     }
 
-    int nextStageNum = currentStageNum + 1;
-    GameSceneManager.CurrentStageNum = nextStageNum;
-    GameSceneManager.GoScene(StageScenePrefix + nextStageNum);
+    // GoStage はステージデータ(共通シーン)と個別シーンのどちらで読むかを判断する。
+    GameSceneManager.GoStage(currentStageNum + 1);
   }
 
   //StageSelectボタン押した時の処理
@@ -143,15 +142,15 @@ public class ResultPanelManager : MonoBehaviour
       return false;
     }
 
-    if (!sceneName.StartsWith(StageScenePrefix, StringComparison.OrdinalIgnoreCase))
+    if (sceneName.StartsWith(StageScenePrefix, StringComparison.OrdinalIgnoreCase)
+        && int.TryParse(sceneName.Substring(StageScenePrefix.Length), out stageNum))
     {
-      return false;
+      return stageNum >= FirstStageNum && stageNum <= GameSceneManager.TotalStageCount;
     }
 
-    string stageNumText = sceneName.Substring(StageScenePrefix.Length);
-    return int.TryParse(stageNumText, out stageNum)
-      && stageNum >= FirstStageNum
-      && stageNum <= GameSceneManager.TotalStageCount;
+    // 共通シーン(Stage_Runtime)のようにシーン名に番号が無い場合は、読み込み時のステージ番号を使う。
+    stageNum = GameSceneManager.CurrentStageNum;
+    return stageNum >= FirstStageNum && stageNum <= GameSceneManager.TotalStageCount;
   }
 
   private static void SaveClearStageProgress(int clearedStageNum)

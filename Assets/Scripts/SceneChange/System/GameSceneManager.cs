@@ -49,6 +49,12 @@ public class GameSceneManager : MonoBehaviour
 
   /// <summary>ステージシーンの命名プレフィックス。Stage_1, Stage_2 ...の形式。</summary>
   [SerializeField] private string _stageScenePrefix = "Stage_";
+
+  /// <summary>StageCatalog に登録されたステージを読み込む共通シーン名。</summary>
+  [SerializeField] private string _stageRuntimeSceneName = "Stage_Runtime";
+
+  /// <summary>StageCatalog に登録があるステージは、個別シーンではなく共通シーンで読み込む。</summary>
+  [SerializeField] private bool _useStageDataWhenAvailable = true;
  
    
 
@@ -269,7 +275,9 @@ public class GameSceneManager : MonoBehaviour
     }
 
     CurrentStageNum = stageNum;
-    string sceneName = _instance.ResolveStageSceneName(stageNum);
+    string sceneName = _instance.ShouldLoadFromStageData(stageNum)
+      ? _instance._stageRuntimeSceneName
+      : _instance.ResolveStageSceneName(stageNum);
     LoadDirect(sceneName);
   }
 
@@ -401,6 +409,17 @@ public class GameSceneManager : MonoBehaviour
       activeScene.name,
       StageSelectNarrationSourceSceneName,
       StringComparison.OrdinalIgnoreCase);
+  }
+
+  private bool ShouldLoadFromStageData(int stageNum)
+  {
+    if (!_useStageDataWhenAvailable || !Application.CanStreamedLevelBeLoaded(_stageRuntimeSceneName))
+    {
+      return false;
+    }
+
+    StageCatalog catalog = StageCatalog.Load();
+    return catalog != null && catalog.TryGetStage(stageNum, out _);
   }
 
   private string ResolveStageSceneName(int stageNum)

@@ -22,7 +22,12 @@ public class GoalController : MonoBehaviour
 
     _hasReachedGoal = true;
 
-    StageProgressManager.RecordCurrentStageClear();
+    // ステージ作成シーンでのテストプレイでは、クリア記録もステージセレクトへの遷移もしない。
+    var isAuthoringTest = StageAuthoringMarker.IsAuthoringScene;
+    if (!isAuthoringTest)
+    {
+      StageProgressManager.RecordCurrentStageClear();
+    }
 
     if (AudioManager.Instance != null)
     {
@@ -44,6 +49,12 @@ public class GoalController : MonoBehaviour
     GoalReached?.Invoke(collision);
     if (OverrideDefaultClearHandling)
     {
+      return;
+    }
+
+    if (isAuthoringTest)
+    {
+      Debug.Log("[GoalController] テストプレイ: クリア(記録・遷移はしません)");
       return;
     }
 
