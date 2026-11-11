@@ -41,6 +41,10 @@ public class HandPinchController : MonoBehaviour
   [FormerlySerializedAs("ySwipeRotationDegrees")]
   // Y 軸回転 1 回ぶんの角度。
   [SerializeField] private float yRotationDegrees = 45f;
+  // Z 軸回転 1 回ぶんの角度。
+  [SerializeField] private float zRotationDegrees = 90f;
+  // true のあいだ掴んだオブジェクトを回転させない(回転方向の矢印も出さない)。
+  [SerializeField] private bool lockRotation;
 
   [Header("Drag Plane")]
   [FormerlySerializedAs("cursorPlaneY")]
@@ -55,6 +59,8 @@ public class HandPinchController : MonoBehaviour
   private GrabInputCoordinator _grabInputCoordinator;
 
   private bool _interactionEnabled = true;
+  // シーン側から差し込まれた、掴める対象の追加判定。
+  private IGrabTargetFilter _grabTargetFilter;
 
   private void Reset()
   {
@@ -134,6 +140,7 @@ public class HandPinchController : MonoBehaviour
   private void InitializeSystems()
   {
     _grabInteractor = new GrabInteractor(BuildGrabConfig());
+    _grabInteractor.SetTargetFilter(_grabTargetFilter);
     _outlineController = new OutlineController();
     _grabInputCoordinator = new GrabInputCoordinator();
     SubscribeToGrabInteractor();
@@ -206,7 +213,8 @@ public class HandPinchController : MonoBehaviour
       grabbableLayerMask,
       dragPlaneY,
       xRotationDegrees,
-      yRotationDegrees);
+      yRotationDegrees,
+      zRotationDegrees);
     return true;
   }
 
@@ -224,6 +232,20 @@ public class HandPinchController : MonoBehaviour
     }
   }
 
+  // 掴んだオブジェクトの回転を禁止するかどうかを切り替える。
+  public void SetRotationLocked(bool isLocked)
+  {
+    lockRotation = isLocked;
+    RefreshSystems();
+  }
+
+  // 掴める対象をレイヤー以外の条件で絞り込む。null で絞り込みを外す。
+  public void SetGrabTargetFilter(IGrabTargetFilter grabTargetFilter)
+  {
+    _grabTargetFilter = grabTargetFilter;
+    _grabInteractor?.SetTargetFilter(grabTargetFilter);
+  }
+
   // grab 制御に渡す設定を構築する。
   private GrabInteractor.Config BuildGrabConfig()
   {
@@ -236,6 +258,7 @@ public class HandPinchController : MonoBehaviour
       rotationDegreesPerSecond = rotationDegreesPerSecond,
       restoreIsKinematicOnRelease = restoreIsKinematicOnRelease,
       restoreUseGravityOnRelease = restoreUseGravityOnRelease,
+      lockRotation = lockRotation,
     };
   }
 
@@ -248,6 +271,7 @@ public class HandPinchController : MonoBehaviour
     rotationDegreesPerSecond = Mathf.Clamp(rotationDegreesPerSecond, 1f, 720f);
     xRotationDegrees = Mathf.Max(0f, xRotationDegrees);
     yRotationDegrees = Mathf.Max(0f, yRotationDegrees);
+    zRotationDegrees = Mathf.Max(0f, zRotationDegrees);
   }
 
   // lifecycle 停止時など、grab 中の一時状態を復元可能な状態へ畳む。

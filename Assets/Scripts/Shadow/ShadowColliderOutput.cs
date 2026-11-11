@@ -12,6 +12,10 @@ public sealed class ShadowColliderOutput : MonoBehaviour
   [SerializeField] private LightPassablePlatform2D lightPassablePlatform;
   private readonly List<PolygonCollider2D> _polygonSources = new List<PolygonCollider2D>();
 
+  // 影の当たり判定を有効にしているか(SetGeometryEnabled で最後に指定した状態)。
+  // CompositeCollider2D.enabled は false を代入しても true のまま戻るため、有効状態の判定には使えない。
+  private bool _isGeometryEnabled;
+
   // 光ギミックがコライダーに穴を開ける前の「本来の影形状」(このtransformのローカル座標)。
   // 穴あけ用の LightHole2D は子オブジェクトにあるため、ここには含まれない。
   private readonly List<Vector2[]> _shadowPathsLocal = new List<Vector2[]>();
@@ -246,15 +250,10 @@ public sealed class ShadowColliderOutput : MonoBehaviour
     }
   }
 
-  // 実際に物理が見ているコライダーの有効状態をそのまま参照する。
+  // 掴み中など影を無効にしている間は、キャッシュ済みの影形状も「無い」として扱う。
   private bool IsShadowGeometryActive()
   {
-    if (compositeCollider != null && compositeCollider.enabled)
-    {
-      return true;
-    }
-
-    return sourcePolygon != null && sourcePolygon.enabled;
+    return _isGeometryEnabled;
   }
 
   [ContextMenu("Log Shadow Geometry Cache")]
@@ -291,9 +290,11 @@ public sealed class ShadowColliderOutput : MonoBehaviour
   {
     if (sourcePolygon == null)
     {
+      _isGeometryEnabled = false;
       return;
     }
 
+    _isGeometryEnabled = enableGeometry;
     var enableCompositeCollider = useCompositeCollider && compositeCollider != null;
     if (enableCompositeCollider)
     {

@@ -182,5 +182,5 @@ MonoBehaviour:
     position: {x: -7.4, y: 2.93, z: -1.8}
     rotation: {x: 0, y: 0, z: 0, w: 1}
     scale: {x: 1, y: 1, z: 1}
-    active: 1
+    active: 0
     overrides: []

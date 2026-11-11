@@ -36,6 +36,8 @@ public sealed class GrabInteractor
     public bool restoreIsKinematicOnRelease;
     // 解放時に元の useGravity を戻すかどうか。
     public bool restoreUseGravityOnRelease;
+    // true のあいだ、掴み中オブジェクトを回転させない。
+    public bool lockRotation;
   }
 
   // 真下に落とす途中の Rigidbody を保持するリスト。
@@ -43,6 +45,8 @@ public sealed class GrabInteractor
 
   // 掴み挙動全体の設定。
   private Config _config;
+  // レイヤー以外で掴める対象を絞り込む判定(無ければ絞り込まない)。
+  private IGrabTargetFilter _targetFilter;
   // 現在掴んでいる Rigidbody。
   private Rigidbody _grabbedBody;
   // 掴み開始時の手位置との差分。
@@ -96,9 +100,17 @@ public sealed class GrabInteractor
   public bool IsGrabbedObjectRotating => _grabbedBody != null && Quaternion.Angle(_grabbedBody.rotation, _targetRotation) > 0.01f;
 
   // grab と回転に使う設定を更新する。
+  // 掴み中オブジェクトを回転できるかどうか。
+  public bool IsRotationEnabled => !_config.lockRotation;
+
   public void ApplyConfiguration(Config config)
   {
     _config = config;
+  }
+
+  public void SetTargetFilter(IGrabTargetFilter targetFilter)
+  {
+    _targetFilter = targetFilter;
   }
 
   // 指定した Rigidbody が現在 grab / hover 対象として扱えるかどうかを返す。
@@ -110,6 +122,11 @@ public sealed class GrabInteractor
     }
 
     if ((_config.grabbableLayerMask.value & (1 << targetBody.gameObject.layer)) == 0)
+    {
+      return false;
+    }
+
+    if (_targetFilter != null && !_targetFilter.CanGrab(targetBody))
     {
       return false;
     }
@@ -219,7 +236,10 @@ public sealed class GrabInteractor
   // grab 中オブジェクトの目標回転を積み増す。
   public void RotateGrabbedObject(Vector3 worldAxis, float angleDegrees)
   {
-    if (_grabbedBody == null || worldAxis.sqrMagnitude <= Mathf.Epsilon || Mathf.Approximately(angleDegrees, 0f))
+    if (_grabbedBody == null
+        || !IsRotationEnabled
+        || worldAxis.sqrMagnitude <= Mathf.Epsilon
+        || Mathf.Approximately(angleDegrees, 0f))
     {
       return;
     }
@@ -233,7 +253,7 @@ public sealed class GrabInteractor
   // 毎フレーム最新の向きが渡ってくる前提のため、速度制限を外して即座に追従させる。
   public void SetGrabbedObjectRotation(Quaternion worldRotation)
   {
-    if (_grabbedBody == null)
+    if (_grabbedBody == null || !IsRotationEnabled)
     {
       return;
     }

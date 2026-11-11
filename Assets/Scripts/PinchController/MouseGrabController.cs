@@ -2,12 +2,6 @@ using UnityEngine;
 
 public sealed class MouseGrabController
 {
-  private enum RotationAxisMode
-  {
-    Y,
-    X,
-  }
-
   public struct Config
   {
     // マウスによる grab 操作を有効にするかどうか。
@@ -28,6 +22,8 @@ public sealed class MouseGrabController
     public float xRotationDegrees;
     // Y 軸回転 1 回ぶんの角度。
     public float yRotationDegrees;
+    // Z 軸回転 1 回ぶんの角度。
+    public float zRotationDegrees;
   }
 
   // マウス Raycast の結果を受ける使い回しバッファ。
@@ -46,7 +42,7 @@ public sealed class MouseGrabController
   // 回転完了後に release する保留状態かどうか。
   private bool _releasePendingAfterRotation;
   // 現在選択中の回転軸。
-  private RotationAxisMode _rotationAxisMode = RotationAxisMode.Y;
+  private readonly GrabRotationAxisSelector _rotationAxis = new GrabRotationAxisSelector();
 
   public MouseGrabController(GrabInteractor grabInteractor, OutlineController outlineController, GrabInputCoordinator inputCoordinator, Config config)
   {
@@ -208,7 +204,7 @@ public sealed class MouseGrabController
   private void BeginPointerGrabState()
   {
     _releasePendingAfterRotation = false;
-    _rotationAxisMode = RotationAxisMode.Y;
+    _rotationAxis.Reset();
     _isDragging = true;
   }
 
@@ -219,7 +215,7 @@ public sealed class MouseGrabController
     _releasePendingAfterRotation = false;
     _outlineController?.ClearCurrentOutline();
     _inputCoordinator?.Release(GrabInputSource.Pointer);
-    _rotationAxisMode = RotationAxisMode.Y;
+    _rotationAxis.Reset();
   }
 
   // 入力無効化や Reset などの中断時は、回転完了を待たずに grab を即座に終了する。
@@ -289,9 +285,10 @@ public sealed class MouseGrabController
       return;
     }
 
+    // ホイールクリックごとに回転軸を Y → X → Z の順で切り替える。
     if (Input.GetMouseButtonDown(2))
     {
-      ToggleRotationAxis();
+      _rotationAxis.Cycle();
     }
 
     if (!Input.GetMouseButtonDown(1) || _grabInteractor.IsGrabbedObjectRotating)
@@ -299,33 +296,24 @@ public sealed class MouseGrabController
       return;
     }
 
-    ResolveRotationStep(out var worldAxis, out var angleDegrees);
+    _rotationAxis.ResolveStep(BuildStepDegrees(), out var worldAxis, out var angleDegrees);
     _grabInteractor.RotateGrabbedObject(worldAxis, angleDegrees);
   }
 
-  // 現在の回転軸設定に基づいて 1 回ぶんの回転量を解決する。
-  private void ResolveRotationStep(out Vector3 worldAxis, out float angleDegrees)
+  // マウスで掴んでいる間、次の右クリックで回す軸を返す(回転方向の表示用)。
+  public bool TryGetRotationAxis(out Vector3 worldAxis)
   {
-    switch (_rotationAxisMode)
-    {
-      case RotationAxisMode.X:
-        worldAxis = Vector3.right;
-        angleDegrees = Mathf.Max(0f, _config.xRotationDegrees);
-        return;
-      default:
-        worldAxis = Vector3.up;
-        angleDegrees = Mathf.Max(0f, _config.yRotationDegrees);
-        return;
-    }
+    worldAxis = _rotationAxis.CurrentWorldAxis;
+    return _config.enabled && _isDragging && _grabInteractor != null && _grabInteractor.HasGrabbedBody;
   }
 
-  // ホイールクリックごとに回転軸を X/Y で切り替える。
-  private void ToggleRotationAxis()
+  private GrabRotationAxisSelector.StepDegrees BuildStepDegrees()
   {
-    _rotationAxisMode = _rotationAxisMode switch
+    return new GrabRotationAxisSelector.StepDegrees
     {
-      RotationAxisMode.Y => RotationAxisMode.X,
-      _ => RotationAxisMode.Y,
+      x = _config.xRotationDegrees,
+      y = _config.yRotationDegrees,
+      z = _config.zRotationDegrees,
     };
   }
 

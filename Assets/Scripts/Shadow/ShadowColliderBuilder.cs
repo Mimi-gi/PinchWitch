@@ -246,7 +246,8 @@ public class ShadowColliderBuilder : MonoBehaviour
         output.SetGeometryEnabled(shouldEnableGeometry);
         shadowRealmCollider = output.SourcePolygon;
 
-        if (shouldEnableGeometry && Application.isPlaying)
+        // 影が増えた時(置いた時)だけでなく消えた時(掴んだ時)も、挟まれ・反転の判定をその場で更新する。
+        if (Application.isPlaying)
         {
             Wall2DPlayerCrushDetector.EvaluateAllActiveDetectorsImmediately();
         }

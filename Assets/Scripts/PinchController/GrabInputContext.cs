@@ -17,6 +17,7 @@ public readonly struct GrabInputContext
   public readonly float DragPlaneY;
   public readonly float XRotationDegrees;
   public readonly float YRotationDegrees;
+  public readonly float ZRotationDegrees;
 
   public GrabInputContext(
     GrabInteractor grabInteractor,
@@ -26,7 +27,8 @@ public readonly struct GrabInputContext
     LayerMask grabbableLayerMask,
     float dragPlaneY,
     float xRotationDegrees,
-    float yRotationDegrees)
+    float yRotationDegrees,
+    float zRotationDegrees)
   {
     GrabInteractor = grabInteractor;
     OutlineController = outlineController;
@@ -36,6 +38,7 @@ public readonly struct GrabInputContext
     DragPlaneY = dragPlaneY;
     XRotationDegrees = xRotationDegrees;
     YRotationDegrees = yRotationDegrees;
+    ZRotationDegrees = zRotationDegrees;
   }
 }
 

@@ -18,6 +18,9 @@ public class TitleSceneController : MonoBehaviour
 
   [SerializeField] private KeyCode _startKey = KeyCode.Space;
 
+  // 押すとクリア状況を消してタイトルを読み直す(展示などで最初から遊ばせる用)。
+  [SerializeField] private KeyCode _resetSaveKey = KeyCode.R;
+
   private bool _isStarting;
 
   private void Update()
@@ -27,10 +30,23 @@ public class TitleSceneController : MonoBehaviour
       return;
     }
 
+    if (_resetSaveKey != KeyCode.None && Input.GetKeyDown(_resetSaveKey))
+    {
+      ResetSaveData();
+      return;
+    }
+
     if (Input.GetKeyDown(_startKey))
     {
       StartFromTitleInput();
     }
+  }
+
+  // 読み直しのフェードが、消えたことの合図になる。
+  private void ResetSaveData()
+  {
+    _isStarting = true;
+    GameSceneManager.DeleteSaveDataAndGoTitle();
   }
 
   /// <summary>

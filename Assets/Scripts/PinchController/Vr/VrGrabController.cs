@@ -40,12 +40,6 @@ public enum VrPositionMappingMode
 // MouseGrabController と対になる入力層で、GrabInteractor への依存の仕方も同じ。
 public sealed class VrGrabController
 {
-  private enum RotationAxisMode
-  {
-    Y,
-    X,
-  }
-
   // コントローラー姿勢をワールド空間へ変換した 1 フレームぶんのサンプル。
   public readonly struct PoseSample
   {
@@ -86,6 +80,8 @@ public sealed class VrGrabController
     public float xRotationDegrees;
     // Y 軸ステップ回転 1 回ぶんの角度。
     public float yRotationDegrees;
+    // Z 軸ステップ回転 1 回ぶんの角度。
+    public float zRotationDegrees;
   }
 
   // Ray の結果を受ける使い回しバッファ。
@@ -106,7 +102,7 @@ public sealed class VrGrabController
   // 回転完了後に release する保留状態かどうか(ステップ回転時のみ使う)。
   private bool _releasePendingAfterRotation;
   // 現在選択中のステップ回転軸。
-  private RotationAxisMode _rotationAxisMode = RotationAxisMode.Y;
+  private readonly GrabRotationAxisSelector _rotationAxis = new GrabRotationAxisSelector();
   // Relative マッピングで積み上げている目標位置。
   private Vector3 _relativeTargetPosition;
   // 掴み開始時のコントローラー回転(Wrist モード用)。
@@ -330,7 +326,7 @@ public sealed class VrGrabController
   private void BeginGrabState(Rigidbody targetBody, PoseSample pose)
   {
     _releasePendingAfterRotation = false;
-    _rotationAxisMode = RotationAxisMode.Y;
+    _rotationAxis.Reset();
     _isGrabbing = true;
     _relativeTargetPosition = targetBody.position;
     _grabStartControllerRotation = pose.WorldRotation;
@@ -345,7 +341,7 @@ public sealed class VrGrabController
     HasAimHit = false;
     _outlineController?.ClearCurrentOutline();
     _inputCoordinator?.Release(GrabInputSource.Vr);
-    _rotationAxisMode = RotationAxisMode.Y;
+    _rotationAxis.Reset();
   }
 
   // 入力無効化や Reset などの中断時は、回転完了を待たずに grab を即座に終了する。
@@ -424,9 +420,10 @@ public sealed class VrGrabController
       return;
     }
 
+    // 入力ごとに回転軸を Y → X → Z の順で切り替える。
     if (poseSource.AxisTogglePressedThisFrame)
     {
-      ToggleRotationAxis();
+      _rotationAxis.Cycle();
     }
 
     if (!poseSource.RotatePressedThisFrame || _grabInteractor.IsGrabbedObjectRotating)
@@ -434,34 +431,26 @@ public sealed class VrGrabController
       return;
     }
 
-    ResolveRotationStep(out var worldAxis, out var angleDegrees);
+    var stepDegrees = new GrabRotationAxisSelector.StepDegrees
+    {
+      x = _config.xRotationDegrees,
+      y = _config.yRotationDegrees,
+      z = _config.zRotationDegrees,
+    };
+    _rotationAxis.ResolveStep(stepDegrees, out var worldAxis, out var angleDegrees);
     _grabInteractor.RotateGrabbedObject(worldAxis, angleDegrees);
   }
 
-  // 現在の回転軸設定に基づいて 1 回ぶんの回転量を解決する。
-  private void ResolveRotationStep(out Vector3 worldAxis, out float angleDegrees)
+  // ステップ回転で掴んでいる間、次の回転入力で回す軸を返す(回転方向の表示用)。
+  // Wrist モードは軸の概念が無いため常に false。
+  public bool TryGetRotationAxis(out Vector3 worldAxis)
   {
-    switch (_rotationAxisMode)
-    {
-      case RotationAxisMode.X:
-        worldAxis = Vector3.right;
-        angleDegrees = Mathf.Max(0f, _config.xRotationDegrees);
-        return;
-      default:
-        worldAxis = Vector3.up;
-        angleDegrees = Mathf.Max(0f, _config.yRotationDegrees);
-        return;
-    }
-  }
-
-  // 入力ごとに回転軸を X/Y で切り替える。
-  private void ToggleRotationAxis()
-  {
-    _rotationAxisMode = _rotationAxisMode switch
-    {
-      RotationAxisMode.Y => RotationAxisMode.X,
-      _ => RotationAxisMode.Y,
-    };
+    worldAxis = _rotationAxis.CurrentWorldAxis;
+    return _config.enabled
+      && _config.rotationMode == VrRotationMode.Stepped
+      && _isGrabbing
+      && _grabInteractor != null
+      && _grabInteractor.HasGrabbedBody;
   }
 
   // 掴める範囲にある対象を、現在の判定方式で探す。

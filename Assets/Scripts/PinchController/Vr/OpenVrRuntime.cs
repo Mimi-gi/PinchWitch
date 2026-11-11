@@ -1,3 +1,5 @@
+using System;
+using System.Threading.Tasks;
 using UnityEngine;
 using Valve.VR;
 
@@ -16,14 +18,35 @@ public enum OpenVrApplicationMode
 // OpenVR (SteamVR) ランタイムへの接続をプロセス全体で 1 つだけ管理する。
 // GrabInputController はシーンごとに作り直されるが、SteamVR との接続確立は重い処理のため
 // シーンをまたいで使い回し、アプリ終了時(エディタでは再生終了時)にのみ解放する。
+//
+// OpenVR.Init は 1 回で数十 ms〜(SteamVR 起動時は数秒)かかるため、別スレッドで実行する。
+// 接続が終わるまで TryGetSystem は null を返し、呼び出し側は「未接続」として扱う。
 public static class OpenVrRuntime
 {
   // 接続失敗後に再試行するまでの秒数。
-  // OpenVR.Init はメインスレッドをブロックするため、失敗が続く環境で頻繁に呼ぶとゲームが引っかかる。
   private const float RetryIntervalSeconds = 15f;
+  // 終了時、実行中の接続試行の完了を待つ上限(ミリ秒)。
+  private const int ShutdownWaitMilliseconds = 5000;
+
+  // 別スレッドで実行した OpenVR.Init の結果。
+  private readonly struct InitResult
+  {
+    public readonly CVRSystem System;
+    public readonly EVRInitError Error;
+    public readonly Exception Exception;
+
+    public InitResult(CVRSystem system, EVRInitError error, Exception exception)
+    {
+      System = system;
+      Error = error;
+      Exception = exception;
+    }
+  }
 
   // 確立済みの接続。null なら未接続。
   private static CVRSystem _system;
+  // 実行中の接続試行。null なら試行していない。
+  private static Task<InitResult> _pendingInit;
   // Application.quitting を購読済みかどうか。
   private static bool _hasSubscribedQuit;
   // SteamVR 未インストールの警告を出し終えたかどうか。
@@ -51,18 +74,25 @@ public static class OpenVrRuntime
   }
 
   // 接続済みなら CVRSystem を返す。未接続なら間隔を空けつつ接続を試みる。
-  // 接続できない環境(SteamVR 未インストール等)では null を返し続ける。
+  // 接続できない環境(SteamVR 未インストール等)や接続試行中は null を返す。
   public static CVRSystem TryGetSystem(OpenVrApplicationMode applicationMode)
   {
     if (_system == null)
     {
-      TryInitialize(applicationMode);
+      if (_pendingInit != null)
+      {
+        CompletePendingInitIfDone();
+      }
+      else
+      {
+        TryStartInitialize(applicationMode);
+      }
     }
 
     return _system;
   }
 
-  private static void TryInitialize(OpenVrApplicationMode applicationMode)
+  private static void TryStartInitialize(OpenVrApplicationMode applicationMode)
   {
     if (Time.realtimeSinceStartup < _nextAttemptTime)
     {
@@ -85,27 +115,63 @@ public static class OpenVrRuntime
       return;
     }
 
-    var error = EVRInitError.None;
     var applicationType = applicationMode == OpenVrApplicationMode.Background
       ? EVRApplicationType.VRApplication_Background
       : EVRApplicationType.VRApplication_Scene;
-    _system = OpenVR.Init(ref error, applicationType);
 
-    if (_system == null)
+    // 終了時に試行中の接続を確実に解放できるよう、試行前に購読しておく。
+    SubscribeQuitOnce();
+    _pendingInit = Task.Run(() => RunInit(applicationType));
+  }
+
+  // 別スレッドで実行する。Unity API は呼ばない。
+  private static InitResult RunInit(EVRApplicationType applicationType)
+  {
+    try
     {
-      if (_lastLoggedError != error)
+      var error = EVRInitError.None;
+      var system = OpenVR.Init(ref error, applicationType);
+      return new InitResult(system, error, null);
+    }
+    catch (Exception exception)
+    {
+      return new InitResult(null, EVRInitError.Unknown, exception);
+    }
+  }
+
+  // 接続試行が終わっていれば結果を取り込む(メインスレッドで呼ぶ)。
+  private static void CompletePendingInitIfDone()
+  {
+    if (!_pendingInit.IsCompleted)
+    {
+      return;
+    }
+
+    var result = _pendingInit.Result;
+    _pendingInit = null;
+
+    if (result.Exception != null)
+    {
+      Debug.LogWarning(
+        $"{nameof(OpenVrRuntime)}: OpenVR の初期化中に例外が発生しました。{RetryIntervalSeconds} 秒後に再試行します。\n{result.Exception}");
+      return;
+    }
+
+    if (result.System == null)
+    {
+      if (_lastLoggedError != result.Error)
       {
-        _lastLoggedError = error;
+        _lastLoggedError = result.Error;
         Debug.LogWarning(
-          $"{nameof(OpenVrRuntime)}: OpenVR の初期化に失敗しました ({error})。{RetryIntervalSeconds} 秒ごとに再試行します。");
+          $"{nameof(OpenVrRuntime)}: OpenVR の初期化に失敗しました ({result.Error})。{RetryIntervalSeconds} 秒ごとに再試行します。");
       }
 
       return;
     }
 
+    _system = result.System;
     _lastLoggedError = EVRInitError.None;
     Debug.Log($"{nameof(OpenVrRuntime)}: OpenVR (SteamVR) へ接続しました。");
-    SubscribeQuitOnce();
   }
 
   private static void SubscribeQuitOnce()
@@ -121,6 +187,17 @@ public static class OpenVrRuntime
 
   private static void Shutdown()
   {
+    // 接続試行の途中で終了した場合も、成功していれば接続を残さないよう完了を待って取り込む。
+    if (_pendingInit != null)
+    {
+      var pendingInit = _pendingInit;
+      _pendingInit = null;
+      if (pendingInit.Wait(ShutdownWaitMilliseconds) && pendingInit.Result.System != null)
+      {
+        _system = pendingInit.Result.System;
+      }
+    }
+
     if (_system == null)
     {
       return;

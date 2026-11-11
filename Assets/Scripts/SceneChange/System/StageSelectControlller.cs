@@ -31,6 +31,15 @@ public class StageSelectController : MonoBehaviour
   [SerializeField] private StageSelectTrumpLoadingController _loadingController;
   [SerializeField] private float _requiredGrabSeconds = 0.8f;
 
+  [Header("Locked Stages")]
+  // まだ選べないカードに重ねる暗い半透明。未設定なら StageLockOverlay シェーダーから作る。
+  [SerializeField] private Material _lockedCardOverlayMaterial;
+  [SerializeField] private Color _lockedCardOverlayColor = new Color(0f, 0f, 0f, 0.5f);
+  // カードのマテリアルで絵柄を持つテクスチャ。透明な余白を暗くしないために使う。
+  [SerializeField] private string _cardTextureProperty = "_Num_Texture";
+  // ステージ選択ではカードを回転させない(回転方向の矢印も出ない)。
+  [SerializeField] private bool _lockGrabRotation = true;
+
   [Header("Stage Select Narration")]
   [SerializeField] private bool _showTutorialArrivalNarration = true;
   [SerializeField] private bool _blockStageSelectionUntilNarrationEnds = true;
@@ -48,10 +57,24 @@ public class StageSelectController : MonoBehaviour
   private float _grabStartedTime;
   private bool _isTransitioning;
   private TutorialSequenceController _tutorialArrivalNarrationSequence;
+  private readonly SelectableStageGrabFilter _grabFilter = new SelectableStageGrabFilter();
+  private readonly List<StageCardLockOverlay> _lockOverlays = new List<StageCardLockOverlay>();
+  private Material _runtimeOverlayMaterial;
+
+  // 解禁済み(クリア済みとその次)のステージのカードだけ掴めるようにする。ステージ以外の物は制限しない。
+  private sealed class SelectableStageGrabFilter : IGrabTargetFilter
+  {
+    public bool CanGrab(Rigidbody body)
+    {
+      StageSelectGrabTarget grabTarget = ResolveGrabTarget(body);
+      return grabTarget == null || StageProgressManager.IsSelectable(grabTarget.StageNum);
+    }
+  }
 
   private void OnEnable()
   {
     SubscribeGrabEvents();
+    ApplyGrabRestrictions();
   }
 
   private void Start()
@@ -62,13 +85,95 @@ public class StageSelectController : MonoBehaviour
     }
 
     UpdateStageButtons();
+    UpdateLockedCardOverlays();
     TryStartTutorialArrivalNarration();
   }
 
   private void OnDisable()
   {
+    ClearGrabRestrictions();
     UnsubscribeGrabEvents();
     ClearGrabSelection();
+  }
+
+  private void OnDestroy()
+  {
+    foreach (var lockOverlay in _lockOverlays)
+    {
+      lockOverlay.SetShown(false);
+    }
+
+    _lockOverlays.Clear();
+    if (_runtimeOverlayMaterial != null)
+    {
+      Destroy(_runtimeOverlayMaterial);
+      _runtimeOverlayMaterial = null;
+    }
+  }
+
+  private void ApplyGrabRestrictions()
+  {
+    if (_handPinchController == null)
+    {
+      return;
+    }
+
+    _handPinchController.SetGrabTargetFilter(_grabFilter);
+    _handPinchController.SetRotationLocked(_lockGrabRotation);
+  }
+
+  private void ClearGrabRestrictions()
+  {
+    if (_handPinchController == null)
+    {
+      return;
+    }
+
+    _handPinchController.SetGrabTargetFilter(null);
+    _handPinchController.SetRotationLocked(false);
+  }
+
+  /// <summary>
+  /// まだ選べないステージのカードを暗くする。
+  /// </summary>
+  private void UpdateLockedCardOverlays()
+  {
+    Material overlayMaterial = ResolveLockedCardOverlayMaterial();
+    if (overlayMaterial == null || _lockOverlays.Count > 0)
+    {
+      return;
+    }
+
+    foreach (var card in FindObjectsByType<StageSelectGrabTarget>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+    {
+      var lockOverlay = new StageCardLockOverlay(card, overlayMaterial, _cardTextureProperty);
+      lockOverlay.SetShown(!StageProgressManager.IsSelectable(card.StageNum));
+      _lockOverlays.Add(lockOverlay);
+    }
+  }
+
+  private Material ResolveLockedCardOverlayMaterial()
+  {
+    if (_lockedCardOverlayMaterial != null)
+    {
+      return _lockedCardOverlayMaterial;
+    }
+
+    if (_runtimeOverlayMaterial != null)
+    {
+      return _runtimeOverlayMaterial;
+    }
+
+    var overlayShader = Shader.Find("PinchWitch/StageLockOverlay");
+    if (overlayShader == null)
+    {
+      Debug.LogWarning("[StageSelectController] 未解禁カード用のマテリアルが未設定で、StageLockOverlay シェーダーも見つかりません。", this);
+      return null;
+    }
+
+    _runtimeOverlayMaterial = new Material(overlayShader) { name = "StageLockOverlay (Runtime)" };
+    _runtimeOverlayMaterial.SetColor("_Color", _lockedCardOverlayColor);
+    return _runtimeOverlayMaterial;
   }
 
   private void Update()
@@ -103,8 +208,7 @@ public class StageSelectController : MonoBehaviour
         continue;
       }
 
-      bool isUnlocked = i <= GameSceneManager.ClearStageCount;
-      _stageButtons[i].interactable = isUnlocked;
+      _stageButtons[i].interactable = StageProgressManager.IsSelectable(i + 1);
     }
   }
 
@@ -166,7 +270,7 @@ public class StageSelectController : MonoBehaviour
     }
 
     StageSelectGrabTarget grabTarget = ResolveGrabTarget(grabbedBody);
-    if (grabTarget == null || !IsValidStageNum(grabTarget.StageNum))
+    if (grabTarget == null || !IsValidStageNum(grabTarget.StageNum) || !StageProgressManager.IsSelectable(grabTarget.StageNum))
     {
       ClearGrabSelection();
       return;
@@ -187,7 +291,7 @@ public class StageSelectController : MonoBehaviour
 
   private void GoStage(int stageNum)
   {
-    if (_isTransitioning || !IsValidStageNum(stageNum))
+    if (_isTransitioning || !IsValidStageNum(stageNum) || !StageProgressManager.IsSelectable(stageNum))
     {
       return;
     }

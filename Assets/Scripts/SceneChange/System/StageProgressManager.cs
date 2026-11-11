@@ -48,6 +48,12 @@ public static class StageProgressManager
     return stageNum >= 1 && stageNum <= _clearStageCount;
   }
 
+  // ステージ選択で選べるかどうか。クリア済みのステージと、その次の 1 ステージだけ選べる。
+  public static bool IsSelectable(int stageNum)
+  {
+    return stageNum >= 1 && stageNum <= NextPlayableStageNum;
+  }
+
   public static int RecordCurrentStageClear()
   {
     if (!TryGetCurrentStageNum(out int stageNum))

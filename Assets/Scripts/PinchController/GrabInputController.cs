@@ -10,11 +10,15 @@ public enum GrabInputMode
   MouseVrMock,
   // 実機 VR コントローラー(OpenVR / SteamVR 経由。Meta Quest は Quest Link で接続)。
   Vr,
+  // VR コントローラーが接続されていれば Vr、されていなければ Mouse を自動で選ぶ。
+  // プレイ中に接続・切断しても切り替わる。シリアライズ値を変えないよう末尾に置く。
+  Auto,
 }
 
 // grab 操作の入力を一本化して扱うコントローラー。
 // HandPinchController から共有依存を受け取り、inputMode で選ばれた 1 つの入力だけを駆動する。
 // 同時に複数の入力が grab を奪い合わないよう、モード切り替え時に非アクティブ側を必ず解除する。
+// Auto モードでは毎フレーム VR コントローラーの接続を確認し、Vr と Mouse を切り替える。
 //
 // Vr モードは内蔵の OpenVrPoseSource(SteamVR 経由)で動く。
 // 別方式の実機対応を試すときは IVrPoseSource の実装を SetPoseSource() で差し込んで置き換えられる。
@@ -27,7 +31,7 @@ public sealed class GrabInputController : MonoBehaviour
 
   [Header("Mode")]
   // 使用する操作方法。
-  [SerializeField] private GrabInputMode inputMode = GrabInputMode.Mouse;
+  [SerializeField] private GrabInputMode inputMode = GrabInputMode.Auto;
 
   [Header("Source")]
   // grab 共有依存を提供する手操作コントローラー。
@@ -104,6 +108,12 @@ public sealed class GrabInputController : MonoBehaviour
   // 何も捉えていないときの Ray の色。
   [SerializeField] private Color aimRayMissColor = new Color(1f, 1f, 1f, 0.7f);
 
+  [Header("Rotation Indicator")]
+  // 掴み中に、次の回転で回る軸と向きを矢印で表示するかどうか。
+  [SerializeField] private bool showRotationAxisIndicator = true;
+  // 回転方向の表示。未指定なら実行時に既定設定のものを作る。
+  [SerializeField] private GrabRotationAxisIndicator rotationAxisIndicator;
+
   [Header("VR Mock")]
   // マウス移動 1 単位あたりの平行移動量(m)。
   [SerializeField] private float mockTranslationSensitivity = 0.02f;
@@ -148,6 +158,12 @@ public sealed class GrabInputController : MonoBehaviour
   private Vector3 _previousTrackingPosition;
   // 前フレームの位置を保持済みかどうか。
   private bool _hasPreviousTrackingPosition;
+  // このフレームで駆動すべきモード。Auto のときは接続状態から決めた Mouse / Vr が入る。
+  private GrabInputMode _desiredMode = GrabInputMode.Mouse;
+  // 姿勢供給元を最後に Poll したフレームと対象。
+  // 同じフレームに 2 回 Poll すると「押した瞬間」の判定が消えるため、1 フレーム 1 回に抑える。
+  private int _lastPolledFrame = -1;
+  private IVrPoseSource _lastPolledSource;
   // 現在駆動しているモード。
   private GrabInputMode _activeMode;
   // 駆動中のモードを保持済みかどうか。
@@ -156,6 +172,9 @@ public sealed class GrabInputController : MonoBehaviour
   private Vector3 _lastHandPosition;
   // 手の位置を保持済みかどうか。
   private bool _hasLastHandPosition;
+
+  // 回転方向の表示を自前で作ったかどうか(作ったものだけ破棄する)。
+  private bool _ownsRotationAxisIndicator;
 
   private GrabInputContext _grabInputContext;
   private bool _hasGrabInputContext;
@@ -198,10 +217,20 @@ public sealed class GrabInputController : MonoBehaviour
   {
     ResetInteractionState();
     UnsubscribeFromGrabInteractor();
+
+    if (_ownsRotationAxisIndicator && rotationAxisIndicator != null)
+    {
+      Destroy(rotationAxisIndicator.gameObject);
+    }
   }
+
+  // 実際に駆動しているモード(Auto のときは Mouse か Vr)。
+  public GrabInputMode ActiveMode => _hasActiveMode ? _activeMode : _desiredMode;
 
   private void Update()
   {
+    _desiredMode = ResolveDesiredMode();
+
     if (!TryPrepareControllers())
     {
       return;
@@ -214,11 +243,66 @@ public sealed class GrabInputController : MonoBehaviour
       case GrabInputMode.Mouse:
         SetControllerVisualVisible(false);
         _mouseGrabController.Process();
-        return;
+        break;
       case GrabInputMode.MouseVrMock:
       case GrabInputMode.Vr:
         ProcessVrInput();
-        return;
+        break;
+    }
+
+    UpdateRotationAxisIndicator();
+  }
+
+  // 掴み中は、次の回転で回る軸と向きを矢印で表示する。
+  private void UpdateRotationAxisIndicator()
+  {
+    var grabInteractor = _hasGrabInputContext ? _grabInputContext.GrabInteractor : null;
+    var grabbedBody = grabInteractor?.GrabbedBody;
+    if (!showRotationAxisIndicator
+        || grabbedBody == null
+        || !grabInteractor.IsRotationEnabled
+        || !TryGetActiveRotationAxis(out var worldAxis))
+    {
+      HideRotationAxisIndicator();
+      return;
+    }
+
+    EnsureRotationAxisIndicator();
+    rotationAxisIndicator.Show(grabbedBody.transform, worldAxis);
+  }
+
+  private bool TryGetActiveRotationAxis(out Vector3 worldAxis)
+  {
+    worldAxis = Vector3.zero;
+    switch (_activeMode)
+    {
+      case GrabInputMode.Mouse:
+        return _mouseGrabController != null && _mouseGrabController.TryGetRotationAxis(out worldAxis);
+      case GrabInputMode.MouseVrMock:
+      case GrabInputMode.Vr:
+        return _vrGrabController != null && _vrGrabController.TryGetRotationAxis(out worldAxis);
+      default:
+        return false;
+    }
+  }
+
+  private void EnsureRotationAxisIndicator()
+  {
+    if (rotationAxisIndicator != null)
+    {
+      return;
+    }
+
+    var indicatorObject = new GameObject(nameof(GrabRotationAxisIndicator));
+    rotationAxisIndicator = indicatorObject.AddComponent<GrabRotationAxisIndicator>();
+    _ownsRotationAxisIndicator = true;
+  }
+
+  private void HideRotationAxisIndicator()
+  {
+    if (rotationAxisIndicator != null)
+    {
+      rotationAxisIndicator.Hide();
     }
   }
 
@@ -256,10 +340,36 @@ public sealed class GrabInputController : MonoBehaviour
     }
   }
 
-  // inputMode が変わったら、直前まで動かしていた入力を必ず解除してから切り替える。
+  // Auto なら VR コントローラーの接続状態から Mouse / Vr を選ぶ。それ以外は inputMode をそのまま使う。
+  private GrabInputMode ResolveDesiredMode()
+  {
+    if (inputMode != GrabInputMode.Auto)
+    {
+      return inputMode;
+    }
+
+    var deviceSource = ResolveDevicePoseSource();
+    PollOncePerFrame(deviceSource);
+    return deviceSource.IsAvailable ? GrabInputMode.Vr : GrabInputMode.Mouse;
+  }
+
+  private void PollOncePerFrame(IVrPoseSource source)
+  {
+    var frame = Time.frameCount;
+    if (_lastPolledFrame == frame && ReferenceEquals(_lastPolledSource, source))
+    {
+      return;
+    }
+
+    _lastPolledFrame = frame;
+    _lastPolledSource = source;
+    source.Poll();
+  }
+
+  // 駆動するモードが変わったら、直前まで動かしていた入力を必ず解除してから切り替える。
   private void SyncActiveMode()
   {
-    if (_hasActiveMode && _activeMode == inputMode)
+    if (_hasActiveMode && _activeMode == _desiredMode)
     {
       return;
     }
@@ -269,9 +379,14 @@ public sealed class GrabInputController : MonoBehaviour
       DeactivateMode(_activeMode);
     }
 
-    _activeMode = inputMode;
+    _activeMode = _desiredMode;
     _hasActiveMode = true;
     _hasPreviousTrackingPosition = false;
+
+    if (inputMode == GrabInputMode.Auto)
+    {
+      Debug.Log($"[{nameof(GrabInputController)}] 操作方法を {_activeMode} に切り替えました。");
+    }
   }
 
   // 指定モードが握っている grab と入力調停の権利を解放する。
@@ -299,7 +414,7 @@ public sealed class GrabInputController : MonoBehaviour
       return;
     }
 
-    poseSource.Poll();
+    PollOncePerFrame(poseSource);
     if (!poseSource.TryGetPose(out var trackingPosition, out var trackingRotation))
     {
       // 実機の切断・トラッキング喪失中は grab を持ち越さない(掴みっぱなし防止)。
@@ -372,6 +487,12 @@ public sealed class GrabInputController : MonoBehaviour
       return _mockPoseSource;
     }
 
+    return ResolveDevicePoseSource();
+  }
+
+  // 実機の姿勢供給元を解決する。差し込まれたソースがあれば内蔵の OpenVR ソースより優先する。
+  private IVrPoseSource ResolveDevicePoseSource()
+  {
     if (_injectedPoseSource != null)
     {
       return _injectedPoseSource;
@@ -511,7 +632,7 @@ public sealed class GrabInputController : MonoBehaviour
   {
     return new MouseGrabController.Config
     {
-      enabled = _interactionEnabled && inputMode == GrabInputMode.Mouse,
+      enabled = _interactionEnabled && _desiredMode == GrabInputMode.Mouse,
       mouseCamera = mouseCamera,
       fallbackWorldCamera = context.FallbackWorldCamera,
       grabbableLayerMask = context.GrabbableLayerMask,
@@ -520,6 +641,7 @@ public sealed class GrabInputController : MonoBehaviour
       dragPlaneY = context.DragPlaneY,
       xRotationDegrees = context.XRotationDegrees,
       yRotationDegrees = context.YRotationDegrees,
+      zRotationDegrees = context.ZRotationDegrees,
     };
   }
 
@@ -527,7 +649,7 @@ public sealed class GrabInputController : MonoBehaviour
   {
     return new VrGrabController.Config
     {
-      enabled = _interactionEnabled && inputMode != GrabInputMode.Mouse,
+      enabled = _interactionEnabled && _desiredMode != GrabInputMode.Mouse,
       triggerMode = vrTriggerMode,
       rotationMode = vrRotationMode,
       positionMappingMode = vrPositionMappingMode,
@@ -537,6 +659,7 @@ public sealed class GrabInputController : MonoBehaviour
       rayDistance = vrRayDistance,
       xRotationDegrees = context.XRotationDegrees,
       yRotationDegrees = context.YRotationDegrees,
+      zRotationDegrees = context.ZRotationDegrees,
     };
   }
 
@@ -598,6 +721,7 @@ public sealed class GrabInputController : MonoBehaviour
     _openVrPoseSource?.ResetState();
     _injectedPoseSource?.ResetState();
     SetControllerVisualVisible(false);
+    HideRotationAxisIndicator();
     _hasPreviousTrackingPosition = false;
     if (_hasGrabInputContext)
     {
